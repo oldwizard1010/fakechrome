@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_ASH_LOGIN_QUICK_UNLOCK_FINGERPRINT_STORAGE_H_
 #define CHROME_BROWSER_ASH_LOGIN_QUICK_UNLOCK_FINGERPRINT_STORAGE_H_
 
-#include "base/macros.h"
 #include "chromeos/components/feature_usage/feature_usage_metrics.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "services/device/public/mojom/fingerprint.mojom.h"
@@ -49,6 +48,7 @@ class FingerprintStorage final
 
   // feature_usage::FeatureUsageMetrics::Delegate:
   bool IsEligible() const override;
+  absl::optional<bool> IsAccessible() const override;
   bool IsEnabled() const override;
 
   // Called after a fingerprint unlock attempt to record the result.

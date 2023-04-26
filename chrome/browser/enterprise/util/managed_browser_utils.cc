@@ -116,24 +116,14 @@ bool CertMatchesSelectionFilters(
 
 }  // namespace
 
-bool HasBrowserPoliciesApplied(Profile* profile) {
+bool IsBrowserManaged(Profile* profile) {
   DCHECK(profile);
   DCHECK(profile->GetProfilePolicyConnector());
 
-  // Temporarily, skip verification from the profile connector if profile is
-  // null while crbug/1253568 is under investigation. The reason to keep both
-  // the DCHECK and the condition is to avoid bad user experiences in the field
-  // until a proper solution is identified. Same for the profile connector.
-  //
-  // TODO(http://crbug.com/1253568): consider that profile should never null at
-  //                                 this point, so remove the conditions on
-  //                                 `profile` and `profile_connector` below.
-  if (profile) {
-    // This profile may have policies configured.
-    auto* profile_connector = profile->GetProfilePolicyConnector();
-    if (profile_connector && profile_connector->IsManaged())
-      return true;
-  }
+  // This profile may have policies configured.
+  auto* profile_connector = profile->GetProfilePolicyConnector();
+  if (profile_connector && profile_connector->IsManaged())
+    return true;
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   // This session's primary user may also have policies, and those policies may
@@ -247,10 +237,10 @@ std::string GetAccountManagerName(Profile* profile) {
 }
 
 // static
-jboolean JNI_ManagedBrowserUtils_HasBrowserPoliciesApplied(
+jboolean JNI_ManagedBrowserUtils_IsBrowserManaged(
     JNIEnv* env,
     const base::android::JavaParamRef<jobject>& profile) {
-  return HasBrowserPoliciesApplied(ProfileAndroid::FromProfileAndroid(profile));
+  return IsBrowserManaged(ProfileAndroid::FromProfileAndroid(profile));
 }
 
 // static

@@ -29,6 +29,7 @@
 <translation id="1743802530341753419">Saytlar cihaza qoşulmadan öncə icazə tələb edilsin (məsləhətlidir)</translation>
 <translation id="1779089405699405702">Təsvir dekodlaşdırıcısı</translation>
 <translation id="1818308510395330587"><ph name="APP_NAME" /> tətbiqinə AR-dan istifadə icazəsi vermək üçün <ph name="BEGIN_LINK" />Android Ayarlarında<ph name="END_LINK" /> kameranı da aktiv edin.</translation>
+<translation id="1864927262126810325">Mənbə: <ph name="SOURCE_NAME" /></translation>
 <translation id="1887786770086287077">Bu cihazda məkan girişi də deaktivdir. <ph name="BEGIN_LINK" />Android Ayarlarında<ph name="END_LINK" /> girişi aktiv edin.</translation>
 <translation id="1919345977826869612">Reklamlar</translation>
 <translation id="1919950603503897840">Kontaktları seçin</translation>
@@ -55,6 +56,7 @@
 <translation id="2402980924095424747"><ph name="MEGABYTES" /> MB</translation>
 <translation id="2404630663942400771">{PERMISSIONS_SUMMARY_ALLOWED,plural, =1{<ph name="PERMISSION_1" />, <ph name="PERMISSION_2" /> və daha <ph name="NUM_MORE" /> üçün icazə verilib}other{<ph name="PERMISSION_1" />, <ph name="PERMISSION_2" /> və daha <ph name="NUM_MORE" /> üçün icazə verilib}}</translation>
 <translation id="2434158240863470628">Endirmə tamamlandı <ph name="SEPARATOR" /> <ph name="BYTES_DOWNLOADED" /></translation>
+<translation id="2442870161001914531">Həmişə masaüstü saytını tələb edin</translation>
 <translation id="2482878487686419369">Bildirişlər</translation>
 <translation id="2485422356828889247">Sistemdən silin</translation>
 <translation id="2490684707762498678"><ph name="APP_NAME" /> tərəfindən idarə edilir</translation>
@@ -200,7 +202,6 @@
 <translation id="6196640612572343990">Üçüncü tərəf kukiləri blok edin</translation>
 <translation id="6216432067784365534"><ph name="NAME_OF_LIST_ITEM" /> Seçimləri</translation>
 <translation id="6231752747840485235">"<ph name="APP_NAME" />" sistemdən silinsin?</translation>
-<translation id="6233545266937675277">Saytların masaüstü görünüşünü tələb edin</translation>
 <translation id="6262279340360821358"><ph name="PERMISSION_1" /> və <ph name="PERMISSION_2" /> bloklanıb</translation>
 <translation id="6270391203985052864">Saytlar bildiriş göndərilməsini tələb edə bilər</translation>
 <translation id="6295158916970320988">Bütün saytlar</translation>
@@ -236,6 +237,7 @@
 <translation id="7016516562562142042">Cari axtarış sistemi üçün icazə verildi</translation>
 <translation id="7053983685419859001">Bloklayın</translation>
 <translation id="7066151586745993502">{NUM_SELECTED,plural, =1{1 element seçildi}other{# element seçildi}}</translation>
+<translation id="7070090581017165256">Bu sayt haqqında</translation>
 <translation id="7087918508125750058"><ph name="ITEM_COUNT" /> seçildi. Seçimlər ekranın yuxarısında əlçatandır</translation>
 <translation id="7141896414559753902">Saytların popapları və yönləndirmələri göstərməyini blok edin (tövsiyə olunur)</translation>
 <translation id="7176368934862295254"><ph name="KILOBYTES" /> KB</translation>
@@ -284,7 +286,6 @@
 <translation id="8211406090763984747">Bağlantı təhlükəsizdir</translation>
 <translation id="8249310407154411074">Ən yuxarı</translation>
 <translation id="8261506727792406068">Silin</translation>
-<translation id="8267092878336850213">Saytların mobil görünüşünü tələb edin</translation>
 <translation id="8300705686683892304">Tədbiq tərəfindən idarə edilən</translation>
 <translation id="8324158725704657629">Daha soruşma</translation>
 <translation id="8372893542064058268">Xüsusi sayt üçün Arxa fon Sinxronizasiyasına icazə verin.</translation>
@@ -298,6 +299,7 @@
 <translation id="8447861592752582886">Cihaz icazəsini ləğv edin</translation>
 <translation id="8451050538944905715">{NUM_SELECTED,plural, =1{1 kuki istifadə olunur}other{# kuki istifadə olunur}}</translation>
 <translation id="8487700953926739672">Oflayn olaraq əlçatan</translation>
+<translation id="848952951823693243">Həmişə mobil sayt tələb edin</translation>
 <translation id="851751545965956758">Saytların cihazlara qoşulmasını blok edin</translation>
 <translation id="8525306231823319788">Tam ekran</translation>
 <translation id="857943718398505171">İcazə verilib (tövsiyə olunur)</translation>

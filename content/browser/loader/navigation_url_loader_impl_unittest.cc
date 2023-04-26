@@ -41,6 +41,7 @@
 #include "ppapi/buildflags/buildflags.h"
 #include "services/network/public/cpp/cors/origin_access_list.h"
 #include "services/network/public/cpp/features.h"
+#include "services/network/public/mojom/fetch_api.mojom.h"
 #include "services/network/resource_scheduler/resource_scheduler_client.h"
 #include "services/network/url_loader.h"
 #include "services/network/url_request_context_owner.h"
@@ -102,7 +103,8 @@ class TestNavigationLoaderInterceptor : public NavigationLoaderInterceptor {
         base::BindOnce(&TestNavigationLoaderInterceptor::DeleteURLLoader,
                        base::Unretained(this)),
         std::move(receiver), 0 /* options */, resource_request,
-        std::move(client), TRAFFIC_ANNOTATION_FOR_TESTS, &params,
+        std::move(client), nullptr /* sync_url_loader_client */,
+        TRAFFIC_ANNOTATION_FOR_TESTS, &params,
         /*coep_reporter=*/nullptr, 0, /* request_id */
         0 /* keepalive_request_size */,
         false /* require_network_isolation_key */, resource_scheduler_client_,
@@ -185,7 +187,6 @@ class NavigationURLLoaderImplTest : public testing::Test {
             absl::nullopt /* initiator_frame_token */, headers,
             net::LOAD_NORMAL, false /* skip_service_worker */,
             blink::mojom::RequestContextType::LOCATION,
-            network::mojom::RequestDestination::kDocument,
             blink::mojom::MixedContentContextType::kBlockable,
             false /* is_form_submission */,
             false /* was_initiated_by_link_click */,
@@ -203,6 +204,8 @@ class NavigationURLLoaderImplTest : public testing::Test {
     common_params->initiator_origin = url::Origin::Create(url);
     common_params->method = method;
     common_params->download_policy = download_policy;
+    common_params->request_destination =
+        network::mojom::RequestDestination::kDocument;
     url::Origin origin = url::Origin::Create(url);
 
     std::unique_ptr<NavigationRequestInfo> request_info(
@@ -232,7 +235,7 @@ class NavigationURLLoaderImplTest : public testing::Test {
     return std::make_unique<NavigationURLLoaderImpl>(
         browser_context_.get(), browser_context_->GetDefaultStoragePartition(),
         std::move(request_info), nullptr /* navigation_ui_data */,
-        nullptr /* service_worker_handle */, nullptr /* appcache_handle */,
+        nullptr /* service_worker_handle */,
         nullptr /* prefetched_signed_exchange_cache */, delegate,
         mojo::NullRemote() /* cookie_access_obsever */,
         mojo::NullRemote() /* url_loader_network_observer */,

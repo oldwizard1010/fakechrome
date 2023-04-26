@@ -15,12 +15,14 @@
 #include "base/memory/singleton.h"
 #include "base/path_service.h"
 #include "base/strings/strcat.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/task/bind_post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/sequence_bound.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/policy/messaging_layer/upload/upload_provider.h"
+#include "chrome/browser/policy/messaging_layer/util/dm_token_retriever_provider.h"
 #include "chrome/browser/policy/messaging_layer/util/get_cloud_policy_client.h"
 #include "chrome/common/chrome_paths.h"
 #include "components/policy/core/common/cloud/cloud_policy_client_registration_helper.h"
@@ -28,11 +30,12 @@
 #include "components/policy/core/common/cloud/device_management_service.h"
 #include "components/policy/core/common/cloud/machine_level_user_cloud_policy_manager.h"
 #include "components/policy/core/common/cloud/user_cloud_policy_manager.h"
+#include "components/reporting/client/dm_token_retriever.h"
 #include "components/reporting/client/report_queue_configuration.h"
 #include "components/reporting/client/report_queue_impl.h"
 #include "components/reporting/encryption/encryption_module.h"
 #include "components/reporting/encryption/verification.h"
-#include "components/reporting/proto/record.pb.h"
+#include "components/reporting/proto/synced/record.pb.h"
 #include "components/reporting/storage/storage_configuration.h"
 #include "components/reporting/storage/storage_module.h"
 #include "components/reporting/storage/storage_module_interface.h"
@@ -90,7 +93,7 @@ class ReportingClient::Uploader : public UploaderInterface {
     helper_.AsyncCall(&Helper::ProcessRecord)
         .WithArgs(std::move(data), std::move(processed_cb));
   }
-  void ProcessGap(SequencingInformation start,
+  void ProcessGap(SequenceInformation start,
                   uint64_t count,
                   base::OnceCallback<void(bool)> processed_cb) override {
     helper_.AsyncCall(&Helper::ProcessGap)
@@ -110,7 +113,7 @@ class ReportingClient::Uploader : public UploaderInterface {
     Helper& operator=(const Helper& other) = delete;
     void ProcessRecord(EncryptedRecord data,
                        base::OnceCallback<void(bool)> processed_cb);
-    void ProcessGap(SequencingInformation start,
+    void ProcessGap(SequenceInformation start,
                     uint64_t count,
                     base::OnceCallback<void(bool)> processed_cb);
     void Completed(Status final_status);
@@ -150,7 +153,7 @@ void ReportingClient::Uploader::Helper::ProcessRecord(
 }
 
 void ReportingClient::Uploader::Helper::ProcessGap(
-    SequencingInformation start,
+    SequenceInformation start,
     uint64_t count,
     base::OnceCallback<void(bool)> processed_cb) {
   if (completed_) {
@@ -159,7 +162,7 @@ void ReportingClient::Uploader::Helper::ProcessGap(
   }
   for (uint64_t i = 0; i < count; ++i) {
     encrypted_records_->emplace_back();
-    *encrypted_records_->rbegin()->mutable_sequencing_information() = start;
+    *encrypted_records_->rbegin()->mutable_sequence_information() = start;
     start.set_sequencing_id(start.sequencing_id() + 1);
   }
   std::move(processed_cb).Run(true);
@@ -236,6 +239,63 @@ ReportQueueProvider* ReportQueueProvider::GetInstance() {
   return ReportingClient::GetInstance();
 }
 
+void ReportingClient::ConfigureReportQueue(
+    std::unique_ptr<ReportQueueConfiguration> configuration,
+    ReportQueueProvider::ReportQueueConfiguredCallback completion_cb) {
+  // If DM token has already been set (only likely for testing purposes or until
+  // pre-existing events are migrated over to use event types instead), we do
+  // nothing and trigger completion callback with report queue config.
+  if (!configuration->dm_token().empty()) {
+    std::move(completion_cb).Run(std::move(configuration));
+    return;
+  }
+
+  auto dm_token_retriever_provider =
+      std::make_unique<DMTokenRetrieverProvider>();
+  auto dm_token_retriever =
+      std::move(dm_token_retriever_provider)
+          ->GetDMTokenRetrieverForEventType(configuration->event_type());
+
+  // Trigger completion callback with an internal error if no DM token retriever
+  // found
+  if (!dm_token_retriever) {
+    std::move(completion_cb)
+        .Run(Status(error::INTERNAL,
+                    base::StrCat({"No DM token retriever found for event type=",
+                                  base::NumberToString(static_cast<int>(
+                                      configuration->event_type()))})));
+    return;
+  }
+
+  std::move(dm_token_retriever)
+      ->RetrieveDMToken(base::BindOnce(
+          [](std::unique_ptr<ReportQueueConfiguration> configuration,
+             ReportQueueProvider::ReportQueueConfiguredCallback completion_cb,
+             StatusOr<std::string> dm_token_result) {
+            // Trigger completion callback with error if there was an error
+            // retrieving DM token.
+            if (!dm_token_result.ok()) {
+              std::move(completion_cb).Run(dm_token_result.status());
+              return;
+            }
+
+            // Set DM token in config and trigger completion callback with the
+            // corresponding result.
+            auto config_result =
+                configuration->SetDMToken(dm_token_result.ValueOrDie());
+
+            // Fail on error
+            if (!config_result.ok()) {
+              std::move(completion_cb).Run(config_result);
+              return;
+            }
+
+            // Success, run completion callback with updated config
+            std::move(completion_cb).Run(std::move(configuration));
+          },
+          std::move(configuration), std::move(completion_cb)));
+}
+
 // static
 void ReportingClient::AsyncStartUploader(
     UploaderInterface::UploadReason reason,
@@ -263,6 +323,11 @@ void ReportingClient::DeliverAsyncStartUploader(
                 DCHECK(!instance->upload_provider_)
                     << "Upload provider already recorded";
                 instance->upload_provider_ = instance->GetDefaultUploadProvider(
+                    base::BindRepeating(&StorageModuleInterface::ReportSuccess,
+                                        instance->storage()),
+                    base::BindRepeating(
+                        &StorageModuleInterface::UpdateEncryptionKey,
+                        instance->storage()),
                     instance->build_cloud_policy_client_cb_);
               } else {
                 std::move(start_uploader_cb)
@@ -271,26 +336,18 @@ void ReportingClient::DeliverAsyncStartUploader(
               }
             }
             auto uploader = Uploader::Create(
-                reason,
+                /*need_encryption_key=*/(
+                    EncryptionModuleInterface::is_enabled() &&
+                    reason == UploaderInterface::UploadReason::KEY_DELIVERY),
                 base::BindOnce(
-                    [](UploadClient::ReportSuccessfulUploadCallback
-                           report_success_upload_cb,
-                       UploadClient::EncryptionKeyAttachedCallback
-                           encryption_key_attached_cb,
-                       EncryptedReportingUploadProvider* upload_provider,
+                    [](EncryptedReportingUploadProvider* upload_provider,
                        bool need_encryption_key,
                        std::unique_ptr<std::vector<EncryptedRecord>> records) {
                       upload_provider->RequestUploadEncryptedRecords(
                           need_encryption_key, std::move(records),
-                          std::move(report_success_upload_cb),
-                          std::move(encryption_key_attached_cb),
                           base::DoNothing());
                       return Status::StatusOK();
                     },
-                    base::BindOnce(&StorageModuleInterface::ReportSuccess,
-                                   instance->storage()),
-                    base::BindOnce(&StorageModuleInterface::UpdateEncryptionKey,
-                                   instance->storage()),
                     base::Unretained(instance->upload_provider_.get())));
             std::move(start_uploader_cb).Run(std::move(uploader));
           },
@@ -299,8 +356,11 @@ void ReportingClient::DeliverAsyncStartUploader(
 
 std::unique_ptr<EncryptedReportingUploadProvider>
 ReportingClient::GetDefaultUploadProvider(
+    UploadClient::ReportSuccessfulUploadCallback report_successful_upload_cb,
+    UploadClient::EncryptionKeyAttachedCallback encryption_key_attached_cb,
     GetCloudPolicyClientCallback build_cloud_policy_client_cb) {
   return std::make_unique<::reporting::EncryptedReportingUploadProvider>(
+      report_successful_upload_cb, encryption_key_attached_cb,
       build_cloud_policy_client_cb);
 }
 

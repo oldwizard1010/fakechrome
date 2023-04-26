@@ -4,6 +4,9 @@
 
 #include "ios/chrome/browser/ui/ui_feature_flags.h"
 
+const base::Feature kCommercePriceTracking{"CommercePriceTracking",
+                                           base::FEATURE_DISABLED_BY_DEFAULT};
+
 const base::Feature kExpandedTabStrip{"ExpandedTabStrip",
                                       base::FEATURE_DISABLED_BY_DEFAULT};
 
@@ -60,6 +63,9 @@ const base::Feature kUseLensToSearchForImage{"UseLensToSearchForImage",
 
 const base::Feature kCredentialProviderExtensionPromo{
     "CredentialProviderExtensionPromo", base::FEATURE_DISABLED_BY_DEFAULT};
+
+const base::Feature kRemoveExcessNTPs{"RemoveExcessNTPs",
+                                      base::FEATURE_DISABLED_BY_DEFAULT};
 
 bool IsContextMenuActionsRefreshEnabled() {
   return base::FeatureList::IsEnabled(kContextMenuActionsRefresh);

@@ -132,9 +132,6 @@ void ScanningHandler::HandleOpenFilesInMediaApp(const base::ListValue* args) {
   if (!IsJavascriptAllowed())
     return;
 
-  if (!base::FeatureList::IsEnabled(chromeos::features::kScanAppMediaLink))
-    return;
-
   CHECK_EQ(1U, args->GetList().size());
   DCHECK(args->GetList()[0].is_list());
   const base::Value::ConstListView& value_list = args->GetList()[0].GetList();
@@ -214,7 +211,6 @@ void ScanningHandler::HandleGetMyFilesPath(const base::ListValue* args) {
 }
 
 void ScanningHandler::HandleSaveScanSettings(const base::ListValue* args) {
-  CHECK(base::FeatureList::IsEnabled(ash::features::kScanAppStickySettings));
   if (!IsJavascriptAllowed())
     return;
 
@@ -224,7 +220,6 @@ void ScanningHandler::HandleSaveScanSettings(const base::ListValue* args) {
 }
 
 void ScanningHandler::HandleGetScanSettings(const base::ListValue* args) {
-  CHECK(base::FeatureList::IsEnabled(ash::features::kScanAppStickySettings));
   if (!IsJavascriptAllowed())
     return;
 

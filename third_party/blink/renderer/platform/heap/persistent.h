@@ -15,6 +15,12 @@
 #include "v8/include/cppgc/persistent.h"
 #include "v8/include/cppgc/source-location.h"
 
+#if BUILDFLAG(RAW_HEAP_SNAPSHOTS)
+#define PERSISTENT_LOCATION_FOR_DEBUGGING blink::PersistentLocation::Current()
+#else  // !BUILDFLAG(RAW_HEAP_SNAPSHOTS)
+#define PERSISTENT_LOCATION_FOR_DEBUGGING blink::PersistentLocation()
+#endif  // !BUILDFLAG(RAW_HEAP_SNAPSHOTS)
+
 namespace blink {
 
 template <typename T>
@@ -34,36 +40,30 @@ using PersistentLocation = cppgc::SourceLocation;
 template <typename T>
 Persistent<T> WrapPersistent(
     T* value,
-    const cppgc::SourceLocation& loc = cppgc::SourceLocation::Current()) {
+    const cppgc::SourceLocation& loc = PERSISTENT_LOCATION_FOR_DEBUGGING) {
   return Persistent<T>(value, loc);
 }
 
 template <typename T>
 WeakPersistent<T> WrapWeakPersistent(
     T* value,
-    const cppgc::SourceLocation& loc = cppgc::SourceLocation::Current()) {
+    const cppgc::SourceLocation& loc = PERSISTENT_LOCATION_FOR_DEBUGGING) {
   return WeakPersistent<T>(value, loc);
 }
 
 template <typename T>
 CrossThreadPersistent<T> WrapCrossThreadPersistent(
     T* value,
-    const cppgc::SourceLocation& loc = cppgc::SourceLocation::Current()) {
+    const cppgc::SourceLocation& loc = PERSISTENT_LOCATION_FOR_DEBUGGING) {
   return CrossThreadPersistent<T>(value, loc);
 }
 
 template <typename T>
 CrossThreadWeakPersistent<T> WrapCrossThreadWeakPersistent(
     T* value,
-    const cppgc::SourceLocation& loc = cppgc::SourceLocation::Current()) {
+    const cppgc::SourceLocation& loc = PERSISTENT_LOCATION_FOR_DEBUGGING) {
   return CrossThreadWeakPersistent<T>(value, loc);
 }
-
-#if BUILDFLAG(RAW_HEAP_SNAPSHOTS)
-#define PERSISTENT_FROM_HERE PersistentLocation::Current()
-#else
-#define PERSISTENT_FROM_HERE PersistentLocation()
-#endif  // BUILDFLAG(RAW_HEAP_SNAPSHOTS)
 
 template <typename U, typename T, typename weakness>
 cppgc::internal::BasicPersistent<U, weakness> DownCast(
@@ -156,8 +156,16 @@ struct HashTraits<blink::Persistent<T>>
     : BasePersistentHashTraits<T, blink::Persistent<T>> {};
 
 template <typename T>
+struct HashTraits<blink::WeakPersistent<T>>
+    : BasePersistentHashTraits<T, blink::WeakPersistent<T>> {};
+
+template <typename T>
 struct HashTraits<blink::CrossThreadPersistent<T>>
     : BasePersistentHashTraits<T, blink::CrossThreadPersistent<T>> {};
+
+template <typename T>
+struct HashTraits<blink::CrossThreadWeakPersistent<T>>
+    : BasePersistentHashTraits<T, blink::CrossThreadWeakPersistent<T>> {};
 
 template <typename T>
 struct DefaultHash<blink::Persistent<T>> {

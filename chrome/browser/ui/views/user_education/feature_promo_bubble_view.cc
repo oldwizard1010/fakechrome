@@ -12,8 +12,9 @@
 #include "base/bind.h"
 #include "base/metrics/user_metrics.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/time/time.h"
 #include "chrome/browser/themes/theme_properties.h"
-#include "chrome/browser/ui/user_education/feature_promo_bubble_params.h"
+#include "chrome/browser/ui/user_education/feature_promo_specification.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/chrome_typography.h"
 #include "chrome/grit/generated_resources.h"
@@ -36,6 +37,7 @@
 #include "ui/gfx/vector_icon_types.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/ink_drop.h"
+#include "ui/views/bubble/bubble_border.h"
 #include "ui/views/bubble/bubble_frame_view.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/button/image_button.h"
@@ -60,13 +62,9 @@
 
 namespace {
 
-// The amount of time the promo should stay onscreen if the user
-// never hovers over it.
-constexpr base::TimeDelta kDelayDefault = base::Seconds(10);
-
-// The amount of time the promo should stay onscreen after the
-// user stops hovering over it.
-constexpr base::TimeDelta kDelayShort = base::Seconds(3);
+// The amount of time the promo should stay onscreen.
+constexpr base::TimeDelta kDefaultTimeoutWithoutButtons = base::Seconds(10);
+constexpr base::TimeDelta kDefaultTimeoutWithButtons = base::Seconds(0);
 
 // Maximum width of the bubble. Longer strings will cause wrapping.
 constexpr int kBubbleMaxWidthDip = 340;
@@ -247,23 +245,17 @@ FeaturePromoBubbleView::FeaturePromoBubbleView(CreateParams params)
       << "A bubble that closes on blur must be initially focused.";
   UseCompactMargins();
 
-  // Bubble will not auto-dismiss if there's buttons.
-  if (params.buttons.empty()) {
-    timeout_no_interaction_ = params.timeout_no_interaction
-                                  ? *params.timeout_no_interaction
-                                  : kDelayDefault;
-    timeout_after_interaction_ = params.timeout_after_interaction
-                                     ? *params.timeout_after_interaction
-                                     : kDelayShort;
+  // Default timeout depends on whether non-close buttons are present.
+  timeout_ = params.timeout.value_or(params.buttons.empty()
+                                         ? kDefaultTimeoutWithoutButtons
+                                         : kDefaultTimeoutWithButtons);
+  if (!timeout_.is_zero())
     timeout_callback_ = std::move(params.timeout_callback);
-  }
 
-  const std::u16string body_text = std::move(params.body_text);
-
-  if (params.screenreader_text)
-    accessible_name_ = std::move(*params.screenreader_text);
-  else
-    accessible_name_ = body_text;
+  accessible_name_ = params.screenreader_text.empty()
+                         ? params.body_text
+                         : params.screenreader_text;
+  screenreader_hint_text_ = params.keyboard_navigation_hint;
 
   // Since we don't have any controls for the user to interact with (we're just
   // an information bubble), override our role to kAlert.
@@ -317,9 +309,10 @@ FeaturePromoBubbleView::FeaturePromoBubbleView(CreateParams params)
   views::ImageView* icon_view = nullptr;
   constexpr int kBodyIconSize = 24;
   if (params.body_icon) {
-    icon_view = bubble_body_container->AddChildView(
+    icon_view = bubble_body_container->AddChildViewAt(
         std::make_unique<views::ImageView>(ui::ImageModel::FromVectorIcon(
-            *params.body_icon, text_color, kBodyIconSize)));
+            *params.body_icon, text_color, kBodyIconSize)),
+        0);
     icon_view->SetAccessibleName(l10n_util::GetStringUTF16(IDS_CHROME_TIP));
   }
 
@@ -340,36 +333,31 @@ FeaturePromoBubbleView::FeaturePromoBubbleView(CreateParams params)
         (top_row_container ? top_row_container : bubble_body_container)
             ->AddChildView(std::make_unique<ClosePromoButton>(
                 close_string_id,
-                base::BindRepeating(
-                    close_bubble_and_run_callback, base::Unretained(this),
-                    params.dismiss_callback.has_value()
-                        ? std::move(params.dismiss_callback.value())
-                        : base::DoNothing())));
+                base::BindRepeating(close_bubble_and_run_callback,
+                                    base::Unretained(this),
+                                    std::move(params.dismiss_callback))));
   }
 
   views::View* const label_parent = text_container ? text_container : this;
-
+  std::vector<views::Label*> labels;
   // Add title label.
-  views::Label* title_label = nullptr;
-  if (params.title_text.has_value()) {
-    title_label = label_parent->AddChildView(std::make_unique<views::Label>(
-        std::move(*params.title_text),
-        ChromeTextContext::CONTEXT_IPH_BUBBLE_TITLE));
-    title_label->SetBackgroundColor(background_color);
-    title_label->SetEnabledColor(text_color);
-    title_label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-    title_label->SetMultiLine(true);
-    title_label->SetElideBehavior(gfx::NO_ELIDE);
+  if (!params.title_text.empty()) {
+    labels.push_back(label_parent->AddChildView(std::make_unique<views::Label>(
+        params.title_text, ChromeTextContext::CONTEXT_IPH_BUBBLE_TITLE)));
   }
 
   // Add body label.
-  auto* const body_label = label_parent->AddChildView(
-      std::make_unique<views::Label>(body_text, CONTEXT_IPH_BUBBLE_BODY));
-  body_label->SetBackgroundColor(background_color);
-  body_label->SetEnabledColor(text_color);
-  body_label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-  body_label->SetMultiLine(true);
-  body_label->SetElideBehavior(gfx::NO_ELIDE);
+  labels.push_back(label_parent->AddChildView(std::make_unique<views::Label>(
+      params.body_text, CONTEXT_IPH_BUBBLE_BODY)));
+
+  // Set common label properties.
+  for (views::Label* label : labels) {
+    label->SetBackgroundColor(background_color);
+    label->SetEnabledColor(text_color);
+    label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+    label->SetMultiLine(true);
+    label->SetElideBehavior(gfx::NO_ELIDE);
+  }
 
   // Add other buttons.
   views::View* button_container = nullptr;
@@ -381,7 +369,7 @@ FeaturePromoBubbleView::FeaturePromoBubbleView(CreateParams params)
               base::BindRepeating(close_bubble_and_run_callback,
                                   base::Unretained(this),
                                   std::move(button_params.callback)),
-              std::move(button_params.text), button_params.has_border));
+              button_params.text, button_params.has_border));
       buttons_.push_back(button);
       button->SetMinSize(gfx::Size(0, 0));
       button->SetCustomPadding(kBubbleButtonPadding);
@@ -448,9 +436,9 @@ FeaturePromoBubbleView::FeaturePromoBubbleView(CreateParams params)
       views::MaximumFlexSizeRule::kPreferred,
       /* adjust_height_for_width = */ true,
       views::MinimumFlexSizeRule::kScaleToMinimum);
-  body_label->SetProperty(views::kFlexBehaviorKey, text_flex);
-  if (title_label)
-    title_label->SetProperty(views::kFlexBehaviorKey, text_flex);
+
+  for (views::Label* label : labels)
+    label->SetProperty(views::kFlexBehaviorKey, text_flex);
 
   if (bubble_body_container) {
     auto& outer_layout =
@@ -506,6 +494,12 @@ FeaturePromoBubbleView::FeaturePromoBubbleView(CreateParams params)
 
   set_close_on_deactivate(!params.persist_on_blur);
 
+  // Want a consistent initial focused view if one is available.
+  if (close_button)
+    SetInitiallyFocusedView(close_button);
+  else if (button_container)
+    SetInitiallyFocusedView(button_container->children()[0]);
+
   set_margins(gfx::Insets());
   set_title_margins(gfx::Insets());
   SetButtons(ui::DIALOG_BUTTON_NONE);
@@ -518,17 +512,16 @@ FeaturePromoBubbleView::FeaturePromoBubbleView(CreateParams params)
   frame_view->SetCornerRadius(
       ChromeLayoutProvider::Get()->GetCornerRadiusMetric(
           views::Emphasis::kHigh));
-  frame_view->SetDisplayVisibleArrow(true);
+  frame_view->SetDisplayVisibleArrow(params.arrow !=
+                                     views::BubbleBorder::Arrow::NONE);
   SizeToContents();
 
-  if (params.focus_on_create)
+  if (params.focus_on_create) {
     widget->Show();
-  else
+  } else {
     widget->ShowInactive();
-
-  // Start auto close timer if a timeout is enabled.
-  if (!timeout_no_interaction_.is_zero())
-    StartAutoCloseTimer(timeout_no_interaction_);
+    MaybeStartAutoCloseTimer();
+  }
 }
 
 FeaturePromoBubbleView::~FeaturePromoBubbleView() = default;
@@ -554,9 +547,11 @@ FeaturePromoBubbleView* FeaturePromoBubbleView::Create(CreateParams params) {
   return new FeaturePromoBubbleView(std::move(params));
 }
 
-void FeaturePromoBubbleView::StartAutoCloseTimer(
-    base::TimeDelta auto_close_duration) {
-  auto_close_timer_.Start(FROM_HERE, auto_close_duration, this,
+void FeaturePromoBubbleView::MaybeStartAutoCloseTimer() {
+  if (timeout_.is_zero())
+    return;
+
+  auto_close_timer_.Start(FROM_HERE, timeout_, this,
                           &FeaturePromoBubbleView::OnTimeout);
 }
 
@@ -576,22 +571,26 @@ bool FeaturePromoBubbleView::OnMousePressed(const ui::MouseEvent& event) {
   return false;
 }
 
-void FeaturePromoBubbleView::OnMouseEntered(const ui::MouseEvent& event) {
-  // While user is hovering the bubble, do not autoclose.
-  auto_close_timer_.Stop();
-}
-
-void FeaturePromoBubbleView::OnMouseExited(const ui::MouseEvent& event) {
-  if (timeout_after_interaction_.is_zero() && timeout_no_interaction_.is_zero())
-    return;
-
-  StartAutoCloseTimer(timeout_after_interaction_.is_zero()
-                          ? timeout_no_interaction_
-                          : timeout_after_interaction_);
-}
-
 std::u16string FeaturePromoBubbleView::GetAccessibleWindowTitle() const {
-  return accessible_name_;
+  std::u16string result = accessible_name_;
+
+  // If there's a keyboard navigation hint, append it after a full stop.
+  if (!screenreader_hint_text_.empty() && activate_count_ <= 1)
+    result += u". " + screenreader_hint_text_;
+
+  return result;
+}
+
+void FeaturePromoBubbleView::OnWidgetActivationChanged(views::Widget* widget,
+                                                       bool active) {
+  if (widget == GetWidget()) {
+    if (active) {
+      ++activate_count_;
+      auto_close_timer_.AbandonAndStop();
+    } else {
+      MaybeStartAutoCloseTimer();
+    }
+  }
 }
 
 gfx::Size FeaturePromoBubbleView::CalculatePreferredSize() const {

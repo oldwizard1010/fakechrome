@@ -83,11 +83,6 @@
 #include "extensions/shell/browser/shell_nacl_browser_delegate.h"
 #endif
 
-#if defined(USE_AURA) && defined(USE_X11)
-#include "ui/base/ui_base_features.h"
-#include "ui/events/devices/x11/touch_factory_x11.h"  // nogncheck
-#endif
-
 using base::CommandLine;
 using content::BrowserContext;
 
@@ -107,23 +102,13 @@ void CrashForTest() {
 }  // namespace
 
 ShellBrowserMainParts::ShellBrowserMainParts(
-    const content::MainFunctionParams& parameters,
+    content::MainFunctionParams parameters,
     ShellBrowserMainDelegate* browser_main_delegate)
     : extension_system_(nullptr),
-      parameters_(parameters),
-      run_message_loop_(true),
-      browser_main_delegate_(browser_main_delegate) {
-}
+      parameters_(std::move(parameters)),
+      browser_main_delegate_(browser_main_delegate) {}
 
-ShellBrowserMainParts::~ShellBrowserMainParts() {
-}
-
-void ShellBrowserMainParts::PreCreateMainMessageLoop() {
-#if defined(USE_AURA) && defined(USE_X11)
-  if (!features::IsUsingOzonePlatform())
-    ui::TouchFactory::SetTouchDeviceListFromCommandLine();
-#endif
-}
+ShellBrowserMainParts::~ShellBrowserMainParts() = default;
 
 void ShellBrowserMainParts::PostCreateMainMessageLoop() {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -256,26 +241,18 @@ int ShellBrowserMainParts::PreMainMessageLoopRun() {
           ::switches::kBrowserCrashTest))
     CrashForTest();
 
-  if (parameters_.ui_task) {
-    // For running browser tests.
-    std::move(*parameters_.ui_task).Run();
-    delete parameters_.ui_task;
-    run_message_loop_ = false;
-  } else {
+  // Skip these steps in integration tests.
+  if (!parameters_.ui_task) {
     browser_main_delegate_->Start(browser_context_.get());
+    desktop_controller_->PreMainMessageLoopRun();
   }
-
-  desktop_controller_->PreMainMessageLoopRun();
 
   return content::RESULT_CODE_NORMAL_EXIT;
 }
 
 void ShellBrowserMainParts::WillRunMainMessageLoop(
     std::unique_ptr<base::RunLoop>& run_loop) {
-  if (run_message_loop_)
-    desktop_controller_->WillRunMainMessageLoop(run_loop);
-  else
-    run_loop.reset();
+  desktop_controller_->WillRunMainMessageLoop(run_loop);
 }
 
 void ShellBrowserMainParts::PostMainMessageLoopRun() {

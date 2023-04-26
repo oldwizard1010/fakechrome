@@ -7,7 +7,6 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/macros.h"
 #include "chrome/common/chrome_render_frame.mojom.h"
 #include "components/optimization_guide/proto/performance_hints_metadata.pb.h"
 #include "content/public/browser/context_menu_params.h"
@@ -26,7 +25,7 @@ class ContextMenuHelper
 
   ~ContextMenuHelper() override;
 
-  void ShowContextMenu(content::RenderFrameHost* render_frame_host,
+  void ShowContextMenu(content::RenderFrameHost& render_frame_host,
                        const content::ContextMenuParams& params);
 
   void OnContextMenuClosed(JNIEnv* env,

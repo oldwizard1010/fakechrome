@@ -22,7 +22,6 @@
 #include "chrome/browser/sharing/shared_clipboard/feature_flags.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/video_tutorials/switches.h"
-#include "chrome/browser/webapps/android/features.h"
 #include "chrome/common/chrome_features.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_payments_features.h"
@@ -124,10 +123,10 @@ const base::Feature* const kFeaturesExposedToJava[] = {
     &shared_highlighting::kSharedHighlightingV2,
     &shared_highlighting::kSharedHighlightingAmp,
     &features::kElasticOverscroll,
+    &features::kElidePrioritizationOfPreNativeBootstrapTasks,
     &features::kElideTabPreloadAtStartup,
     &features::kGiveJavaUiThreadDefaultTaskTraitsUserBlockingPriority,
     &features::kPrivacyReview,
-    &features::kPrioritizeBootstrapTasks,
     &features::kPushMessagingDisallowSenderIDs,
     &features::kPwaUpdateDialogForNameAndIcon,
     &features::kQuietNotificationPrompts,
@@ -143,6 +142,7 @@ const base::Feature* const kFeaturesExposedToJava[] = {
     &feature_engagement::kIPHNewTabPageHomeButtonFeature,
     &feature_engagement::kIPHSnooze,
     &feature_engagement::kIPHTabSwitcherButtonFeature,
+    &feature_engagement::kUseClientConfigIPH,
     &feed::kFeedBackToTop,
     &feed::kFeedClearImageMemoryCache,
     &feed::kFeedImageMemoryCacheSizePercentage,
@@ -207,7 +207,9 @@ const base::Feature* const kFeaturesExposedToJava[] = {
     &kContextMenuShopWithGoogleLens,
     &kContextMenuSearchAndShopWithGoogleLens,
     &kContextMenuTranslateWithGoogleLens,
+    &kContextMenuPopupStyle,
     &kContextualSearchDebug,
+    &kContextualSearchDelayedIntelligence,
     &kContextualSearchForceCaption,
     &kContextualSearchLegacyHttpPolicy,
     &kContextualSearchLiteralSearchTap,
@@ -324,7 +326,6 @@ const base::Feature* const kFeaturesExposedToJava[] = {
     &offline_pages::kOfflinePagesLivePageSharingFeature,
     &offline_pages::kPrefetchingOfflinePagesFeature,
     &omnibox::kAdaptiveSuggestionsCount,
-    &omnibox::kClipboardSuggestionContentHidden,
     &omnibox::kMostVisitedTiles,
     &omnibox::kOmniboxAssistantVoiceSearch,
     &omnibox::kOmniboxSpareRenderer,
@@ -333,8 +334,10 @@ const base::Feature* const kFeaturesExposedToJava[] = {
     &page_info::kPageInfoAboutThisSite,
     &password_manager::features::kBiometricTouchToFill,
     &password_manager::features::kEditPasswordsInSettings,
+    &password_manager::features::kLeakDetectionUnauthenticated,
     &password_manager::features::kPasswordScriptsFetching,
     &password_manager::features::kRecoverFromNeverSaveAndroid,
+    &password_manager::features::kUnifiedPasswordManagerAndroid,
     &performance_hints::features::kContextMenuPerformanceInfo,
     &permissions::features::kRevertDSEAutomaticPermissions,
     &policy::features::kChromeManagementPageAndroid,
@@ -349,17 +352,16 @@ const base::Feature* const kFeaturesExposedToJava[] = {
     &send_tab_to_self::kSendTabToSelfV2,
     &send_tab_to_self::kSendTabToSelfManageDevicesLink,
     &send_tab_to_self::kSendTabToSelfWhenSignedIn,
+    &share::kSwapAndroidShareHubRows,
     &share::kUpcomingSharingFeatures,
     &signin::kMobileIdentityConsistencyPromos,
     &switches::kForceStartupSigninPromo,
-    &switches::kDecoupleSyncFromAndroidMasterSync,
     &switches::kForceDisableExtendedSyncPromos,
     &switches::kSyncTrustedVaultPassphraseRecovery,
     &switches::kSyncUseSessionsUnregisterDelay,
     &subresource_filter::kSafeBrowsingSubresourceFilter,
     &video_tutorials::features::kVideoTutorials,
     &webapps::features::kInstallableAmbientBadgeInfoBar,
-    &webapps::features::kPwaInstallUseBottomSheet,
 };
 
 const base::Feature* FindFeatureExposedToJava(const std::string& feature_name) {
@@ -508,6 +510,9 @@ const base::Feature kContextMenuEnableLensShoppingAllowlist{
 const base::Feature kContextMenuGoogleLensChip{
     "ContextMenuGoogleLensChip", base::FEATURE_DISABLED_BY_DEFAULT};
 
+const base::Feature kContextMenuPopupStyle{"ContextMenuPopupStyle",
+                                           base::FEATURE_DISABLED_BY_DEFAULT};
+
 const base::Feature kContextMenuSearchWithGoogleLens{
     "ContextMenuSearchWithGoogleLens", base::FEATURE_ENABLED_BY_DEFAULT};
 
@@ -522,13 +527,16 @@ const base::Feature kContextMenuTranslateWithGoogleLens{
     "ContextMenuTranslateWithGoogleLens", base::FEATURE_DISABLED_BY_DEFAULT};
 
 const base::Feature kGoogleLensSdkIntent{"GoogleLensSdkIntent",
-                                         base::FEATURE_DISABLED_BY_DEFAULT};
+                                         base::FEATURE_ENABLED_BY_DEFAULT};
 
 const base::Feature kLensCameraAssistedSearch{
     "LensCameraAssistedSearch", base::FEATURE_DISABLED_BY_DEFAULT};
 
 const base::Feature kContextualSearchDebug{"ContextualSearchDebug",
                                            base::FEATURE_DISABLED_BY_DEFAULT};
+
+const base::Feature kContextualSearchDelayedIntelligence{
+    "ContextualSearchDelayedIntelligence", base::FEATURE_DISABLED_BY_DEFAULT};
 
 const base::Feature kContextualSearchForceCaption{
     "ContextualSearchForceCaption", base::FEATURE_DISABLED_BY_DEFAULT};
@@ -813,7 +821,7 @@ const base::Feature kWebOtpCrossDeviceSimpleString{
     "WebOtpCrossDeviceSimpleString", base::FEATURE_DISABLED_BY_DEFAULT};
 
 const base::Feature kWebApkInstallCompleteNotification{
-    "WebApkInstallCompleteNotification", base::FEATURE_DISABLED_BY_DEFAULT};
+    "WebApkInstallCompleteNotification", base::FEATURE_ENABLED_BY_DEFAULT};
 
 const base::Feature kWebApkTrampolineOnInitialIntent{
     "WebApkTrampolineOnInitialIntent", base::FEATURE_ENABLED_BY_DEFAULT};

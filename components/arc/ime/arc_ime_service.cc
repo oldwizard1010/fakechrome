@@ -9,6 +9,7 @@
 #include "ash/keyboard/ui/keyboard_ui_controller.h"
 #include "ash/public/cpp/app_types_util.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/singleton.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/string_util.h"
@@ -389,7 +390,7 @@ void ArcImeService::OnCursorRectChangedWithSurroundingText(
 void ArcImeService::SendKeyEvent(std::unique_ptr<ui::KeyEvent> key_event,
                                  KeyEventDoneCallback callback) {
   ui::InputMethod* const input_method = GetInputMethod();
-  receiver_->SetCallback(std::move(callback));
+  receiver_->SetCallback(std::move(callback), key_event.get());
   if (input_method)
     ignore_result(input_method->DispatchKeyEvent(key_event.get()));
 }
@@ -649,8 +650,7 @@ bool ArcImeService::AddGrammarFragments(
 }
 
 void ArcImeService::OnDispatchingKeyEventPostIME(ui::KeyEvent* event) {
-  if (receiver_->HasCallback()) {
-    receiver_->DispatchKeyEventPostIME(event);
+  if (receiver_->HasCallback() && receiver_->DispatchKeyEventPostIME(event)) {
     event->SetHandled();
     return;
   }

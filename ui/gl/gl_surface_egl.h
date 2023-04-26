@@ -20,7 +20,6 @@
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/containers/queue.h"
-#include "base/macros.h"
 #include "base/time/time.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/vsync_provider.h"
@@ -131,7 +130,9 @@ class GL_EXPORT GLSurfaceEGL : public GLSurface {
   static bool IsPixelFormatFloatSupported();
   static bool IsANGLEFeatureControlSupported();
   static bool IsANGLEPowerPreferenceSupported();
+  static bool IsANGLEDisplayPowerPreferenceSupported();
   static bool IsANGLEExternalContextAndSurfaceSupported();
+  static bool IsANGLEContextVirtualizationSupported();
   static bool IsEGLQueryDeviceSupported();
 
  protected:

@@ -9,7 +9,6 @@
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
 #include "base/guid.h"
-#include "base/macros.h"
 #include "base/path_service.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -240,8 +239,8 @@ class AutofillCapturedSitesInteractiveTest
     // elements in a form to determine if the form is ready for interaction.
     feature_list_.InitWithFeatures(
         /*enabled_features=*/{features::kAutofillAcrossIframes,
+                              features::kAutofillDisplaceRemovedForms,
                               features::kAutofillShowTypePredictions,
-                              features::kAutofillUseNewFormExtraction,
                               features::kAutofillUseUnassociatedListedElements},
         /*disabled_features=*/{});
     command_line->AppendSwitchASCII(

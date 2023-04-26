@@ -297,13 +297,20 @@ class CONTENT_EXPORT RenderFrameHost : public IPC::Listener,
   virtual RenderFrameHost* GetOutermostMainFrame() = 0;
 
   // Fenced frames (meta-bug https://crbug.com/1111084):
-  // Returns true if this document is the root of a fenced frame tree.
+  // Returns true if this document is the root of a fenced frame tree. This
+  // supports both Shadow DOM and MPArch implementations.
   //
   // In particular, this always returns false for frames loaded inside a
   // <fencedframe> element, if the frame is not the top-level <fencedframe>
   // itself. That is, this will return false for all <iframes> nested under a
   // <fencedframe>.
   virtual bool IsFencedFrameRoot() = 0;
+
+  // Fenced frames (meta-bug https://crbug.com/1111084):
+  // Returns true if `this` was loaded in a <fencedframe> element directly or if
+  // one of `this` ancestors was loaded in a <fencedframe> element. This
+  // supports both Shadow DOM and MPArch implementations.
+  virtual bool IsNestedWithinFencedFrame() = 0;
 
   // |ForEachRenderFrameHost| traverses this RenderFrameHost and all of its
   // descendants, including frames in any inner frame trees, in breadth-first
@@ -872,9 +879,6 @@ class CONTENT_EXPORT RenderFrameHost : public IPC::Listener,
   // (this should be needed relatively rarely).
   virtual void FlushNetworkAndNavigationInterfacesForTesting(
       bool do_nothing_if_no_network_service_connection = false) = 0;
-
-  // Retrieve the back/forward cache CanStoreNow debug string.
-  virtual std::string GetBackForwardCanStoreNowDebugStringForTesting() = 0;
 
   using PrepareForInnerWebContentsAttachCallback =
       base::OnceCallback<void(RenderFrameHost*)>;

@@ -16,6 +16,7 @@
 #include "ash/public/cpp/style/color_provider.h"
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/strings/grit/ash_strings.h"
+#include "ash/style/style_util.h"
 #include "base/bind.h"
 #include "base/strings/string_util.h"
 #include "extensions/common/constants.h"
@@ -88,10 +89,8 @@ ContinueTaskView::ContinueTaskView(AppListViewDelegate* view_delegate,
   views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::ON);
   SetHasInkDropActionOnClick(true);
 
-  auto ripple_attributes = ColorProvider::Get()->GetRippleAttributes();
-  views::InkDrop::Get(this)->SetBaseColor(ripple_attributes.base_color);
-  views::InkDrop::Get(this)->SetVisibleOpacity(
-      ripple_attributes.inkdrop_opacity);
+  StyleUtil::ConfigureInkDropAttributes(
+      this, StyleUtil::kBaseColor | StyleUtil::kInkDropOpacity);
   if (tablet_mode) {
     SetBackground(views::CreateRoundedRectBackground(
         ColorProvider::Get()->GetBaseLayerColor(
@@ -230,11 +229,7 @@ ui::SimpleMenuModel* ContinueTaskView::BuildMenuModel() {
           IDS_ASH_LAUNCHER_CONTINUE_SECTION_CONTEXT_MENU_OPEN),
       ui::ImageModel::FromVectorIcon(kLaunchIcon));
 
-  context_menu_model_->AddItemWithIcon(
-      ContinueTaskCommandId::kRemoveResult,
-      l10n_util::GetStringUTF16(
-          IDS_ASH_LAUNCHER_CONTINUE_SECTION_CONTEXT_MENU_REMOVE),
-      ui::ImageModel::FromVectorIcon(kRemoveOutlineIcon));
+  // TODO(crbug.com/1264530): Add context menu option for removing a suggestion.
 
   return context_menu_model_.get();
 }

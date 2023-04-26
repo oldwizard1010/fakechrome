@@ -26,6 +26,7 @@
 #include "content/browser/renderer_host/render_frame_host_delegate.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
 #include "content/browser/renderer_host/render_view_host_impl.h"
+#include "content/browser/site_info.h"
 #include "content/browser/site_instance_impl.h"
 #include "content/browser/web_package/prefetched_signed_exchange_cache.h"
 #include "content/browser/web_package/web_bundle_handle_tracker.h"
@@ -481,8 +482,7 @@ void Navigator::DidNavigate(
   // node to consider itself no longer on the initial empty document. Record
   // whether we're leaving the initial empty document before that.
   bool was_on_initial_empty_document =
-      frame_tree_node
-          ->is_on_initial_empty_document_or_subsequent_empty_documents();
+      frame_tree_node->is_on_initial_empty_document();
 
   render_frame_host->DidNavigate(params, navigation_request.get(),
                                  was_within_same_document);

@@ -10,7 +10,6 @@
 #include <string>
 #include <vector>
 
-#include "base/macros.h"
 #include "base/time/time.h"
 #include "chrome/browser/web_applications/web_app_id.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -108,6 +107,7 @@ class BadgeManager : public KeyedService, public blink::mojom::BadgeService {
   void ClearBadgeForTesting(const web_app::AppId& app_id,
                             ukm::UkmRecorder* test_recorder);
   const base::Clock* SetClockForTesting(const base::Clock* clock);
+  void SetSyncBridgeForTesting(web_app::WebAppSyncBridge* sync_bridge);
 
  protected:
   // Protected for tests.

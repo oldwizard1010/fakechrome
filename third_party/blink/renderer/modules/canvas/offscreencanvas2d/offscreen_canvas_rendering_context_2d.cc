@@ -230,6 +230,10 @@ CanvasRenderingContextHost*
 OffscreenCanvasRenderingContext2D::GetCanvasRenderingContextHost() {
   return Host();
 }
+ExecutionContext* OffscreenCanvasRenderingContext2D::GetTopExecutionContext()
+    const {
+  return Host()->GetTopExecutionContext();
+}
 
 ImageBitmap* OffscreenCanvasRenderingContext2D::TransferToImageBitmap(
     ScriptState* script_state) {
@@ -808,6 +812,12 @@ void OffscreenCanvasRenderingContext2D::TryRestoreContextEvent(
   try_restore_context_event_timer_.Stop();
   if (GetOrCreatePaintCanvas())
     DispatchContextRestoredEvent(nullptr);
+}
+
+void OffscreenCanvasRenderingContext2D::FlushCanvas() {
+  if (GetCanvasResourceProvider()) {
+    GetCanvasResourceProvider()->FlushCanvas();
+  }
 }
 
 }  // namespace blink

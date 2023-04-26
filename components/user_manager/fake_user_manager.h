@@ -9,7 +9,6 @@
 #include <set>
 #include <string>
 
-#include "base/macros.h"
 #include "components/account_id/account_id.h"
 #include "components/user_manager/user.h"
 #include "components/user_manager/user_manager_base.h"
@@ -32,6 +31,7 @@ class USER_MANAGER_EXPORT FakeUserManager : public UserManagerBase {
   const User* AddUser(const AccountId& account_id);
   const User* AddChildUser(const AccountId& account_id);
   const User* AddGuestUser(const AccountId& account_id);
+  const User* AddKioskAppUser(const AccountId& account_id);
 
   // The same as AddUser() but allows to specify user affiliation with the
   // domain, that owns the device.

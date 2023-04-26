@@ -51,7 +51,7 @@ class RateLimitTableTest : public testing::Test {
             .SetImpressionId(impression_id)
             .SetSourceType(source_type)
             .Build(),
-        /*conversion_data=*/0,
+        /*trigger_data=*/0,
         /*conversion_time=*/clock()->Now(),
         /*report_time=*/clock()->Now(),
         /*priority=*/0,
@@ -535,7 +535,7 @@ TEST_F(RateLimitTableTest, AddRateLimit_DeletesExpiredRateLimits) {
               ElementsAre("https://g.example", "https://i.example"));
 }
 
-TEST_F(RateLimitTableTest, ClearDataForImpressionIds) {
+TEST_F(RateLimitTableTest, ClearDataForSourceIds) {
   sql::Database db;
   EXPECT_TRUE(db.Open(db_path()));
   EXPECT_TRUE(table()->CreateTable(&db));
@@ -568,7 +568,7 @@ TEST_F(RateLimitTableTest, ClearDataForImpressionIds) {
             table()->AttributionAllowed(
                 &db, NewConversionReport(example_c, example_d), now));
 
-  EXPECT_TRUE(table()->ClearDataForImpressionIds(
+  EXPECT_TRUE(table()->ClearDataForSourceIds(
       &db, {StorableSource::Id(1), StorableSource::Id(4)}));
   EXPECT_EQ(2u, GetRateLimitRows(&db));
   EXPECT_EQ(AttributionAllowedStatus::kAllowed,

@@ -14,7 +14,6 @@
 #include "base/containers/id_map.h"
 #include "base/files/file_path.h"
 #include "base/lazy_instance.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/numerics/safe_conversions.h"
@@ -1110,15 +1109,6 @@ void PrintPreviewUI::SetSelectedFileForTesting(const base::FilePath& path) {
 
 void PrintPreviewUI::SetPdfSavedClosureForTesting(base::OnceClosure closure) {
   handler_->SetPdfSavedClosureForTesting(std::move(closure));
-}
-
-void PrintPreviewUI::SendEnableManipulateSettingsForTest() {
-  handler_->SendEnableManipulateSettingsForTest();
-}
-
-void PrintPreviewUI::SendManipulateSettingsForTest(
-    const base::DictionaryValue& settings) {
-  handler_->SendManipulateSettingsForTest(settings);
 }
 
 void PrintPreviewUI::SetPrintPreviewDataForIndexForTest(

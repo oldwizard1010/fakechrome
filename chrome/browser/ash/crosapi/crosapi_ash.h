@@ -23,6 +23,7 @@ class StableVideoDecoderFactoryService;
 
 namespace crosapi {
 
+class AuthenticationAsh;
 class AutomationAsh;
 class BrowserServiceHostAsh;
 class BrowserVersionServiceAsh;
@@ -46,10 +47,12 @@ class ImageWriterAsh;
 class KeystoreServiceAsh;
 class KioskSessionServiceAsh;
 class LocalPrinterAsh;
+class LoginStateAsh;
 class MessageCenterAsh;
 class MetricsReportingAsh;
 class NativeThemeServiceAsh;
 class NetworkingAttributesAsh;
+class PolicyServiceAsh;
 class PowerAsh;
 class PrefsAsh;
 class RemotingAsh;
@@ -86,6 +89,8 @@ class CrosapiAsh : public mojom::Crosapi {
                     base::OnceClosure disconnect_handler);
 
   // crosapi::mojom::Crosapi:
+  void BindAuthentication(
+      mojo::PendingReceiver<mojom::Authentication> receiver) override;
   void BindAutomationDeprecated(
       mojo::PendingReceiver<mojom::Automation> receiver) override;
   void BindAutomationFactory(
@@ -143,6 +148,8 @@ class CrosapiAsh : public mojom::Crosapi {
       mojo::PendingReceiver<mojom::KioskSessionService> receiver) override;
   void BindLocalPrinter(
       mojo::PendingReceiver<mojom::LocalPrinter> receiver) override;
+  void BindLoginState(
+      mojo::PendingReceiver<mojom::LoginState> receiver) override;
   void BindMessageCenter(
       mojo::PendingReceiver<mojom::MessageCenter> receiver) override;
   void BindMetricsReporting(
@@ -151,6 +158,8 @@ class CrosapiAsh : public mojom::Crosapi {
       mojo::PendingReceiver<mojom::NativeThemeService> receiver) override;
   void BindNetworkingAttributes(
       mojo::PendingReceiver<mojom::NetworkingAttributes> receiver) override;
+  void BindPolicyService(
+      mojo::PendingReceiver<mojom::PolicyService> receiver) override;
   void BindPower(mojo::PendingReceiver<mojom::Power> receiver) override;
   void BindPrefs(mojo::PendingReceiver<mojom::Prefs> receiver) override;
   void BindRemoting(mojo::PendingReceiver<mojom::Remoting> receiver) override;
@@ -243,6 +252,8 @@ class CrosapiAsh : public mojom::Crosapi {
     return keystore_service_ash_.get();
   }
 
+  LoginStateAsh* login_state_ash() { return login_state_ash_.get(); }
+
   StructuredMetricsServiceAsh* structured_metrics_service_ash() {
     return structured_metrics_service_ash_.get();
   }
@@ -254,6 +265,7 @@ class CrosapiAsh : public mojom::Crosapi {
   // Called when a connection is lost.
   void OnDisconnected();
 
+  std::unique_ptr<AuthenticationAsh> authentication_ash_;
   std::unique_ptr<AutomationAsh> automation_ash_;
   std::unique_ptr<BrowserServiceHostAsh> browser_service_host_ash_;
   std::unique_ptr<BrowserVersionServiceAsh> browser_version_service_ash_;
@@ -277,11 +289,13 @@ class CrosapiAsh : public mojom::Crosapi {
   std::unique_ptr<KeystoreServiceAsh> keystore_service_ash_;
   std::unique_ptr<KioskSessionServiceAsh> kiosk_session_service_ash_;
   std::unique_ptr<LocalPrinterAsh> local_printer_ash_;
+  std::unique_ptr<LoginStateAsh> login_state_ash_;
   std::unique_ptr<MessageCenterAsh> message_center_ash_;
   std::unique_ptr<MetricsReportingAsh> metrics_reporting_ash_;
   std::unique_ptr<NativeThemeServiceAsh> native_theme_service_ash_;
   std::unique_ptr<NetworkingAttributesAsh> networking_attributes_ash_;
   std::unique_ptr<NetworkSettingsServiceAsh> network_settings_service_ash_;
+  std::unique_ptr<PolicyServiceAsh> policy_service_ash_;
   std::unique_ptr<PowerAsh> power_ash_;
   std::unique_ptr<PrefsAsh> prefs_ash_;
   std::unique_ptr<RemotingAsh> remoting_ash_;

@@ -65,7 +65,7 @@ std::unique_ptr<WebApplicationInfo> TerminalSystemAppDelegate::GetWebAppInfo()
   return CreateWebAppInfoForTerminalSystemWebApp();
 }
 
-bool TerminalSystemAppDelegate::ShouldBeSingleWindow() const {
+bool TerminalSystemAppDelegate::ShouldReuseExistingWindow() const {
   return false;
 }
 bool TerminalSystemAppDelegate::ShouldHaveTabStrip() const {

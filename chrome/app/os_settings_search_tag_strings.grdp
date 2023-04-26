@@ -318,9 +318,6 @@
   <message name="IDS_OS_SETTINGS_TAG_SYNC" desc="Text for search result item which, when clicked, navigates the user to sync settings.">
     Sync
   </message>
-  <message name="IDS_OS_SETTINGS_TAG_LOCK_SCREEN" desc="Text for search result item which, when clicked, navigates the user to security and sign-in settings.">
-    Security and sign-in
-  </message>
   <message name="IDS_OS_SETTINGS_TAG_LOCK_SCREEN_V2" desc="Text for search result item which, when clicked, navigates the user to security and sign-in settings.">
     Lock screen and sign-in
   </message>
@@ -531,6 +528,12 @@
   </message>
   <message name="IDS_OS_SETTINGS_TAG_TOUCHPAD_SPEED" desc="Text for search result item which, when clicked, navigates the user to touchpad settings, with a slider to set speed.">
     Touchpad speed
+  </message>
+  <message name="IDS_OS_SETTINGS_TAG_TOUCHPAD_HAPTIC_FEEDBACK" desc="Text for search result item which, when clicked, navigates the user to touchpad settings, with a toggle to enable/disable haptic feedback.">
+    Touchpad haptic feedback
+  </message>
+  <message name="IDS_OS_SETTINGS_TAG_TOUCHPAD_HAPTIC_CLICK_SENSITIVITY" translateable="false" desc="Text for search result item which, when clicked, navigates the user to touchpad settings, with a slider to adjust the haptic touchpad click sensitivity.">
+    Touchpad haptic click sensitivity
   </message>
   <message name="IDS_OS_SETTINGS_TAG_MOUSE" desc="Text for search result item which, when clicked, navigates the user to mouse settings.">
     Mouse

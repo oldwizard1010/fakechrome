@@ -105,6 +105,9 @@ interface DriveFs {
   // Paths returned are relative to the mount point.
   LocateFilesByItemIds(array<string> item_ids) => (
       array<FilePathOrError>? response);
+
+  // Returns the total and free space available in the user's Drive.
+  GetQuotaUsage() => (FileError error, QuotaUsage quota);
 };
 
 // Implemented by Chrome, used from DriveFS.
@@ -148,9 +151,11 @@ interface DriveFsDelegate {
   // Invoked from time to time to indicate that drivefs is operational.
   OnHeartbeat();
 
+  [Extensible]
   enum ExtensionConnectionStatus {
     kSuccess,
     kExtensionNotFound,
+    kFeatureNotEnabled,
   };
 
   // Initiates connection to the extension specified.
@@ -521,4 +526,10 @@ struct ExtensionConnectionParams {
 union FilePathOrError {
   FileError error;
   mojo_base.mojom.FilePath path;
+};
+
+// Free and total space available in Drive.
+struct QuotaUsage {
+  uint64 free_cloud_bytes;
+  uint64 total_cloud_bytes;
 };

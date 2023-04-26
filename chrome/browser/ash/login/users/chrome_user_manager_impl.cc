@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "ash/components/settings/cros_settings_names.h"
 #include "ash/components/timezone/timezone_resolver.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/constants/ash_switches.h"
@@ -25,6 +26,7 @@
 #include "base/format_macros.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/string_number_conversions.h"
@@ -91,7 +93,6 @@
 #include "chromeos/login/login_state/login_state.h"
 #include "chromeos/network/onc/certificate_scope.h"
 #include "chromeos/network/proxy/proxy_config_service_impl.h"
-#include "chromeos/settings/cros_settings_names.h"
 #include "components/account_id/account_id.h"
 #include "components/arc/arc_util.h"
 #include "components/crash/core/common/crash_key.h"
@@ -584,8 +585,7 @@ void ChromeUserManagerImpl::CacheRemovedUser(
     user_manager::UserRemovalReason reason) {
   // There is only a need to cache removed users if they should be reported.
   bool reporting_enabled = false;
-  chromeos::CrosSettings::Get()->GetBoolean(chromeos::kReportDeviceLoginLogout,
-                                            &reporting_enabled);
+  CrosSettings::Get()->GetBoolean(kReportDeviceLoginLogout, &reporting_enabled);
   if (!reporting_enabled) {
     return;
   }

@@ -25,6 +25,7 @@
 #include "media/base/supported_video_decoder_config.h"
 #include "media/base/video_aspect_ratio.h"
 #include "media/base/video_types.h"
+#include "media/gpu/chromeos/chromeos_status.h"
 #include "media/gpu/chromeos/gpu_buffer_layout.h"
 #include "media/gpu/chromeos/video_decoder_pipeline.h"
 #include "media/gpu/media_gpu_export.h"
@@ -129,8 +130,12 @@ class MEDIA_GPU_EXPORT V4L2VideoDecoder
   // Setup format for output queue. This function sets output format on output
   // queue that is supported by a v4l2 driver, can be allocatable by
   // VideoFramePool and can be composited by chrome. This also updates format
-  // in VideoFramePool. Return true if the setup is successful.
-  bool SetupOutputFormat(const gfx::Size& size, const gfx::Rect& visible_rect);
+  // in VideoFramePool.
+  // Return CroStatus::Codes::kOk if the setup is successful.
+  // Return CroStatus::Codes::kResetRequired if the setup is aborted.
+  // Return CroStatus::Codes::kFailedToChangeResolution if other error occurs.
+  CroStatus SetupOutputFormat(const gfx::Size& size,
+                              const gfx::Rect& visible_rect);
 
   // Start streaming V4L2 input and (if |start_output_queue| is true) output
   // queues. Attempt to start |device_poll_thread_| after streaming starts.
@@ -143,9 +148,13 @@ class MEDIA_GPU_EXPORT V4L2VideoDecoder
 
   // After the pipeline finished flushing frames, reconfigure the resolution
   // setting of V4L2 device and the frame pool.
-  void ContinueChangeResolution(const gfx::Size& pic_size,
-                                const gfx::Rect& visible_rect,
-                                const size_t num_output_frames);
+  // Return CroStatus::Codes::kOk if the process is done successfully.
+  // Return CroStatus::Codes::kResetRequired if the process is aborted by reset.
+  // Return CroStatus::Codes::kFailedToChangeResolution if any error occurs.
+  CroStatus ContinueChangeResolution(const gfx::Size& pic_size,
+                                     const gfx::Rect& visible_rect,
+                                     const size_t num_output_frames);
+  void OnChangeResolutionDone(CroStatus status);
 
   // Change the state and check the state transition is valid.
   void SetState(State new_state);
@@ -200,10 +209,10 @@ class MEDIA_GPU_EXPORT V4L2VideoDecoder
 
   SEQUENCE_CHECKER(decoder_sequence_checker_);
 
-  // |weak_this_| must be dereferenced and invalidated on
+  // |weak_this_for_polling_| must be dereferenced and invalidated on
   // |decoder_task_runner_|.
-  base::WeakPtr<V4L2VideoDecoder> weak_this_;
-  base::WeakPtrFactory<V4L2VideoDecoder> weak_this_factory_;
+  base::WeakPtr<V4L2VideoDecoder> weak_this_for_polling_;
+  base::WeakPtrFactory<V4L2VideoDecoder> weak_this_for_polling_factory_;
 };
 
 }  // namespace media

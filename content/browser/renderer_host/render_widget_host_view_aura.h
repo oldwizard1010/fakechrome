@@ -17,7 +17,6 @@
 #include "base/callback.h"
 #include "base/compiler_specific.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/string_piece.h"
@@ -37,6 +36,7 @@
 #include "content/common/cursors/webcursor.h"
 #include "content/public/browser/context_menu_params.h"
 #include "content/public/browser/visibility.h"
+#include "third_party/blink/public/mojom/widget/record_content_to_visible_time_request.mojom-forward.h"
 #include "third_party/skia/include/core/SkRegion.h"
 #include "ui/aura/client/cursor_client_observer.h"
 #include "ui/aura/client/focus_change_observer.h"
@@ -106,7 +106,6 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
   gfx::NativeViewAccessible GetNativeViewAccessible() override;
   ui::TextInputClient* GetTextInputClient() override;
   bool HasFocus() override;
-  void Show() override;
   void Hide() override;
   bool IsShowing() override;
   void WasUnOccluded() override;
@@ -132,7 +131,7 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
   CursorManager* GetCursorManager() override;
   void SetIsLoading(bool is_loading) override;
   void RenderProcessGone() override;
-  void ShowWithVisibility(Visibility web_contents_visibility) override;
+  void ShowWithVisibility(PageVisibilityState page_visibility) final;
   void Destroy() override;
   void UpdateTooltipUnderCursor(const std::u16string& tooltip_text) override;
   void UpdateTooltip(const std::u16string& tooltip_text) override;
@@ -398,6 +397,13 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
   absl::optional<DisplayFeature> GetDisplayFeature() override;
   void SetDisplayFeatureForTesting(
       const DisplayFeature* display_feature) override;
+  void NotifyHostAndDelegateOnWasShown(
+      blink::mojom::RecordContentToVisibleTimeRequestPtr visible_time_request)
+      final;
+  void RequestPresentationTimeFromHostOrDelegate(
+      blink::mojom::RecordContentToVisibleTimeRequestPtr visible_time_request)
+      final;
+  void CancelPresentationTimeRequestForHostAndDelegate() final;
 
  private:
   friend class DelegatedFrameHostClientAura;
@@ -610,6 +616,9 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
 
   void CancelActiveTouches();
 
+  // Common part of UnOccluded() and Show().
+  void ShowImpl(PageVisibilityState page_visibility);
+
   // Common part of Occluded() and Hide().
   void HideImpl();
 
@@ -744,7 +753,9 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
   // Saved value of WebPreferences' |double_tap_to_zoom_enabled|.
   bool double_tap_to_zoom_enabled_ = false;
 
-  Visibility visibility_ = Visibility::HIDDEN;
+  // Current visibility state. Initialized based on
+  // RenderWidgetHostImpl::is_hidden().
+  Visibility visibility_;
 
   // Represents a feature of the physical display whose offset and mask_length
   // are expressed in DIPs relative to the view. See display_feature.h for more

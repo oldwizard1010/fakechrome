@@ -859,22 +859,34 @@ typedef void (^ViewportStateCompletion)(const web::PageViewportState*);
 
 - (BOOL)setSessionStateData:(NSData*)data {
   if (@available(iOS 15, *)) {
-    NSError* error = nil;
-    NSKeyedUnarchiver* unarchiver =
-        [[NSKeyedUnarchiver alloc] initForReadingFromData:data error:&error];
-    if (!unarchiver || error) {
-      DLOG(WARNING) << "Error creating unarchiver for session state data: "
-                    << base::SysNSStringToUTF8([error description]);
-      return NO;
-    }
-    unarchiver.requiresSecureCoding = NO;
-    id interactionState =
-        [unarchiver decodeObjectForKey:NSKeyedArchiveRootObjectKey];
-    if (!interactionState) {
-      DLOG(WARNING) << "Error decoding interactionState.";
-      return NO;
+    NSData* interactionState = data;
+
+    // Old versions of chrome wrapped interactionState in a keyed unarchiver.
+    // This step was unnecessary. Rather than migrate all blobs over, simply
+    // check for an unarchiver here. NSKeyed data will start with 'bplist00',
+    // which differs from the header of a WebKit session coding (0x00000002).
+    // This logic can be removed after this change has gone live for a while.
+    constexpr char kArchiveHeader[] = "bplist00";
+    if (data.length > strlen(kArchiveHeader) &&
+        memcmp(data.bytes, kArchiveHeader, strlen(kArchiveHeader)) == 0) {
+      NSError* error = nil;
+      NSKeyedUnarchiver* unarchiver =
+          [[NSKeyedUnarchiver alloc] initForReadingFromData:data error:&error];
+      if (!unarchiver || error) {
+        DLOG(WARNING) << "Error creating unarchiver for session state data: "
+                      << base::SysNSStringToUTF8([error description]);
+        return NO;
+      }
+      unarchiver.requiresSecureCoding = NO;
+      interactionState =
+          [unarchiver decodeObjectForKey:NSKeyedArchiveRootObjectKey];
+      if (!interactionState) {
+        DLOG(WARNING) << "Error decoding interactionState.";
+        return NO;
+      }
     }
     [self ensureWebViewCreated];
+    DCHECK_EQ(self.webView.backForwardList.currentItem, nil);
     self.navigationHandler.blockUniversalLinksOnNextDecidePolicy = true;
     [self.webView setInteractionState:interactionState];
     return YES;
@@ -884,11 +896,7 @@ typedef void (^ViewportStateCompletion)(const web::PageViewportState*);
 
 - (NSData*)sessionStateData {
   if (@available(iOS 15, *)) {
-    NSError* error = nil;
-    return [NSKeyedArchiver
-        archivedDataWithRootObject:self.webView.interactionState
-             requiringSecureCoding:NO
-                             error:&error];
+    return self.webView.interactionState;
   }
   return nil;
 }
@@ -1011,7 +1019,7 @@ typedef void (^ViewportStateCompletion)(const web::PageViewportState*);
     // opening a new tab and then writing to it, e.g.
     // window.open('javascript:document.write(1)').  This URL is never commited,
     // so it should be OK to ignore this URL change.
-    if (base::ios::IsRunningOnIOS13OrLater() && oldDocumentURL.IsAboutBlank() &&
+    if (oldDocumentURL.IsAboutBlank() &&
         !self.webStateImpl->GetNavigationManager()->GetLastCommittedItem() &&
         !self.webView.loading) {
       return;
@@ -1811,8 +1819,7 @@ typedef void (^ViewportStateCompletion)(const web::PageViewportState*);
   if (!IsRestoreSessionUrl(_documentURL) && !IsRestoreSessionUrl(newURL)) {
     bool ignore_host_change =
         // On iOS13 document.write() can change URL origin for about:blank page.
-        (_documentURL.IsAboutBlank() && base::ios::IsRunningOnIOS13OrLater() &&
-         !self.webView.loading);
+        (_documentURL.IsAboutBlank() && !self.webView.loading);
     if (!ignore_host_change) {
       DCHECK_EQ(_documentURL.host(), newURL.host());
     }

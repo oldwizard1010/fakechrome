@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "ash/components/account_manager/account_manager_factory.h"
+#include "ash/components/settings/cros_settings_names.h"
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
 #include "base/base_paths.h"
@@ -50,6 +51,7 @@
 #include "chrome/browser/ash/hats/hats_config.h"
 #include "chrome/browser/ash/logging.h"
 #include "chrome/browser/ash/login/auth/chrome_cryptohome_authenticator.h"
+#include "chrome/browser/ash/login/auth/chrome_safe_mode_delegate.h"
 #include "chrome/browser/ash/login/chrome_restart_request.h"
 #include "chrome/browser/ash/login/demo_mode/demo_session.h"
 #include "chrome/browser/ash/login/easy_unlock/easy_unlock_key_manager.h"
@@ -120,12 +122,12 @@
 #include "chromeos/dbus/session_manager/session_manager_client.h"
 #include "chromeos/dbus/tpm_manager/tpm_manager.pb.h"
 #include "chromeos/dbus/tpm_manager/tpm_manager_client.h"
+#include "chromeos/login/auth/auth_session_authenticator.h"
 #include "chromeos/login/auth/challenge_response/known_user_pref_utils.h"
 #include "chromeos/login/auth/stub_authenticator_builder.h"
 #include "chromeos/login/session/session_termination_manager.h"
 #include "chromeos/network/portal_detector/network_portal_detector.h"
 #include "chromeos/network/portal_detector/network_portal_detector_strategy.h"
-#include "chromeos/settings/cros_settings_names.h"
 #include "chromeos/tpm/prepare_tpm.h"
 #include "chromeos/ui/vector_icons/vector_icons.h"
 #include "components/account_id/account_id.h"
@@ -616,6 +618,10 @@ scoped_refptr<Authenticator> UserSessionManager::CreateAuthenticator(
   if (authenticator_.get() == NULL) {
     if (injected_authenticator_builder_) {
       authenticator_ = injected_authenticator_builder_->Create(consumer);
+    } else if (base::FeatureList::IsEnabled(
+                   ash::features::kUseAuthsessionAuthentication)) {
+      authenticator_ = new chromeos::AuthSessionAuthenticator(
+          consumer, std::make_unique<ChromeSafeModeDelegate>());
     } else {
       authenticator_ =
           base::MakeRefCounted<ChromeCryptohomeAuthenticator>(consumer);
@@ -1152,7 +1158,7 @@ void UserSessionManager::CreateUserSession(const UserContext& user_context,
 
 void UserSessionManager::PreStartSession(StartSessionType start_session_type) {
   // Switch log file as soon as possible.
-  logging::RedirectChromeLogging(*base::CommandLine::ForCurrentProcess());
+  RedirectChromeLogging(*base::CommandLine::ForCurrentProcess());
 
   UserSessionInitializer::Get()->PreStartSession(start_session_type ==
                                                  StartSessionType::kPrimary);
@@ -1271,18 +1277,12 @@ void UserSessionManager::PrepareProfile(const base::FilePath& profile_path) {
   TRACE_EVENT_NESTABLE_ASYNC_BEGIN0(kEventCategoryChromeOS,
                                     kEventPrepareProfile, TRACE_ID_LOCAL(this));
 
-  const bool is_demo_session = false;
-
-  // TODO(nkostylev): Figure out whether demo session is using the right profile
-  // path or not. See https://codereview.chromium.org/171423009
   g_browser_process->profile_manager()->CreateProfileAsync(
-      profile_path,
-      base::BindRepeating(&UserSessionManager::OnProfileCreated, AsWeakPtr(),
-                          user_context_, is_demo_session));
+      profile_path, base::BindRepeating(&UserSessionManager::OnProfileCreated,
+                                        AsWeakPtr(), user_context_));
 }
 
 void UserSessionManager::OnProfileCreated(const UserContext& user_context,
-                                          bool is_incognito_profile,
                                           Profile* profile,
                                           Profile::CreateStatus status) {
   switch (status) {
@@ -1296,8 +1296,7 @@ void UserSessionManager::OnProfileCreated(const UserContext& user_context,
       // Profile is created, extensions and promo resources are initialized.
       // At this point all other Chrome OS services will be notified that it is
       // safe to use this profile.
-      UserProfileInitialized(profile, is_incognito_profile,
-                             user_context.GetAccountId());
+      UserProfileInitialized(profile, user_context.GetAccountId());
       break;
     case Profile::CREATE_STATUS_LOCAL_FAIL:
       NOTREACHED();
@@ -1501,30 +1500,12 @@ void UserSessionManager::InitProfilePreferences(
 }
 
 void UserSessionManager::UserProfileInitialized(Profile* profile,
-                                                bool is_incognito_profile,
                                                 const AccountId& account_id) {
   // Only migrate sync prefs for existing users. New users are given the
   // choice to turn on OS sync in OOBE, so they get the default sync pref
   // values.
   if (!IsNewProfile(profile))
     os_sync_util::MigrateOsSyncPreferences(profile->GetPrefs());
-
-  // Demo user signed in.
-  if (is_incognito_profile) {
-    profile->OnLogin();
-
-    // Send the notification before creating the browser so additional objects
-    // that need the profile (e.g. the launcher) can be created first.
-    session_manager::SessionManager::Get()->NotifyUserProfileLoaded(
-        ProfileHelper::Get()->GetUserByProfile(profile)->GetAccountId());
-
-    if (delegate_)
-      delegate_->OnProfilePrepared(profile, false);
-
-    TRACE_EVENT_NESTABLE_ASYNC_END0(kEventCategoryChromeOS,
-                                    kEventPrepareProfile, TRACE_ID_LOCAL(this));
-    return;
-  }
 
   BootTimesRecorder* btl = BootTimesRecorder::Get();
   btl->AddLoginTimeMarker("UserProfileGotten", false);
@@ -2287,7 +2268,7 @@ void UserSessionManager::DoBrowserLaunchInternal(Profile* profile,
     std::move(login_host_finalized_callback).Run();
   }
 
-  chromeos::BootTimesRecorder::Get()->LoginDone(
+  ash::BootTimesRecorder::Get()->LoginDone(
       user_manager::UserManager::Get()->IsCurrentUserNew());
 
   // Check to see if this profile should show EndOfLife Notification and show

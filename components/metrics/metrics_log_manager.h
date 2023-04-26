@@ -9,7 +9,6 @@
 
 #include <memory>
 
-#include "base/macros.h"
 #include "components/metrics/metrics_log.h"
 
 namespace metrics {
@@ -37,6 +36,9 @@ class MetricsLogManager {
   // Closes |current_log_|, compresses it, and stores it in the |log_store| for
   // later, leaving |current_log_| nullptr.
   void FinishCurrentLog(MetricsLogStore* log_store);
+
+  // Closes and discards |current_log|.
+  void DiscardCurrentLog();
 
   // Sets current_log to nullptr, but saves the current log for future use with
   // ResumePausedLog(). Only one log may be paused at a time.

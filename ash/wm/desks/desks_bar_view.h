@@ -10,7 +10,7 @@
 
 #include "ash/ash_export.h"
 #include "ash/wm/desks/desks_controller.h"
-#include "base/macros.h"
+#include "base/callback_list.h"
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/view.h"
 
@@ -32,8 +32,7 @@ class ZeroStateIconButton;
 // A bar that resides at the top portion of the overview mode's ShieldView,
 // which contains the virtual desks mini_views, as well as the new desk button.
 class ASH_EXPORT DesksBarView : public views::View,
-                                public DesksController::Observer,
-                                public views::ScrollView::Observer {
+                                public DesksController::Observer {
  public:
   explicit DesksBarView(OverviewGrid* overview_grid);
 
@@ -150,6 +149,10 @@ class ASH_EXPORT DesksBarView : public views::View,
   // If a desk is in a drag & drop cycle.
   bool IsDraggingDesk() const;
 
+  // Called when the desks templates grid is hidden. Transitions the desks bar
+  // view to zero state if necessary.
+  void OnDesksTemplatesGridHidden();
+
   // views::View:
   const char* GetClassName() const override;
   void Layout() override;
@@ -167,10 +170,6 @@ class ASH_EXPORT DesksBarView : public views::View,
   void OnDeskSwitchAnimationFinished() override;
   void OnDeskNameChanged(const Desk* desk,
                          const std::u16string& new_name) override;
-
-  // views::ScrollView::Observer:
-  void OnContentsScrolled() override;
-  void OnContentsScrollEnded() override;
 
   // This is called on initialization, creating a new desk through the
   // NewDeskButton or ExpandedDesksBarButton, or expanding from zero state
@@ -192,7 +191,12 @@ class ASH_EXPORT DesksBarView : public views::View,
   // after the desk templates grid has been shown. If not in expanded state,
   // updates the background color of the `zero_state_desks_templates_button_`
   // and the `zero_state_default_desk_button_`.
-  void UpdateButtonsAfterShowingDesksTemplatesGrid();
+  void UpdateButtonsForDesksTemplatesGrid();
+
+  // Updates the visibility of the desks templates button based on whether the
+  // desks templates feature is enabled, the user has any desks templates and
+  // the state of the desks bar.
+  void UpdateDesksTemplatesButtonVisibility();
 
   // Returns the mini_view associated with `desk` or nullptr if no mini_view
   // has been created for it yet.
@@ -244,6 +248,13 @@ class ASH_EXPORT DesksBarView : public views::View,
   int GetAdjustedUncroppedScrollPosition(int position) const;
 
   void OnDesksTemplatesButtonPressed();
+
+  // Animates the bar from expanded state to zero state. Clears `mini_views_`.
+  void SwitchToZeroState();
+
+  // Scrollview callbacks.
+  void OnContentsScrolled();
+  void OnContentsScrollEnded();
 
   // A view that shows a dark gary transparent background that can be animated
   // when the very first mini_views are created.
@@ -303,6 +314,10 @@ class ASH_EXPORT DesksBarView : public views::View,
   // persistent desks bar. Note that this button will only be created when
   // BentoBar is enabled.
   PersistentDesksBarVerticalDotsButton* vertical_dots_button_ = nullptr;
+
+  // ScrollView callback subscriptions.
+  base::CallbackListSubscription on_contents_scrolled_subscription_;
+  base::CallbackListSubscription on_contents_scroll_ended_subscription_;
 };
 
 }  // namespace ash

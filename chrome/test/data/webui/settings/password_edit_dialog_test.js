@@ -9,8 +9,10 @@ import 'chrome://settings/lazy_load.js';
 
 import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import {PasswordManagerImpl} from 'chrome://settings/settings.js';
-import {createMultiStorePasswordEntry, PasswordSectionElementFactory} from 'chrome://test/settings/passwords_and_autofill_fake_data.js';
-import {TestPasswordManagerProxy} from 'chrome://test/settings/test_password_manager_proxy.js';
+import {eventToPromise} from 'chrome://webui-test/test_util.js';
+
+import {createMultiStorePasswordEntry, PasswordSectionElementFactory} from './passwords_and_autofill_fake_data.js';
+import {TestPasswordManagerProxy} from './test_password_manager_proxy.js';
 
 // clang-format on
 
@@ -90,14 +92,15 @@ function assertAddDialogParts(passwordDialog) {
  */
 async function updateWebsiteInput(
     dialog, passwordManager, newValue, isValid = true) {
-  const shouldCheckUrlValid = !!newValue.length;
-  if (shouldCheckUrlValid) {
-    passwordManager.resetResolver('checkUrlValid');
-    passwordManager.setCheckUrlValidResponse(
+  const shouldGetUrlCollection = !!newValue.length;
+  if (shouldGetUrlCollection) {
+    passwordManager.resetResolver('getUrlCollection');
+    passwordManager.setGetUrlCollectionResponse(
         isValid ? {
-          origin: newValue + '-origin',
-          shown: newValue + '-shown',
-          link: newValue + '-link',
+          // Matches fake data pattern in createPasswordEntry.
+          origin: `http://${newValue}/login`,
+          shown: newValue,
+          link: `http://${newValue}/login`,
         } :
                   null);
   }
@@ -105,15 +108,15 @@ async function updateWebsiteInput(
   dialog.$.websiteInput.value = newValue;
   dialog.$.websiteInput.dispatchEvent(new CustomEvent('input'));
 
-  if (shouldCheckUrlValid) {
-    const url = await passwordManager.whenCalled('checkUrlValid');
+  if (shouldGetUrlCollection) {
+    const url = await passwordManager.whenCalled('getUrlCollection');
     assertEquals(newValue, url);
   }
 }
 
 /**
  * Helper function to test change saved password behavior.
- * @param {!Object} editDialog
+ * @param {!PasswordEditDialogElement} editDialog
  * @param {!Array<number>} entryIds Ids to be called as a changeSavedPassword
  *     parameter.
  * @param {TestPasswordManagerProxy} passwordManager
@@ -143,6 +146,35 @@ async function changeSavedPasswordTestHelper(
 
   assertEquals(entryIds.length, ids.length);
   entryIds.forEach(entryId => assertTrue(ids.includes(entryId)));
+}
+
+/**
+ * Helper function to test add password behavior.
+ * @param {!PasswordEditDialogElement} addDialog
+ * @param {!TestPasswordManagerProxy} passwordManager
+ * @param {boolean} expectedUseAccountStore True for account store, false for
+ *     device store.
+ */
+async function addPasswordTestHelper(
+    addDialog, passwordManager, expectedUseAccountStore) {
+  const WEBSITE = 'example.com';
+  const USERNAME = 'username';
+  const PASSWORD = 'password';
+
+  await updateWebsiteInput(addDialog, passwordManager, WEBSITE);
+  addDialog.$.usernameInput.value = USERNAME;
+  addDialog.$.passwordInput.value = PASSWORD;
+
+  addDialog.$.actionButton.click();
+
+  const {url, username, password, useAccountStore} =
+      await passwordManager.whenCalled('addPassword');
+  assertEquals(WEBSITE, url);
+  assertEquals(USERNAME, username);
+  assertEquals(PASSWORD, password);
+  assertEquals(expectedUseAccountStore, useAccountStore);
+
+  await eventToPromise('close', addDialog);
 }
 
 suite('PasswordEditDialog', function() {
@@ -192,35 +224,35 @@ suite('PasswordEditDialog', function() {
         passwordDialog.$.footnote.innerText.trim());
   });
 
-  test('changesPasswordForAccountId', async function() {
+  test('changesPasswordForAccountId', function() {
     const accountEntry = createMultiStorePasswordEntry(
         {url: 'goo.gl', username: 'bart', accountId: 42});
     const editDialog = elementFactory.createPasswordEditDialog(accountEntry);
 
-    changeSavedPasswordTestHelper(
+    return changeSavedPasswordTestHelper(
         editDialog, [accountEntry.accountId], passwordManager);
   });
 
-  test('changesPasswordForDeviceId', async function() {
+  test('changesPasswordForDeviceId', function() {
     const deviceEntry = createMultiStorePasswordEntry(
         {url: 'goo.gl', username: 'bart', deviceId: 42});
     const editDialog = elementFactory.createPasswordEditDialog(deviceEntry);
 
-    changeSavedPasswordTestHelper(
+    return changeSavedPasswordTestHelper(
         editDialog, [deviceEntry.deviceId], passwordManager);
   });
 
-  test('changesPasswordForBothId', async function() {
+  test('changesPasswordForBothId', function() {
     const multiEntry = createMultiStorePasswordEntry(
         {url: 'goo.gl', username: 'bart', accountId: 41, deviceId: 42});
     const editDialog = elementFactory.createPasswordEditDialog(multiEntry);
 
-    changeSavedPasswordTestHelper(
+    return changeSavedPasswordTestHelper(
         editDialog, [multiEntry.accountId, multiEntry.deviceId],
         passwordManager);
   });
 
-  test('changeUsernameFailsWhenReused', async function() {
+  test('changeUsernameFailsWhenReused', function() {
     const accountPasswords = [
       createMultiStorePasswordEntry(
           {url: 'goo.gl', username: 'bart', accountId: 0}),
@@ -238,7 +270,7 @@ suite('PasswordEditDialog', function() {
     assertFalse(editDialog.$.usernameInput.invalid);
     assertFalse(editDialog.$.actionButton.disabled);
 
-    changeSavedPasswordTestHelper(
+    return changeSavedPasswordTestHelper(
         editDialog, [accountPasswords[0].accountId], passwordManager);
   });
 
@@ -382,5 +414,139 @@ suite('PasswordEditDialog', function() {
     await updateWebsiteInput(addDialog, passwordManager, 'invalid url', false);
     assertTrue(addDialog.$.websiteInput.invalid);
     assertTrue(addDialog.$.actionButton.disabled);
+  });
+
+  test(
+      'selectsDeviceInStorePickerWhenAccountStoreIsNotDefault',
+      async function() {
+        passwordManager.setIsAccountStoreDefault(false);
+        const addDialog = elementFactory.createPasswordEditDialog(
+            null, [], /*isAccountStoreUser=*/ true);
+        await passwordManager.whenCalled('isAccountStoreDefault');
+
+        assertEquals(
+            addDialog.storeOptionDeviceValue, addDialog.$.storePicker.value);
+      });
+
+  test(
+      'selectsAccountInStorePickerWhenAccountStoreIsDefault', async function() {
+        passwordManager.setIsAccountStoreDefault(true);
+        const addDialog = elementFactory.createPasswordEditDialog(
+            null, [], /*isAccountStoreUser=*/ true);
+        await passwordManager.whenCalled('isAccountStoreDefault');
+
+        assertEquals(
+            addDialog.storeOptionAccountValue, addDialog.$.storePicker.value);
+      });
+
+  test('addsPasswordWhenNotAccountStoreUser', function() {
+    const addDialog = elementFactory.createPasswordEditDialog();
+    return addPasswordTestHelper(
+        addDialog, passwordManager, /*expectedUseAccountStore=*/ false);
+  });
+
+  test('addsPasswordWhenAccountStoreUserAndAccountSelected', async function() {
+    const addDialog = elementFactory.createPasswordEditDialog(
+        null, [], /*isAccountStoreUser=*/ true);
+    await passwordManager.whenCalled('isAccountStoreDefault');
+    addDialog.$.storePicker.value = addDialog.storeOptionAccountValue;
+    return addPasswordTestHelper(
+        addDialog, passwordManager, /*expectedUseAccountStore=*/ true);
+  });
+
+  test('addsPasswordWhenAccountStoreUserAndDeviceSelected', async function() {
+    const addDialog = elementFactory.createPasswordEditDialog(
+        null, [], /*isAccountStoreUser=*/ true);
+    await passwordManager.whenCalled('isAccountStoreDefault');
+    addDialog.$.storePicker.value = addDialog.storeOptionDeviceValue;
+    return addPasswordTestHelper(
+        addDialog, passwordManager, /*expectedUseAccountStore=*/ false);
+  });
+
+  test('validatesUsernameWhenWebsiteOriginChanges', async function() {
+    const passwords = [createMultiStorePasswordEntry(
+        {url: 'website.com', username: 'username', accountId: 0})];
+    const addDialog = elementFactory.createPasswordEditDialog(null, passwords);
+
+    addDialog.$.usernameInput.value = 'username';
+    assertFalse(addDialog.$.usernameInput.invalid);
+
+    await updateWebsiteInput(addDialog, passwordManager, 'website.com');
+    assertTrue(addDialog.$.usernameInput.invalid);
+
+    await updateWebsiteInput(
+        addDialog, passwordManager, 'different-website.com');
+    assertFalse(addDialog.$.usernameInput.invalid);
+  });
+
+  test('validatesUsernameWhenUsernameChanges', async function() {
+    const passwords = [createMultiStorePasswordEntry(
+        {url: 'website.com', username: 'username', accountId: 0})];
+    const addDialog = elementFactory.createPasswordEditDialog(null, passwords);
+
+    await updateWebsiteInput(addDialog, passwordManager, 'website.com');
+    assertFalse(addDialog.$.usernameInput.invalid);
+
+    addDialog.$.usernameInput.value = 'username';
+    assertTrue(addDialog.$.usernameInput.invalid);
+
+    addDialog.$.usernameInput.value = 'different username';
+    assertFalse(addDialog.$.usernameInput.invalid);
+  });
+
+  test('addPasswordFailsWhenUsernameReusedForAnyStore', async function() {
+    const passwords = [
+      createMultiStorePasswordEntry(
+          {url: 'website.com', username: 'username1', accountId: 0}),
+      createMultiStorePasswordEntry(
+          {url: 'website.com', username: 'username2', deviceId: 0})
+    ];
+    const addDialog = elementFactory.createPasswordEditDialog(null, passwords);
+    await updateWebsiteInput(addDialog, passwordManager, 'website.com');
+
+    addDialog.$.usernameInput.value = 'username1';
+    assertTrue(addDialog.$.usernameInput.invalid);
+
+    addDialog.$.usernameInput.value = 'username2';
+    assertTrue(addDialog.$.usernameInput.invalid);
+  });
+
+  test('validatesWebsiteHasTopLevelDomainOnFocusLoss', async function() {
+    const addDialog = elementFactory.createPasswordEditDialog();
+    addDialog.$.passwordInput.value = 'password';
+
+    // TLD error doesn't appear if another website error is shown.
+    await updateWebsiteInput(
+        addDialog, passwordManager, 'invalid-without-TLD',
+        /* isValid= */ false);
+    addDialog.$.websiteInput.dispatchEvent(new CustomEvent('blur'));
+    assertTrue(addDialog.$.websiteInput.invalid);
+    assertEquals(
+        addDialog.$.websiteInput.errorMessage,
+        addDialog.i18n('notValidWebAddress'));
+    assertTrue(addDialog.$.actionButton.disabled);
+
+    // TLD error appears if no other website error.
+    await updateWebsiteInput(
+        addDialog, passwordManager, 'valid-without-TLD', /* isValid= */ true);
+    addDialog.$.websiteInput.dispatchEvent(new CustomEvent('blur'));
+    assertTrue(addDialog.$.websiteInput.invalid);
+    assertEquals(
+        addDialog.$.websiteInput.errorMessage,
+        addDialog.i18n('missingTLD', 'valid-without-TLD.com'));
+    assertTrue(addDialog.$.actionButton.disabled);
+
+    // TLD error disappears on website input change.
+    await updateWebsiteInput(
+        addDialog, passwordManager, 'changed-without-TLD', /* isValid= */ true);
+    assertFalse(addDialog.$.websiteInput.invalid);
+    assertFalse(addDialog.$.actionButton.disabled);
+
+    // TLD error doesn't appear if TLD is present.
+    await updateWebsiteInput(
+        addDialog, passwordManager, 'valid-with-TLD.com', /* isValid= */ true);
+    addDialog.$.websiteInput.dispatchEvent(new CustomEvent('blur'));
+    assertFalse(addDialog.$.websiteInput.invalid);
+    assertFalse(addDialog.$.actionButton.disabled);
   });
 });

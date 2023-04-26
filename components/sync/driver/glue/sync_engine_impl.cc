@@ -23,7 +23,6 @@
 #include "components/invalidation/public/topic_invalidation_map.h"
 #include "components/sync/base/bind_to_task_runner.h"
 #include "components/sync/base/invalidation_helper.h"
-#include "components/sync/base/sync_base_switches.h"
 #include "components/sync/base/sync_prefs.h"
 #include "components/sync/driver/active_devices_provider.h"
 #include "components/sync/driver/glue/sync_engine_backend.h"
@@ -49,8 +48,6 @@ namespace {
 SyncEngineBackend::RestoredLocalTransportData
 RestoreLocalTransportDataFromPrefs(const SyncTransportDataPrefs& prefs) {
   SyncEngineBackend::RestoredLocalTransportData result;
-  result.keystore_encryption_bootstrap_token =
-      prefs.GetKeystoreEncryptionBootstrapToken();
   result.cache_guid = prefs.GetCacheGuid();
   result.birthday = prefs.GetBirthday();
   result.bag_of_chips = prefs.GetBagOfChips();
@@ -259,12 +256,6 @@ void SyncEngineImpl::SetDecryptionPassphrase(const std::string& passphrase) {
   sync_task_runner_->PostTask(
       FROM_HERE, base::BindOnce(&SyncEngineBackend::DoSetDecryptionPassphrase,
                                 backend_, passphrase));
-}
-
-void SyncEngineImpl::SetKeystoreEncryptionBootstrapToken(
-    const std::string& token) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  prefs_->SetKeystoreEncryptionBootstrapToken(token);
 }
 
 void SyncEngineImpl::AddTrustedVaultDecryptionKeys(
@@ -621,17 +612,11 @@ void SyncEngineImpl::SendInterestedTopicsToInvalidator() {
 
 void SyncEngineImpl::OnActiveDevicesChanged() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  std::string local_cache_guid;
-  if (!base::FeatureList::IsEnabled(switches::kSyncE2ELatencyMeasurement)) {
-    // End-to-end latency measurement relies on reflection, so if this is
-    // enabled, don't filter out the local device.
-    local_cache_guid = cached_status_.cache_guid;
-  }
   sync_task_runner_->PostTask(
       FROM_HERE,
       base::BindOnce(&SyncEngineBackend::DoOnActiveDevicesChanged, backend_,
                      active_devices_provider_->CalculateInvalidationInfo(
-                         local_cache_guid)));
+                         cached_status_.cache_guid)));
 }
 
 void SyncEngineImpl::UpdateLastSyncedTime() {

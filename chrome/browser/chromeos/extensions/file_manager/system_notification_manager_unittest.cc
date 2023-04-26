@@ -5,9 +5,14 @@
 #include "chrome/browser/chromeos/extensions/file_manager/system_notification_manager.h"
 
 #include "ash/constants/ash_features.h"
+#include "ash/webui/file_manager/url_constants.h"
+#include "base/files/file.h"
+#include "base/files/scoped_temp_dir.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
+#include "chrome/browser/ash/file_manager/copy_or_move_io_task.h"
+#include "chrome/browser/ash/file_manager/io_task.h"
 #include "chrome/browser/ash/file_manager/volume_manager.h"
 #include "chrome/browser/chromeos/extensions/file_manager/device_event_router.h"
 #include "chrome/browser/chromeos/extensions/file_manager/event_router.h"
@@ -21,7 +26,13 @@
 #include "chromeos/disks/disk.h"
 #include "components/arc/arc_prefs.h"
 #include "content/public/test/browser_task_environment.h"
+#include "storage/browser/file_system/file_system_url.h"
+#include "storage/browser/quota/quota_manager_proxy.h"
+#include "storage/browser/test/async_file_test_helper.h"
+#include "storage/browser/test/test_file_system_context.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "third_party/blink/public/common/storage_key/storage_key.h"
 
 namespace file_manager {
 
@@ -123,7 +134,9 @@ class DeviceEventRouterImpl : public DeviceEventRouter {
   bool IsExternalStorageDisabled() override { return true; }
 };
 
-class SystemNotificationManagerTest : public ::testing::Test {
+class SystemNotificationManagerTest
+    : public io_task::IOTaskController::Observer,
+      public ::testing::Test {
  public:
   SystemNotificationManagerTest() {}
 
@@ -147,12 +160,32 @@ class SystemNotificationManagerTest : public ::testing::Test {
         std::make_unique<SystemNotificationManager>(profile_);
     device_event_router_ = std::make_unique<DeviceEventRouterImpl>(
         notification_manager_.get(), profile_);
+
+    // SystemNotificationManager needs the IOTaskController to be able to cancel
+    // the task.
+    notification_manager_->SetIOTaskController(&io_task_controller);
+    io_task_controller.AddObserver(this);
+
+    ASSERT_TRUE(dir_.CreateUniqueTempDir());
+    ASSERT_TRUE(dir_.GetPath().IsAbsolute());
+    file_system_context = storage::CreateFileSystemContextForTesting(
+        /*quota_manager_proxy=*/nullptr, dir_.GetPath());
   }
 
   void TearDown() override {
+    io_task_controller.RemoveObserver(this);
+
     profile_manager_->DeleteAllTestingProfiles();
     profile_ = nullptr;
     profile_manager_.reset();
+  }
+
+  // IOTaskController::Observer override:
+  // In production code the observer is EventRouter which forwards the status to
+  // SystemNotificationManager.
+  void OnIOTaskStatus(const io_task::ProgressStatus& status) override {
+    task_statuses[status.task_id].push_back(status.state);
+    notification_manager_->HandleIOTaskProgress(status);
   }
 
   TestingProfile* GetProfile() { return profile_; }
@@ -168,6 +201,14 @@ class SystemNotificationManagerTest : public ::testing::Test {
   NotificationDisplayService* GetNotificationDisplayService() {
     return static_cast<NotificationDisplayService*>(
         notification_display_service_);
+  }
+
+  size_t GetNotificationCount() {
+    auto* notification_display_service = GetNotificationDisplayService();
+    notification_display_service->GetDisplayed(
+        base::BindOnce(&SystemNotificationManagerTest::GetNotificationsCallback,
+                       weak_ptr_factory_.GetWeakPtr()));
+    return notification_count;
   }
 
   void GetNotificationsCallback(std::set<std::string> displayed_notifications,
@@ -191,6 +232,28 @@ class SystemNotificationManagerTest : public ::testing::Test {
         .Build();
   }
 
+  // Creates a file or directory to use in the test.
+  storage::FileSystemURL CreateTestFile(const std::string& path) {
+    const blink::StorageKey storage_key =
+        blink::StorageKey::CreateFromStringForTesting(
+            ash::file_manager::kChromeUIFileManagerURL);
+
+    auto file_url = file_system_context->CreateCrackedFileSystemURL(
+        storage_key, storage::kFileSystemTypeTest,
+        base::FilePath::FromUTF8Unsafe(path));
+
+    if (base::EndsWith(path, "/")) {
+      CHECK(base::File::FILE_OK ==
+            storage::AsyncFileTestHelper::CreateDirectory(
+                file_system_context.get(), file_url));
+    } else {
+      CHECK(base::File::FILE_OK == storage::AsyncFileTestHelper::CreateFile(
+                                       file_system_context.get(), file_url));
+    }
+
+    return file_url;
+  }
+
  private:
   content::BrowserTaskEnvironment task_environment_;
   std::unique_ptr<TestingProfileManager> profile_manager_;
@@ -202,10 +265,21 @@ class SystemNotificationManagerTest : public ::testing::Test {
   std::unique_ptr<SystemNotificationManager> notification_manager_;
   std::unique_ptr<DeviceEventRouterImpl> device_event_router_;
 
+  // Temporary directory used to test IOTask progress.
+  base::ScopedTempDir dir_;
+
  public:
   size_t notification_count;
   // notification_platform_bridge is owned by NotificationDisplayService.
   TestNotificationPlatformBridgeDelegator* notification_platform_bridge;
+
+  // Used for tests with IOTask:
+  io_task::IOTaskController io_task_controller;
+  scoped_refptr<storage::FileSystemContext> file_system_context;
+
+  // Keep track of the task state transitions.
+  std::map<io_task::IOTaskId, std::vector<io_task::State>> task_statuses;
+
   base::WeakPtrFactory<SystemNotificationManagerTest> weak_ptr_factory_{this};
 };
 
@@ -1073,6 +1147,93 @@ TEST_F(SystemNotificationManagerTest, CopyProgress) {
                      weak_ptr_factory_.GetWeakPtr()));
   // Check: We have zero notifications (copy progress has been closed).
   ASSERT_EQ(0, notification_count);
+}
+
+storage::FileSystemURL CreateFileSystemURL(std::string url) {
+  return storage::FileSystemURL::CreateForTest(GURL(url));
+}
+
+TEST_F(SystemNotificationManagerTest, HandleIOTaskProgressCopy) {
+  // The system notification only sees the IOTask ProgressStatus.
+  file_manager::io_task::ProgressStatus status;
+  status.task_id = 1;
+  status.state = file_manager::io_task::State::kQueued;
+  status.type = file_manager::io_task::OperationType::kCopy;
+  status.total_bytes = 100;
+  status.bytes_transferred = 0;
+  status.sources.emplace_back(CreateTestFile("src_file.txt"), absl::nullopt);
+  status.destination_folder = CreateTestFile("dest_dir/");
+
+  // Send the copy begin/queued progress.
+  auto* notification_manager = GetSystemNotificationManager();
+  notification_manager->HandleIOTaskProgress(status);
+
+  // Check: We have the 1 notification.
+  ASSERT_EQ(1, GetNotificationCount());
+
+  TestNotificationStrings notification_strings =
+      notification_platform_bridge->GetNotificationStringsById(
+          "swa-file-operation-1");
+
+  // Check: the expected strings match.
+  EXPECT_EQ(notification_strings.title, u"Files");
+  EXPECT_EQ(notification_strings.message, u"Copying src_file.txt\x2026");
+
+  // Send the copy progress.
+  status.bytes_transferred = 30;
+  status.state = file_manager::io_task::State::kInProgress;
+  notification_manager->HandleIOTaskProgress(status);
+
+  // Check: We have the same notification.
+  ASSERT_EQ(1, GetNotificationCount());
+  notification_strings =
+      notification_platform_bridge->GetNotificationStringsById(
+          "swa-file-operation-1");
+  EXPECT_EQ(notification_strings.title, u"Files");
+  EXPECT_EQ(notification_strings.message, u"Copying src_file.txt\x2026");
+
+  // Send the success progress status.
+  status.bytes_transferred = 100;
+  status.state = file_manager::io_task::State::kSuccess;
+  notification_manager->HandleIOTaskProgress(status);
+
+  // Notification should disappear.
+  ASSERT_EQ(0, GetNotificationCount());
+}
+
+TEST_F(SystemNotificationManagerTest, CancelButtonIOTask) {
+  // The system notification only sees the IOTask ProgressStatus.
+  file_manager::io_task::ProgressStatus status;
+  status.task_id = 1;
+  status.state = file_manager::io_task::State::kQueued;
+  status.type = file_manager::io_task::OperationType::kCopy;
+  status.total_bytes = 100;
+  status.bytes_transferred = 0;
+  auto src = CreateTestFile("src_file.txt");
+  status.sources.emplace_back(src, absl::nullopt);
+  auto dst = CreateTestFile("dest_dir/");
+  status.destination_folder = dst;
+
+  auto task = std::make_unique<file_manager::io_task::CopyOrMoveIOTask>(
+      file_manager::io_task::OperationType::kCopy,
+      std::vector<storage::FileSystemURL>({src}), dst, GetProfile(),
+      file_system_context);
+
+  // Send the copy begin/queued progress.
+  const io_task::IOTaskId task_id = io_task_controller.Add(std::move(task));
+
+  // Check: We have the 1 notification.
+  ASSERT_EQ(1, GetNotificationCount());
+
+  // Click on the cancel button.
+  notification_platform_bridge->ClickButtonIndexById("swa-file-operation-1",
+                                                     /*button_index=*/0);
+
+  // Notification should disappear.
+  ASSERT_EQ(0, GetNotificationCount());
+
+  // The last status observed should be Cancelled.
+  ASSERT_EQ(io_task::State::kCancelled, task_statuses[task_id].back());
 }
 
 std::u16string kGoogleDrive = u"Google Drive";

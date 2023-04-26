@@ -12,10 +12,10 @@
 #include <unordered_set>
 
 #include "ash/ash_export.h"
+#include "ash/components/phonehub/feature_status_provider.h"
+#include "ash/components/phonehub/notification_manager.h"
+#include "ash/components/phonehub/tether_controller.h"
 #include "base/gtest_prod_util.h"
-#include "chromeos/components/phonehub/feature_status_provider.h"
-#include "chromeos/components/phonehub/notification_manager.h"
-#include "chromeos/components/phonehub/tether_controller.h"
 
 namespace chromeos {
 namespace phonehub {
@@ -54,6 +54,8 @@ class ASH_EXPORT PhoneHubNotificationController
   const std::u16string GetPhoneName() const;
 
  private:
+  FRIEND_TEST_ALL_PREFIXES(PhoneHubNotificationControllerTest,
+                           CustomActionRowExpanded);
   FRIEND_TEST_ALL_PREFIXES(PhoneHubNotificationControllerTest,
                            ReplyBrieflyDisabled);
   FRIEND_TEST_ALL_PREFIXES(PhoneHubNotificationControllerTest,
@@ -106,6 +108,12 @@ class ASH_EXPORT PhoneHubNotificationController
 
   static std::unique_ptr<message_center::MessageView>
   CreateCustomNotificationView(
+      base::WeakPtr<PhoneHubNotificationController> notification_controller,
+      const message_center::Notification& notification,
+      bool shown_in_popup);
+
+  static std::unique_ptr<message_center::MessageView>
+  CreateCustomActionNotificationView(
       base::WeakPtr<PhoneHubNotificationController> notification_controller,
       const message_center::Notification& notification,
       bool shown_in_popup);

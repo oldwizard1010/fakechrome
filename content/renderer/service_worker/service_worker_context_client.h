@@ -15,7 +15,6 @@
 #include "base/callback.h"
 #include "base/containers/id_map.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/time/time.h"
 #include "content/common/content_export.h"
@@ -165,8 +164,9 @@ class CONTENT_EXPORT ServiceWorkerContextClient
                             const blink::WebString& source_url) override;
   void SetupNavigationPreload(int fetch_event_id,
                               const blink::WebURL& url,
-                              std::unique_ptr<blink::WebFetchEventPreloadHandle>
-                                  preload_handle) override;
+                              blink::CrossVariantMojoReceiver<
+                                  network::mojom::URLLoaderClientInterfaceBase>
+                                  preload_url_loader_client_receiver) override;
   void RequestTermination(RequestTerminationCallback callback) override;
   scoped_refptr<blink::WebServiceWorkerFetchContext>
   CreateWorkerFetchContextOnInitiatorThread() override;

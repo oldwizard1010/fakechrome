@@ -9,11 +9,11 @@
 #include <memory>
 #include <string>
 
-#include "base/macros.h"
 #include "base/observer_list.h"
 #include "base/timer/timer.h"
 #include "chromeos/dbus/concierge/concierge_client.h"
 #include "chromeos/dbus/power/power_manager_client.h"
+#include "components/arc/mojom/anr.mojom.h"
 #include "components/arc/mojom/power.mojom.h"
 #include "components/arc/session/connection_observer.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -42,7 +42,8 @@ class ArcPowerBridge : public KeyedService,
   class Observer : public base::CheckedObserver {
    public:
     // Notifies that wakefulness mode is changed.
-    virtual void OnWakefulnessChanged(mojom::WakefulnessMode mode) = 0;
+    virtual void OnWakefulnessChanged(mojom::WakefulnessMode mode) {}
+    virtual void OnPreAnr(mojom::AnrType type) {}
   };
 
   // Returns singleton instance for the given BrowserContext,
@@ -92,6 +93,8 @@ class ArcPowerBridge : public KeyedService,
   void IsDisplayOn(IsDisplayOnCallback callback) override;
   void OnScreenBrightnessUpdateRequest(double percent) override;
   void OnWakefulnessChanged(mojom::WakefulnessMode mode) override;
+  void OnPreAnr(mojom::AnrType type) override;
+  void OnAnrRecoveryFailed(::arc::mojom::AnrType type) override;
 
   void SetWakeLockProviderForTesting(
       mojo::Remote<device::mojom::WakeLockProvider> provider) {

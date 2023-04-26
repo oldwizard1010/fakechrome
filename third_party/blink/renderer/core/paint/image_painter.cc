@@ -114,7 +114,7 @@ void ImagePainter::PaintAreaElementFocusRing(const PaintInfo& paint_info) {
 
   ScopedPaintState paint_state(layout_image_, paint_info);
   auto paint_offset = paint_state.PaintOffset();
-  path.Translate(FloatSize(paint_offset));
+  path.Translate(gfx::Vector2dF(paint_offset));
 
   if (DrawingRecorder::UseCachedDrawingIfPossible(
           paint_info.context, layout_image_, DisplayItem::kImageAreaFocusRing))
@@ -277,12 +277,12 @@ void ImagePainter::PaintIntoRect(GraphicsContext& context,
       ImageElementTiming::From(*window).NotifyImagePainted(
           layout_image_, *image_content,
           context.GetPaintController().CurrentPaintChunkProperties(),
-          pixel_snapped_dest_rect);
+          ToGfxRect(pixel_snapped_dest_rect));
     }
     PaintTimingDetector::NotifyImagePaint(
-        layout_image_, image->Size(), *image_content,
+        layout_image_, ToGfxSize(image->Size()), *image_content,
         context.GetPaintController().CurrentPaintChunkProperties(),
-        pixel_snapped_dest_rect);
+        ToGfxRect(pixel_snapped_dest_rect));
   }
 }
 

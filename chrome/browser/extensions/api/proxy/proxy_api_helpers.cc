@@ -92,15 +92,17 @@ bool GetPacMandatoryFromExtensionPref(const base::DictionaryValue* proxy_config,
     return true;
   }
 
-  bool mandatory_pac = false;
-  if (pac_dict->HasKey(proxy_api_constants::kProxyConfigPacScriptMandatory) &&
-      !pac_dict->GetBoolean(proxy_api_constants::kProxyConfigPacScriptMandatory,
-                            &mandatory_pac)) {
-    LOG(ERROR) << "'pacScript.mandatory' could not be parsed.";
-    *bad_message = true;
-    return false;
+  absl::optional<bool> mandatory_pac;
+  if (pac_dict->HasKey(proxy_api_constants::kProxyConfigPacScriptMandatory)) {
+    mandatory_pac = pac_dict->FindBoolKey(
+        proxy_api_constants::kProxyConfigPacScriptMandatory);
+    if (!mandatory_pac.has_value()) {
+      LOG(ERROR) << "'pacScript.mandatory' could not be parsed.";
+      *bad_message = true;
+      return false;
+    }
   }
-  *out = mandatory_pac;
+  *out = mandatory_pac.value_or(false);
   return true;
 }
 
@@ -192,10 +194,9 @@ bool GetProxyServer(const base::DictionaryValue* proxy_server,
   }
   std::string host = base::UTF16ToASCII(host16);
 
-  int port;  // optional.
-  if (!proxy_server->GetInteger(proxy_api_constants::kProxyConfigRulePort,
-                                &port))
-    port = net::ProxyServer::GetDefaultPortForScheme(scheme);
+  // optional.
+  int port = proxy_server->FindIntKey(proxy_api_constants::kProxyConfigRulePort)
+                 .value_or(net::ProxyServer::GetDefaultPortForScheme(scheme));
 
   *out = net::ProxyServer(scheme, net::HostPortPair(host, port));
 

@@ -13,7 +13,6 @@
 #include "base/bind.h"
 #include "base/feature_list.h"
 #include "base/format_macros.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
@@ -929,6 +928,11 @@ void OmniboxEditModel::OpenMatch(AutocompleteMatch match,
       net::cookie_util::RecordCookiePortOmniboxHistograms(
           match.destination_url);
     }
+  }
+
+  if (disposition != WindowOpenDisposition::NEW_BACKGROUND_TAB) {
+    base::AutoReset<bool> tmp(&in_revert_, true);
+    view_->RevertAll();  // Revert the box to its unedited state.
   }
 
   // Track whether the destination URL sends us to a search results page

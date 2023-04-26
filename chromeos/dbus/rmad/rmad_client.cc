@@ -32,7 +32,7 @@ class RmadClientImpl : public RmadClient {
 
   void AbortRma(DBusMethodCallback<rmad::AbortRmaReply> callback) override;
 
-  void GetLogPath(DBusMethodCallback<std::string> callback) override;
+  void GetLog(DBusMethodCallback<std::string> callback) override;
 
   void AddObserver(Observer* observer) override;
   void RemoveObserver(Observer* observer) override;
@@ -47,8 +47,8 @@ class RmadClientImpl : public RmadClient {
   template <class T>
   void OnProtoReply(DBusMethodCallback<T> callback, dbus::Response* response);
 
-  void OnGetLogPathReply(DBusMethodCallback<std::string> callback,
-                         dbus::Response* response);
+  void OnGetLogReply(DBusMethodCallback<std::string> callback,
+                     dbus::Response* response);
 
   void CalibrationProgressReceived(dbus::Signal* signal);
   void CalibrationOverallProgressReceived(dbus::Signal* signal);
@@ -57,6 +57,7 @@ class RmadClientImpl : public RmadClient {
   void PowerCableStateReceived(dbus::Signal* signal);
   void ProvisioningProgressReceived(dbus::Signal* signal);
   void HardwareVerificationResultReceived(dbus::Signal* signal);
+  void FinalizationProgressReceived(dbus::Signal* signal);
 
   void SignalConnected(const std::string& interface_name,
                        const std::string& signal_name,
@@ -89,6 +90,8 @@ void RmadClientImpl::Init(dbus::Bus* bus) {
        &RmadClientImpl::ProvisioningProgressReceived},
       {rmad::kHardwareVerificationResultSignal,
        &RmadClientImpl::HardwareVerificationResultReceived},
+      {rmad::kFinalizeProgressSignal,
+       &RmadClientImpl::FinalizationProgressReceived},
   };
   auto on_connected_callback = base::BindRepeating(
       &RmadClientImpl::SignalConnected, weak_ptr_factory_.GetWeakPtr());
@@ -113,11 +116,25 @@ void RmadClientImpl::CalibrationProgressReceived(dbus::Signal* signal) {
   DCHECK_EQ(signal->GetMember(), rmad::kCalibrationProgressSignal);
   dbus::MessageReader reader(signal);
   // Read proto message
-  rmad::CalibrationComponentStatus signal_proto;
-  if (!reader.PopArrayOfBytesAsProto(&signal_proto)) {
+  dbus::MessageReader sub_reader(nullptr);
+  if (!reader.PopStruct(&sub_reader)) {
     LOG(ERROR) << "Unable to decode signal for " << signal->GetMember();
     return;
   }
+  DCHECK(!reader.HasMoreData());
+  int32_t component;
+  int32_t status;
+  double progress;
+  if (!sub_reader.PopInt32(&component) || !sub_reader.PopInt32(&status) ||
+      !sub_reader.PopDouble(&progress)) {
+    LOG(ERROR) << "Unable to decode signal for " << signal->GetMember();
+    return;
+  }
+  rmad::CalibrationComponentStatus signal_proto;
+  signal_proto.set_component(static_cast<rmad::RmadComponent>(component));
+  signal_proto.set_status(
+      static_cast<rmad::CalibrationComponentStatus::CalibrationStatus>(status));
+  signal_proto.set_progress(progress);
   for (auto& observer : observers_) {
     observer.CalibrationProgress(signal_proto);
   }
@@ -132,6 +149,7 @@ void RmadClientImpl::CalibrationOverallProgressReceived(dbus::Signal* signal) {
                << signal->GetMember() << " signal";
     return;
   }
+  DCHECK(!reader.HasMoreData());
   for (auto& observer : observers_) {
     observer.CalibrationOverallProgress(
         static_cast<rmad::CalibrationOverallStatus>(overall_progress));
@@ -147,6 +165,7 @@ void RmadClientImpl::ErrorReceived(dbus::Signal* signal) {
                << " signal";
     return;
   }
+  DCHECK(!reader.HasMoreData());
   for (auto& observer : observers_) {
     observer.Error(static_cast<rmad::RmadErrorCode>(error));
   }
@@ -162,6 +181,7 @@ void RmadClientImpl::HardwareWriteProtectionStateReceived(
                << " signal";
     return;
   }
+  DCHECK(!reader.HasMoreData());
   for (auto& observer : observers_) {
     observer.HardwareWriteProtectionState(enabled);
   }
@@ -176,6 +196,7 @@ void RmadClientImpl::PowerCableStateReceived(dbus::Signal* signal) {
                << signal->GetMember() << " signal";
     return;
   }
+  DCHECK(!reader.HasMoreData());
   for (auto& observer : observers_) {
     observer.PowerCableState(plugged_in);
   }
@@ -184,36 +205,73 @@ void RmadClientImpl::PowerCableStateReceived(dbus::Signal* signal) {
 void RmadClientImpl::ProvisioningProgressReceived(dbus::Signal* signal) {
   DCHECK_EQ(signal->GetMember(), rmad::kProvisioningProgressSignal);
   dbus::MessageReader reader(signal);
-  uint32_t step;
+  // Read proto message
+  dbus::MessageReader sub_reader(nullptr);
+  if (!reader.PopStruct(&sub_reader)) {
+    LOG(ERROR) << "Unable to decode signal for " << signal->GetMember();
+    return;
+  }
+  DCHECK(!reader.HasMoreData());
+  int32_t status;
   double progress;
-  if (!reader.PopUint32(&step)) {
-    LOG(ERROR) << "Unable to decode step uint32 from " << signal->GetMember()
-               << " signal";
+  if (!sub_reader.PopInt32(&status) || !sub_reader.PopDouble(&progress)) {
+    LOG(ERROR) << "Unable to decode signal for " << signal->GetMember();
     return;
   }
-  if (!reader.PopDouble(&progress)) {
-    LOG(ERROR) << "Unable to decode progress double from "
-               << signal->GetMember() << " signal";
-    return;
-  }
+  rmad::ProvisionStatus signal_proto;
+  signal_proto.set_status(static_cast<rmad::ProvisionStatus::Status>(status));
+  signal_proto.set_progress(progress);
   for (auto& observer : observers_) {
-    observer.ProvisioningProgress(
-        static_cast<rmad::ProvisionDeviceState::ProvisioningStep>(step),
-        progress);
+    observer.ProvisioningProgress(signal_proto);
   }
 }
 
 void RmadClientImpl::HardwareVerificationResultReceived(dbus::Signal* signal) {
   DCHECK_EQ(signal->GetMember(), rmad::kHardwareVerificationResultSignal);
   dbus::MessageReader reader(signal);
-  // Read proto message
-  rmad::HardwareVerificationResult signal_proto;
-  if (!reader.PopArrayOfBytesAsProto(&signal_proto)) {
+  // Read message
+  dbus::MessageReader sub_reader(nullptr);
+  if (!reader.PopStruct(&sub_reader)) {
     LOG(ERROR) << "Unable to decode signal for " << signal->GetMember();
     return;
   }
+  DCHECK(!reader.HasMoreData());
+  bool is_compliant = true;
+  std::string error_str = "";
+  if (!sub_reader.PopBool(&is_compliant) || !sub_reader.PopString(&error_str)) {
+    LOG(ERROR) << "Unable to decode signal for " << signal->GetMember();
+    return;
+  }
+  DCHECK(!reader.HasMoreData());
+  rmad::HardwareVerificationResult signal_proto;
+  signal_proto.set_is_compliant(is_compliant);
+  signal_proto.set_error_str(error_str);
   for (auto& observer : observers_) {
     observer.HardwareVerificationResult(signal_proto);
+  }
+}
+
+void RmadClientImpl::FinalizationProgressReceived(dbus::Signal* signal) {
+  DCHECK_EQ(signal->GetMember(), rmad::kFinalizeProgressSignal);
+  dbus::MessageReader reader(signal);
+  // Read message
+  dbus::MessageReader sub_reader(nullptr);
+  if (!reader.PopStruct(&sub_reader)) {
+    LOG(ERROR) << "Unable to decode signal for " << signal->GetMember();
+    return;
+  }
+  DCHECK(!reader.HasMoreData());
+  int32_t status;
+  double progress;
+  if (!sub_reader.PopInt32(&status) || !sub_reader.PopDouble(&progress)) {
+    LOG(ERROR) << "Unable to decode signal for " << signal->GetMember();
+    return;
+  }
+  rmad::FinalizeStatus signal_proto;
+  signal_proto.set_status(static_cast<rmad::FinalizeStatus::Status>(status));
+  signal_proto.set_progress(progress);
+  for (auto& observer : observers_) {
+    observer.FinalizationProgress(signal_proto);
   }
 }
 
@@ -269,13 +327,12 @@ void RmadClientImpl::AbortRma(
                      weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
 }
 
-void RmadClientImpl::GetLogPath(DBusMethodCallback<std::string> callback) {
-  dbus::MethodCall method_call(rmad::kRmadInterfaceName,
-                               rmad::kGetLogPathMethod);
+void RmadClientImpl::GetLog(DBusMethodCallback<std::string> callback) {
+  dbus::MethodCall method_call(rmad::kRmadInterfaceName, rmad::kGetLogMethod);
   dbus::MessageWriter writer(&method_call);
   rmad_proxy_->CallMethod(
       &method_call, dbus::ObjectProxy::TIMEOUT_USE_DEFAULT,
-      base::BindOnce(&RmadClientImpl::OnGetLogPathReply,
+      base::BindOnce(&RmadClientImpl::OnGetLogReply,
                      weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
 }
 
@@ -311,12 +368,13 @@ void RmadClientImpl::OnProtoReply(DBusMethodCallback<T> callback,
     std::move(callback).Run(absl::nullopt);
     return;
   }
+  DCHECK(!reader.HasMoreData());
 
   std::move(callback).Run(std::move(response_proto));
 }
 
-void RmadClientImpl::OnGetLogPathReply(DBusMethodCallback<std::string> callback,
-                                       dbus::Response* response) {
+void RmadClientImpl::OnGetLogReply(DBusMethodCallback<std::string> callback,
+                                   dbus::Response* response) {
   if (!response) {
     LOG(ERROR) << "Error calling rmad function";
     std::move(callback).Run(absl::nullopt);
@@ -330,6 +388,7 @@ void RmadClientImpl::OnGetLogPathReply(DBusMethodCallback<std::string> callback,
     std::move(callback).Run(absl::nullopt);
     return;
   }
+  DCHECK(!reader.HasMoreData());
 
   std::move(callback).Run(std::move(log_path));
 }

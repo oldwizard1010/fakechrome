@@ -11,7 +11,6 @@
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/location.h"
-#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -135,6 +134,9 @@ class TestView : public TestRenderWidgetHostView {
     local_surface_id_allocator_.GenerateId();
   }
 
+  TestView(const TestView&) = delete;
+  TestView& operator=(const TestView&) = delete;
+
   // Sets the bounds returned by GetViewBounds.
   void SetBounds(const gfx::Rect& bounds) override {
     if (bounds_ == bounds)
@@ -152,10 +154,8 @@ class TestView : public TestRenderWidgetHostView {
 
   void InvalidateLocalSurfaceId() { local_surface_id_allocator_.Invalidate(); }
 
-  void GetScreenInfo(display::ScreenInfo* screen_info) override {
-    *screen_info = screen_info_;
-  }
-  display::ScreenInfos GetScreenInfos() override {
+  display::ScreenInfo GetScreenInfo() const override { return screen_info_; }
+  display::ScreenInfos GetScreenInfos() const override {
     return display::ScreenInfos(screen_info_);
   }
 
@@ -244,9 +244,6 @@ class TestView : public TestRenderWidgetHostView {
   viz::ParentLocalSurfaceIdAllocator local_surface_id_allocator_;
   display::ScreenInfo screen_info_;
   gfx::Insets insets_;
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(TestView);
 };
 
 // MockRenderViewHostDelegateView ------------------------------------------

@@ -31,10 +31,6 @@ const char kAllowSyncXHRInPageDismissal[] = "allow-sync-xhr-in-page-dimissal";
 // This is used in blimp to emulate android fonts on linux.
 const char kAndroidFontsPath[]          = "android-fonts-path";
 
-// Allows app cache to be forced on, even when gated by an origin trial.
-// TODO(enne): remove this once app cache has been removed.
-const char kAppCacheForceEnabled[] = "app-cache-force-enabled";
-
 // Causes the browser process to crash on startup.
 const char kBrowserCrashTest[]              = "crash-test";
 
@@ -93,6 +89,10 @@ const char kDisableAccelerated2dCanvas[]    = "disable-accelerated-2d-canvas";
 
 // Enable in-progress canvas 2d API methods BeginLayer and EndLayer.
 const char kEnableCanvas2DLayers[] = "canvas-2d-layers";
+
+// Enables canvas to clear its context when it is running in background.
+const char kEnableCanvasContextLostInBackground[] =
+    "enable-canvas-context-lost-in-background";
 
 // Enable in-progress canvas 2d API features.
 const char kEnableNewCanvas2DAPI[] = "new-canvas-2d-api";
@@ -319,10 +319,6 @@ const char kDisable2dCanvasClipAntialiasing[] = "disable-2d-canvas-clip-aa";
 // Has no effect unless GPU rasterization is enabled.
 const char kDisableYUVImageDecoding[] = "disable-yuv-image-decoding";
 
-// Logs Runtime Call Stats for Blink. --single-process also needs to be
-// used along with this for the stats to be logged.
-const char kDumpBlinkRuntimeCallStats[] = "dump-blink-runtime-call-stats";
-
 // Enables LCD text.
 const char kEnableLCDText[]                 = "enable-lcd-text";
 
@@ -477,12 +473,6 @@ const char kEnableWebGLDraftExtensions[] = "enable-webgl-draft-extensions";
 // Enables WebGL rendering into a scanout buffer for overlay support.
 const char kEnableWebGLImageChromium[] = "enable-webgl-image-chromium";
 
-// Handle to the shared memory segment containing field trial state that is to
-// be shared between processes. The argument to this switch is the handle id
-// (pointer on Windows) as a string, followed by a comma, then the size of the
-// shared memory segment as a string.
-const char kFieldTrialHandle[] = "field-trial-handle";
-
 // Define an alias root directory which is replaced with the replacement string
 // in file URLs. The format is "/alias=/replacement", which would turn
 // file:///alias/some/path.html into file:///replacement/some/path.html.
@@ -494,6 +484,9 @@ const char kDisableOopRasterization[] = "disable-oop-rasterization";
 // Turns on out of process raster for the renderer whenever gpu raster
 // would have been used.  Enables the chromium_raster_transport extension.
 const char kEnableOopRasterization[] = "enable-oop-rasterization";
+
+// Forces the Chrome major version to 100 in the User-Agent string.
+const char kForceMajorVersionTo100[] = "force-major-version-to-100";
 
 // Forces use of hardware overlay for fullscreen video playback. Useful for
 // testing the Android overlay fullscreen functionality on other platforms.
@@ -614,6 +607,10 @@ const char kNoZygote[] = "no-zygote";
 
 // Number of worker threads used to rasterize content.
 const char kNumRasterThreads[]              = "num-raster-threads";
+
+// Overrides the language detection result determined based on the page
+// contents.
+const char kOverrideLanguageDetection[] = "override-language-detection";
 
 // Runs PPAPI (Pepper) plugins in-process.
 const char kPpapiInProcess[]                = "ppapi-in-process";

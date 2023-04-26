@@ -6,7 +6,6 @@
 #define CHROME_BROWSER_UI_BROWSER_COMMAND_CONTROLLER_H_
 
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/command_updater.h"
 #include "chrome/browser/command_updater_delegate.h"
@@ -85,9 +84,6 @@ class BrowserCommandController : public CommandUpdater,
 
   // Shared state updating: these functions are static and public to share with
   // outside code.
-
-  // Updates the open-file state.
-  static void UpdateOpenFileState(CommandUpdater* command_updater);
 
   // Update commands whose state depends on incognito mode availability and that
   // only depend on the profile.

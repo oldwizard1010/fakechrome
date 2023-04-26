@@ -483,6 +483,9 @@ void Display::Resize(const gfx::Size& size) {
 
 void Display::InvalidateCurrentSurfaceId() {
   current_surface_id_ = SurfaceId();
+  // Force a gc as the display may not be visible (gc occurs after drawing,
+  // which won't happen when display is hidden).
+  surface_manager_->GarbageCollectSurfaces();
 }
 
 void Display::DisableSwapUntilResize(
@@ -631,6 +634,8 @@ void DebugDrawFrame(const AggregatedFrame& frame) {
     DBG_DRAW_TEXT_OPT("frame.root.material", DBG_OPT_GREEN,
                       display_rect.origin(),
                       base::NumberToString(static_cast<int>(quad->material)));
+    DBG_DRAW_TEXT_OPT("frame.root.display_rect", DBG_OPT_GREEN,
+                      display_rect.origin(), display_rect.ToString());
     DBG_DRAW_RECT("frame.root.quad", display_rect);
   }
 }

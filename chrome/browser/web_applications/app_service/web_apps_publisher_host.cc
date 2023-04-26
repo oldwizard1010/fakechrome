@@ -47,8 +47,10 @@ void ReturnLaunchResult(Profile* profile,
           ->BrowserAppInstanceTracker();
   auto launch_result = crosapi::mojom::LaunchResult::New();
   if (app_instance_tracker) {
+    const apps::BrowserAppInstance* app_instance =
+        app_instance_tracker->GetAppInstance(web_contents);
     launch_result->instance_id =
-        app_instance_tracker->GetAppInstance(web_contents)->id;
+        app_instance ? app_instance->id : base::UnguessableToken::Create();
   } else {
     // TODO(crbug.com/1144877): This part of code should not be reached
     // after the instance tracker flag is turn on. Replaced with DCHECK when
@@ -161,40 +163,19 @@ void WebAppsPublisherHost::UnpauseApp(const std::string& app_id) {
 
 void WebAppsPublisherHost::LoadIcon(const std::string& app_id,
                                     apps::mojom::IconKeyPtr icon_key,
-                                    apps::mojom::IconType icon_type,
+                                    apps::IconType icon_type,
                                     int32_t size_hint_in_dip,
-                                    LoadIconCallback callback) {
-  publisher_helper().LoadIcon(app_id, std::move(icon_key), std::move(icon_type),
-                              size_hint_in_dip, std::move(callback));
-}
+                                    apps::LoadIconCallback callback) {
+  if (!icon_key) {
+    // On failure, we still run the callback, with an empty IconValue.
+    std::move(callback).Run(std::make_unique<apps::IconValue>());
+    return;
+  }
 
-content::WebContents* WebAppsPublisherHost::Launch(
-    const std::string& app_id,
-    int32_t event_flags,
-    apps::mojom::LaunchSource launch_source,
-    apps::mojom::WindowInfoPtr window_info) {
-  return publisher_helper().Launch(
-      app_id, event_flags, std::move(launch_source), std::move(window_info));
-}
-
-content::WebContents* WebAppsPublisherHost::LaunchAppWithFiles(
-    const std::string& app_id,
-    int32_t event_flags,
-    apps::mojom::LaunchSource launch_source,
-    apps::mojom::FilePathsPtr file_paths) {
-  return publisher_helper().LaunchAppWithFiles(
-      app_id, event_flags, std::move(launch_source), std::move(file_paths));
-}
-
-content::WebContents* WebAppsPublisherHost::LaunchAppWithIntent(
-    const std::string& app_id,
-    int32_t event_flags,
-    apps::mojom::IntentPtr intent,
-    apps::mojom::LaunchSource launch_source,
-    apps::mojom::WindowInfoPtr window_info) {
-  return publisher_helper().LaunchAppWithIntent(
-      app_id, event_flags, std::move(intent), std::move(launch_source),
-      std::move(window_info));
+  std::unique_ptr<apps::IconKey> key =
+      apps::ConvertMojomIconKeyToIconKey(icon_key);
+  publisher_helper().LoadIcon(app_id, *key, icon_type, size_hint_in_dip,
+                              std::move(callback));
 }
 
 void WebAppsPublisherHost::OpenNativeSettings(const std::string& app_id) {
@@ -269,10 +250,18 @@ void WebAppsPublisherHost::Launch(crosapi::mojom::LaunchParamsPtr launch_params,
         ConvertDisplayModeToAppLaunchContainer(
             registrar().GetAppEffectiveDisplayMode(launch_params->app_id)),
         apps_util::ConvertCrosapiToAppServiceIntent(launch_params->intent,
-                                                    profile_));
+                                                    profile_),
+        profile_);
     if (launch_params->intent->files.has_value()) {
-      for (const auto& file : launch_params->intent->files.value()) {
-        params.launch_files.push_back(file->file_path);
+      if (base::FeatureList::IsEnabled(
+              features::kDesktopPWAsFileHandlingSettingsGated)) {
+        // File handling may create the WebContents asynchronously.
+        // TODO(crbug/1261263): implement.
+        NOTIMPLEMENTED();
+      } else {
+        for (const auto& file : launch_params->intent->files.value()) {
+          params.launch_files.push_back(file->file_path);
+        }
       }
     }
     web_contents = publisher_helper().LaunchAppWithParams(std::move(params));

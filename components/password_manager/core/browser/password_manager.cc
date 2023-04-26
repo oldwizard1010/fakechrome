@@ -244,9 +244,6 @@ void PasswordManager::RegisterProfilePrefs(
 #if defined(OS_ANDROID)
   registry->RegisterIntegerPref(
       prefs::kCurrentMigrationVersionToGoogleMobileServices, 0);
-
-  registry->RegisterBooleanPref(prefs::kIsEligibleForGmsPasswordsManagement,
-                                false);
 #endif
 }
 
@@ -363,6 +360,11 @@ void PasswordManager::DidNavigateMainFrame(bool form_may_be_submitted) {
       MaybeSavePasswordHash(manager);
     }
   }
+
+  // Reset |possible_username_| if the navigation cannot be a result of form
+  // submission.
+  if (!form_may_be_submitted)
+    possible_username_.reset();
 
   for (std::unique_ptr<PasswordFormManager>& manager : form_managers_) {
     if (form_may_be_submitted && manager->is_submitted()) {
@@ -523,11 +525,6 @@ void PasswordManager::OnUserModifiedNonPasswordField(
 void PasswordManager::OnInformAboutUserInput(PasswordManagerDriver* driver,
                                              const FormData& form_data) {
   PasswordFormManager* manager = ProvisionallySaveForm(form_data, driver, true);
-
-  if (manager && form_data.is_gaia_with_skip_save_password_form) {
-    manager->GetMetricsRecorder()
-        ->set_user_typed_password_on_chrome_sign_in_page();
-  }
 
   auto availability =
       manager ? PasswordManagerMetricsRecorder::FormManagerAvailable::kSuccess
@@ -1070,11 +1067,6 @@ void PasswordManager::MaybeSavePasswordHash(
 
   if (!should_save_enterprise_pw && !should_save_gaia_pw)
     return;
-
-  if (submitted_form->form_data.is_gaia_with_skip_save_password_form) {
-    submitted_manager->GetMetricsRecorder()
-        ->set_password_hash_saved_on_chrome_sing_in_page();
-  }
 
   if (password_manager_util::IsLoggingActive(client_)) {
     BrowserSavePasswordProgressLogger logger(client_->GetLogManager());

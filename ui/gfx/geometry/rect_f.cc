@@ -85,6 +85,11 @@ bool RectF::Contains(float point_x, float point_y) const {
          point_y < bottom();
 }
 
+bool RectF::InclusiveContains(float point_x, float point_y) const {
+  return point_x >= x() && point_x <= right() && point_y >= y() &&
+         point_y <= bottom();
+}
+
 bool RectF::Contains(const RectF& rect) const {
   return rect.x() >= x() && rect.right() <= right() && rect.y() >= y() &&
          rect.bottom() <= bottom();
@@ -138,6 +143,10 @@ void RectF::Union(const RectF& rect) {
   if (rect.IsEmpty())
     return;
 
+  UnionEvenIfEmpty(rect);
+}
+
+void RectF::UnionEvenIfEmpty(const RectF& rect) {
   float rx = std::min(x(), rect.x());
   float ry = std::min(y(), rect.y());
   float rr = std::max(right(), rect.right());
@@ -238,6 +247,11 @@ float RectF::ManhattanInternalDistance(const RectF& rect) const {
   return x + y;
 }
 
+PointF RectF::ClosestPoint(const PointF& point) const {
+  return PointF(std::min(std::max(point.x(), x()), right()),
+                std::min(std::max(point.y(), y()), bottom()));
+}
+
 bool RectF::IsExpressibleAsRect() const {
   return base::IsValueInRangeForNumericType<int>(x()) &&
          base::IsValueInRangeForNumericType<int>(y()) &&
@@ -256,6 +270,12 @@ RectF IntersectRects(const RectF& a, const RectF& b) {
 RectF UnionRects(const RectF& a, const RectF& b) {
   RectF result = a;
   result.Union(b);
+  return result;
+}
+
+RectF UnionRectsEvenIfEmpty(const RectF& a, const RectF& b) {
+  RectF result = a;
+  result.UnionEvenIfEmpty(b);
   return result;
 }
 

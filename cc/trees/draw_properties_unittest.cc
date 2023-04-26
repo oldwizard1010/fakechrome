@@ -104,7 +104,8 @@ class DrawPropertiesTestBase : public LayerTreeImplTestBase {
     // TODO(https://crbug.com/939968) This call should be handled by
     // FakeLayerTreeHost instead of manually pushing the properties from the
     // layer tree host to the pending tree.
-    host()->PushLayerTreePropertiesTo(host_impl()->pending_tree());
+    LayerTreeHost::PushLayerTreePropertiesTo(host()->pending_commit_state(),
+                                             host_impl()->pending_tree());
 
     UpdateDrawProperties(host_impl()->pending_tree());
   }
@@ -3149,6 +3150,7 @@ TEST_F(DrawPropertiesScalingTest, LayerTransformsInHighDPI) {
 TEST_F(DrawPropertiesScalingTest, SurfaceLayerTransformsInHighDPI) {
   gfx::Transform perspective_matrix;
   perspective_matrix.ApplyPerspectiveDepth(2.0);
+  perspective_matrix.RotateAboutYAxis(15.0);
   gfx::Vector2dF perspective_surface_offset(2.f, 2.f);
 
   gfx::Transform scale_small_matrix;
@@ -3222,13 +3224,16 @@ TEST_F(DrawPropertiesScalingTest, SurfaceLayerTransformsInHighDPI) {
   // The scale for the perspective surface is not known, so it is rendered 1:1
   // with the screen, and then scaled during drawing.
   gfx::Transform expected_perspective_surface_draw_transform;
+  expected_perspective_surface_draw_transform.Scale(contents_scale_factor,
+                                                    contents_scale_factor);
   expected_perspective_surface_draw_transform.Translate(
-      contents_scale_factor * perspective_surface_offset.x(),
-      contents_scale_factor * perspective_surface_offset.y());
+      perspective_surface_offset);
   expected_perspective_surface_draw_transform.PreconcatTransform(
       perspective_matrix);
   expected_perspective_surface_draw_transform.PreconcatTransform(
       scale_small_matrix);
+  expected_perspective_surface_draw_transform.Scale(
+      1.0f / contents_scale_factor, 1.0f / contents_scale_factor);
   gfx::Transform expected_perspective_surface_layer_draw_transform;
   expected_perspective_surface_layer_draw_transform.Scale(
       contents_scale_factor, contents_scale_factor);
@@ -3271,7 +3276,7 @@ TEST_F(DrawPropertiesScalingTest, SmallIdealScale) {
   CopyProperties(parent, child_scale);
   CreateTransformNode(child_scale).local = child_scale_matrix;
 
-  LayerTreeImpl::ViewportPropertyIds viewport_property_ids;
+  ViewportPropertyIds viewport_property_ids;
   viewport_property_ids.page_scale_transform =
       page_scale->transform_tree_index();
   host_impl()->active_tree()->SetViewportPropertyIds(viewport_property_ids);
@@ -5973,7 +5978,7 @@ TEST_F(DrawPropertiesTest, DrawPropertyScales) {
   CopyProperties(page_scale.get(), child2.get());
   CreateTransformNode(child2.get()).local = scale_transform_child2;
 
-  LayerTreeHost::ViewportPropertyIds viewport_property_ids;
+  ViewportPropertyIds viewport_property_ids;
   viewport_property_ids.page_scale_transform =
       page_scale->transform_tree_index();
   host()->RegisterViewportPropertyIds(viewport_property_ids);

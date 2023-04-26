@@ -30,12 +30,26 @@
     font-family: sans-serif;
     justify-content: var(--glyph-alignment);
     left: 0;
-    padding: 0 5px;
     position: absolute;
     right: 0;
-    text-align: center;
     top: 0;
     transition: all 150ms ease-in-out;
+  }
+
+  iron-icon {
+    --iron-icon-fill-color: var(--foreground-color-unpressed);
+    --iron-icon-height: 100%;
+    --iron-icon-width: 100%;
+  }
+
+  #text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #text:not(:empty) {
+    padding: 0 5px;
   }
 
   /*
@@ -49,6 +63,10 @@
     top: var(--travel);
   }
 
+  :host(:hover) iron-icon {
+    --iron-icon-fill-color: var(--foreground-color-pressed);
+  }
+
   #background {
     background-color: var(--border-color);
     border-radius: var(--border-radius);
@@ -58,6 +76,23 @@
     right: 0;
     top: var(--travel);
   }
+
+  :host(.disabled) #foreground {
+    background-color: var(--google-grey-200);
+    border-color: var(--google-grey-700);
+    color: var(--google-grey-600);
+  }
+
+  :host(.disabled) #background {
+    background-color: hsl(0deg 0% 59%);
+  }
 </style>
 <div id="background"></div>
-<div id="foreground">[[mainGlyph]]</div>
+<div id="foreground">
+  <template is="dom-if" if="[[icon]]">
+    <iron-icon icon="[[icon]]"></iron-icon>
+  </template>
+  <template is="dom-if" if="[[mainGlyph]]">
+    <span id="text">[[mainGlyph]]</span>
+  </template>
+</div>

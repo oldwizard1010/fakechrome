@@ -16,6 +16,7 @@
 
 #include "base/callback.h"
 #include "base/check_op.h"
+#include "base/containers/flat_map.h"
 #include "base/containers/stack_container.h"
 #include "base/debug/alias.h"
 #include "base/memory/aligned_memory.h"
@@ -26,14 +27,18 @@
 #include "cc/paint/paint_canvas.h"
 #include "cc/paint/paint_export.h"
 #include "cc/paint/paint_flags.h"
+#include "cc/paint/skottie_frame_data.h"
+#include "cc/paint/skottie_resource_metadata.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkPath.h"
 #include "third_party/skia/include/core/SkRect.h"
+#include "third_party/skia/include/core/SkRefCnt.h"
 #include "third_party/skia/include/core/SkScalar.h"
 #include "ui/gfx/geometry/rect.h"
 
 class SkColorSpace;
+class SkImage;
 class SkStrikeClient;
 class SkStrikeServer;
 class SkTextBlob;
@@ -797,7 +802,10 @@ class CC_PAINT_EXPORT DrawSkottieOp final : public PaintOp {
  public:
   static constexpr PaintOpType kType = PaintOpType::DrawSkottie;
   static constexpr bool kIsDrawOp = true;
-  DrawSkottieOp(scoped_refptr<SkottieWrapper> skottie, SkRect dst, float t);
+  DrawSkottieOp(scoped_refptr<SkottieWrapper> skottie,
+                SkRect dst,
+                float t,
+                SkottieFrameDataMap images);
   ~DrawSkottieOp();
   static void Raster(const DrawSkottieOp* op,
                      SkCanvas* canvas,
@@ -806,13 +814,25 @@ class CC_PAINT_EXPORT DrawSkottieOp final : public PaintOp {
     return !!skottie && !dst.isEmpty() && t >= 0 && t <= 1.f;
   }
   static bool AreEqual(const PaintOp* left, const PaintOp* right);
+  bool HasDiscardableImages() const;
   HAS_SERIALIZATION_FUNCTIONS();
 
   scoped_refptr<SkottieWrapper> skottie;
   SkRect dst;
   float t;
+  // Image to use for each asset in this frame of the animation. If an asset is
+  // missing, the most recently used image for that asset (from a previous
+  // DrawSkottieOp) gets reused when rendering this frame. Given that image
+  // assets generally do not change from frame to frame in most animations, that
+  // means in practice, this map is often empty.
+  SkottieFrameDataMap images;
 
  private:
+  static sk_sp<SkImage> GetImageAssetForRaster(
+      const SkottieFrameData& frame_data,
+      SkCanvas* canvas,
+      const PlaybackParams& params);
+
   DrawSkottieOp();
 };
 

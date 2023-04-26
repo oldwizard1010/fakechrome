@@ -83,7 +83,7 @@ class WebControllerBrowserTest : public content::ContentBrowserTest,
     ASSERT_TRUE(
         NavigateToURL(shell(), http_server_->GetURL(kTargetWebsitePath)));
     web_controller_ = WebController::CreateForWebContents(
-        shell()->web_contents(), &user_data_);
+        shell()->web_contents(), &user_data_, &log_info_);
     Observe(shell()->web_contents());
   }
 
@@ -372,13 +372,6 @@ class WebControllerBrowserTest : public content::ContentBrowserTest,
 
     run_loop.Run();
     return result;
-  }
-
-  ClientStatus HighlightElement(const Selector& selector) {
-    auto actions = std::make_unique<element_action_util::ElementActionVector>();
-    actions->emplace_back(base::BindOnce(&WebController::HighlightElement,
-                                         web_controller_->GetWeakPtr()));
-    return FindElementAndPerformAll(selector, std::move(actions));
   }
 
   ClientStatus GetOuterHtml(const Selector& selector,
@@ -926,6 +919,7 @@ document.getElementById("overlay_in_frame").style.visibility='hidden';
   std::unique_ptr<WebController> web_controller_;
   UserData user_data_;
   UserModel user_model_;
+  ProcessedActionStatusDetailsProto log_info_;
 
  private:
   std::unique_ptr<net::EmbeddedTestServer> http_server_;
@@ -2240,20 +2234,6 @@ IN_PROC_BROWSER_TEST_F(WebControllerBrowserTest, NavigateToUrl) {
             shell()->web_contents()->GetLastCommittedURL().spec());
 }
 
-IN_PROC_BROWSER_TEST_F(WebControllerBrowserTest, HighlightElement) {
-  Selector selector({"#select"});
-
-  const std::string javascript = R"(
-    let select = document.querySelector("#select");
-    select.style.boxShadow;
-  )";
-  EXPECT_EQ("", content::EvalJs(shell(), javascript));
-  EXPECT_EQ(ACTION_APPLIED, HighlightElement(selector).proto_status());
-  // We only make sure that the element has a non-empty boxShadow style without
-  // requiring an exact string match.
-  EXPECT_NE("", content::EvalJs(shell(), javascript));
-}
-
 IN_PROC_BROWSER_TEST_F(WebControllerBrowserTest, WaitForHeightChange) {
   base::RunLoop run_loop;
   ClientStatus result;
@@ -3052,6 +3032,97 @@ IN_PROC_BROWSER_TEST_F(WebControllerBrowserTest,
   run_loop.Run();
   EXPECT_EQ(status.proto_status(), ELEMENT_RESOLUTION_FAILED);
   EXPECT_FALSE(script_executor.GetElementStore()->HasElement("e"));
+}
+
+IN_PROC_BROWSER_TEST_F(WebControllerBrowserTest, FindElementError) {
+  ClientStatus element_status;
+  ElementFinder::Result element;
+  Selector selector;
+  selector.proto.set_tracking_id(1);
+  selector.proto.add_filters()->set_css_selector("#select");
+  selector.proto.add_filters()->mutable_bounding_box()->set_require_nonempty(
+      true);
+  selector.proto.add_filters()->set_css_selector("option:nth-child(100)");
+  FindElement(selector, &element_status, &element);
+  EXPECT_EQ(element_status.proto_status(), ELEMENT_RESOLUTION_FAILED);
+  ASSERT_EQ(log_info_.element_finder_info().size(), 1);
+  EXPECT_EQ(log_info_.element_finder_info(0).tracking_id(), 1);
+  EXPECT_EQ(log_info_.element_finder_info(0).failed_filter_index_range_start(),
+            0);
+  EXPECT_EQ(log_info_.element_finder_info(0).failed_filter_index_range_end(),
+            3);
+  EXPECT_EQ(log_info_.element_finder_info(0).status(),
+            ELEMENT_RESOLUTION_FAILED);
+}
+
+IN_PROC_BROWSER_TEST_F(WebControllerBrowserTest,
+                       RunElementFinderFromFrameElement) {
+  ClientStatus frame_status;
+  ElementFinder::Result frame_element;
+  FindElement(Selector({"#iframe", "body"}), &frame_status, &frame_element);
+  ASSERT_EQ(ACTION_APPLIED, frame_status.proto_status());
+
+  ClientStatus button_status;
+  ElementFinder::Result button_element;
+  base::RunLoop button_run_loop;
+  web_controller_->RunElementFinder(
+      frame_element, Selector({"#shadowsection", "#shadowbutton"}),
+      ElementFinder::ResultType::kExactlyOneMatch,
+      base::BindOnce(&WebControllerBrowserTest::OnFindElement,
+                     base::Unretained(this), button_run_loop.QuitClosure(),
+                     &button_status, &button_element));
+  button_run_loop.Run();
+  ASSERT_EQ(ACTION_APPLIED, button_status.proto_status());
+
+  ClientStatus js_click_status;
+  base::RunLoop js_click_run_loop;
+  web_controller_->JsClickElement(
+      button_element,
+      base::BindOnce(&WebControllerBrowserTest::OnClientStatus,
+                     base::Unretained(this), js_click_run_loop.QuitClosure(),
+                     &js_click_status));
+  js_click_run_loop.Run();
+  EXPECT_EQ(ACTION_APPLIED, js_click_status.proto_status());
+
+  WaitForElementRemove(Selector({"#iframe", "#button"}));
+}
+
+IN_PROC_BROWSER_TEST_F(WebControllerBrowserTest, RunElementFinderFromOOPIF) {
+  ClientStatus frame_status;
+  ElementFinder::Result frame_element;
+  FindElement(Selector({"#iframeExternal", "body"}), &frame_status,
+              &frame_element);
+  ASSERT_EQ(ACTION_APPLIED, frame_status.proto_status());
+
+  // Create fake element without object id and frame information only.
+  ElementFinder::Result fake_frame_element;
+  fake_frame_element.container_frame_host = frame_element.container_frame_host;
+  fake_frame_element.dom_object.object_data.node_frame_id =
+      frame_element.container_frame_host->GetDevToolsFrameToken().ToString();
+
+  ClientStatus button_status;
+  ElementFinder::Result button_element;
+  base::RunLoop button_run_loop;
+  web_controller_->RunElementFinder(
+      fake_frame_element, Selector({"#button"}),
+      ElementFinder::ResultType::kExactlyOneMatch,
+      base::BindOnce(&WebControllerBrowserTest::OnFindElement,
+                     base::Unretained(this), button_run_loop.QuitClosure(),
+                     &button_status, &button_element));
+  button_run_loop.Run();
+  ASSERT_EQ(ACTION_APPLIED, button_status.proto_status());
+
+  ClientStatus js_click_status;
+  base::RunLoop js_click_run_loop;
+  web_controller_->JsClickElement(
+      button_element,
+      base::BindOnce(&WebControllerBrowserTest::OnClientStatus,
+                     base::Unretained(this), js_click_run_loop.QuitClosure(),
+                     &js_click_status));
+  js_click_run_loop.Run();
+  EXPECT_EQ(ACTION_APPLIED, js_click_status.proto_status());
+
+  WaitForElementRemove(Selector({"#iframeExternal", "#div"}));
 }
 
 }  // namespace autofill_assistant

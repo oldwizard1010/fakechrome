@@ -93,16 +93,8 @@ const base::Feature kUIExperimentMaxAutocompleteMatches{
 // there are no more non-URL matches available.) If enabled, there is a
 // companion parameter - OmniboxMaxURLMatches - which specifies the maximum
 // desired number of URL-type matches.
-const bool kOmniboxMaxURLMatchesEnabledByDefault =
-#if defined(OS_IOS) || defined(OS_ANDROID)
-    false;
-#else
-    true;
-#endif
-const base::Feature kOmniboxMaxURLMatches{
-    "OmniboxMaxURLMatches", kOmniboxMaxURLMatchesEnabledByDefault
-                                ? base::FEATURE_ENABLED_BY_DEFAULT
-                                : base::FEATURE_DISABLED_BY_DEFAULT};
+const base::Feature kOmniboxMaxURLMatches{"OmniboxMaxURLMatches",
+                                          enabled_by_default_desktop_android};
 
 // Feature used to cap max suggestions to a dynamic limit based on how many URLs
 // would be shown. E.g., show up to 10 suggestions if doing so would display no
@@ -236,8 +228,8 @@ const base::Feature kDocumentProviderAso{"OmniboxDocumentProviderAso",
 // Allows Omnibox to dynamically adjust number of offered suggestions to fill in
 // the space between Omnibox and the soft keyboard. The number of suggestions
 // shown will be no less than minimum for the platform (eg. 5 for Android).
-const base::Feature kAdaptiveSuggestionsCount{
-    "OmniboxAdaptiveSuggestionsCount", base::FEATURE_DISABLED_BY_DEFAULT};
+const base::Feature kAdaptiveSuggestionsCount{"OmniboxAdaptiveSuggestionsCount",
+                                              base::FEATURE_ENABLED_BY_DEFAULT};
 
 // If enabled, clipboard suggestion will not show the clipboard content until
 // the user clicks the reveal button.
@@ -292,16 +284,6 @@ const base::Feature kOmniboxKeywordSearchButton{
 // how the NTP "realbox" is implemented.
 const base::Feature kWebUIOmniboxPopup{"WebUIOmniboxPopup",
                                        base::FEATURE_DISABLED_BY_DEFAULT};
-
-// Enables rollout of changing the default behavior for DNS interception checks
-// and did-you-mean infobar.
-// Users who are in the enabled group for this feature will have interception
-// checks and did-you-mean turned off. Enterprise Policy takes precedence over
-// this setting, and policy is checked before the feature group is checked and
-// marked.
-const base::Feature kIntranetRedirectBehaviorPolicyRollout{
-    "OmniboxDNSInterceptionChecksPolicyRollout",
-    base::FEATURE_DISABLED_BY_DEFAULT};
 
 // When enabled, use Assistant for omnibox voice query recognition instead of
 // Android's built-in voice recognition service. Only works on Android.

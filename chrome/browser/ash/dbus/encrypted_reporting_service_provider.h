@@ -18,7 +18,7 @@
 #include "chrome/browser/policy/messaging_layer/upload/upload_provider.h"
 #include "chromeos/dbus/missive/missive_client.h"
 #include "chromeos/dbus/services/cros_dbus_service.h"
-#include "components/reporting/proto/record.pb.h"
+#include "components/reporting/proto/synced/record.pb.h"
 #include "components/reporting/storage_selector/storage_selector.h"
 #include "dbus/exported_object.h"
 #include "dbus/message.h"
@@ -59,11 +59,10 @@ class EncryptedReportingServiceProvider
                   const std::string& method_name,
                   bool success);
 
-  // Generators of callbacks referring to MissivedClient by default.
-  // Can be overridden for testing purposes.
-  virtual ::reporting::UploadClient::ReportSuccessfulUploadCallback
+  // Callbacks referring to MissivedClient.
+  static ::reporting::UploadClient::ReportSuccessfulUploadCallback
   GetReportSuccessUploadCallback();
-  virtual ::reporting::UploadClient::EncryptionKeyAttachedCallback
+  static ::reporting::UploadClient::EncryptionKeyAttachedCallback
   GetEncryptionKeyAttachedCallback();
 
   // Returns true if called on the origin thread.

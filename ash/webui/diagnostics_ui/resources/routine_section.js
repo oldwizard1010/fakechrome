@@ -321,7 +321,7 @@ Polymer({
         new RoutineListExecutor(assert(this.systemRoutineController_));
     this.executor_ = executor;
     if (!this.usingRoutineGroups) {
-      let status = await executor.runRoutines(
+      const status = await executor.runRoutines(
           routines,
           (routineStatus) =>
               this.handleRunningRoutineStatus_(routineStatus, resultListElem));
@@ -661,4 +661,12 @@ Polymer({
 
   /** @override */
   created() {},
+
+  /**
+   * @protected
+   * @return {boolean}
+   */
+  hideRoutineSection() {
+    return this.routines.length === 0;
+  },
 });

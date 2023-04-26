@@ -28,6 +28,7 @@ def ci_builder(
         *,
         name,
         branch_selector = branches.MAIN,
+        bootstrap = True,
         console_view_entry = None,
         main_console_view = args.DEFAULT,
         cq_mirrors_console_view = args.DEFAULT,
@@ -44,6 +45,13 @@ def ci_builder(
       branch_selector - A branch selector value controlling whether the
         builder definition is executed. See branches.star for more
         information.
+      bootstrap - a boolean indicating whether the builder should have its
+        properties bootstrapped. If True, the builder's properties will be
+        written to a separate file and its definition will be updated with
+        new properties and executable that cause a bootstrapping binary to
+        be used. The build's default values for properties will be taken
+        from the properties file at the version that the build will check
+        out.
       console_view_entry - A `consoles.console_view_entry` struct or a list of
         them describing console view entries to create for the builder.
         See `consoles.console_view_entry` for details.
@@ -116,14 +124,6 @@ def ci_builder(
         branches.value({branches.STANDARD_BRANCHES: "chrome_browser_release"}),
     )
 
-    experiments = dict(experiments or {})
-
-    # TODO(crbug.com/1249938) Promote out of experiment for all builders
-    experiments.setdefault("chromium.chromium_tests.use_gitiles_trigger", 100)
-
-    # TODO(crbug.com/1135718): Promote out of experiment for all builders.
-    experiments.setdefault("chromium.chromium_tests.use_rdb_results", 100)
-
     goma_enable_ats = defaults.get_value_from_kwargs("goma_enable_ats", kwargs)
     if goma_enable_ats == args.COMPUTE:
         os = defaults.get_value_from_kwargs("os", kwargs)
@@ -137,6 +137,7 @@ def ci_builder(
     builders.builder(
         name = name,
         branch_selector = branch_selector,
+        bootstrap = bootstrap,
         console_view_entry = console_view_entry,
         resultdb_bigquery_exports = merged_resultdb_bigquery_exports,
         sheriff_rotations = sheriff_rotations,
@@ -188,6 +189,7 @@ def ci_builder(
 def android_builder(
         *,
         name,
+        goma_backend = builders.goma.backend.RBE_PROD,
         # TODO(tandrii): migrate to this gradually (current value of
         # goma.jobs.MANY_JOBS_FOR_CI is 500).
         # goma_jobs=goma.jobs.MANY_JOBS_FOR_CI
@@ -197,7 +199,7 @@ def android_builder(
     return ci_builder(
         name = name,
         builder_group = "chromium.android",
-        goma_backend = builders.goma.backend.RBE_PROD,
+        goma_backend = goma_backend,
         goma_jobs = goma_jobs,
         sheriff_rotations = builders.sheriff_rotations.ANDROID,
         **kwargs
@@ -207,7 +209,6 @@ def android_fyi_builder(*, name, **kwargs):
     kwargs.setdefault("os", os.LINUX_BIONIC_REMOVE)
     return ci_builder(
         name = name,
-        bootstrap = True,
         builder_group = "chromium.android.fyi",
         goma_backend = builders.goma.backend.RBE_PROD,
         **kwargs
@@ -340,7 +341,7 @@ def clang_mac_builder(*, name, cores = 24, **kwargs):
     return clang_builder(
         name = name,
         cores = cores,
-        os = builders.os.MAC_10_15,
+        os = builders.os.MAC_DEFAULT,
         ssd = True,
         properties = {
             # The Chromium build doesn't need system Xcode, but the ToT clang
@@ -436,9 +437,6 @@ def fyi_builder(
         **kwargs):
     kwargs.setdefault("os", os.LINUX_BIONIC_REMOVE)
 
-    # TODO(crbug.com/1135718): Promote out of experiment for all builders.
-    kwargs.setdefault("experiments", {})
-    kwargs["experiments"].setdefault("chromium.chromium_tests.use_rdb_results", 100)
     return ci.builder(
         name = name,
         builder_group = "chromium.fyi",
@@ -734,6 +732,7 @@ def mac_thin_tester(
 def memory_builder(
         *,
         name,
+        goma_backend = builders.goma.backend.RBE_PROD,
         goma_jobs = builders.goma.jobs.MANY_JOBS_FOR_CI,
         notifies = None,
         sheriff_rotations = None,
@@ -746,7 +745,7 @@ def memory_builder(
     return ci.builder(
         name = name,
         builder_group = "chromium.memory",
-        goma_backend = builders.goma.backend.RBE_PROD,
+        goma_backend = goma_backend,
         goma_jobs = goma_jobs,
         notifies = notifies,
         sheriff_rotations = listify(builders.sheriff_rotations.CHROMIUM, sheriff_rotations),
@@ -942,4 +941,10 @@ ci = struct(
 rbe_instance = struct(
     DEFAULT = "rbe-chromium-trusted",
     GVISOR_SHADOW = "rbe-chromium-gvisor-shadow",
+)
+
+rbe_jobs = struct(
+    DEFAULT = 250,
+    LOW_JOBS_FOR_CI = 80,
+    HIGH_JOBS_FOR_CI = 500,
 )

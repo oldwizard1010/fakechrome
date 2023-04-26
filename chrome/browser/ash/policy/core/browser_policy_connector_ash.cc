@@ -8,6 +8,9 @@
 #include <string>
 #include <utility>
 
+#include "ash/components/settings/cros_settings_names.h"
+#include "ash/components/settings/cros_settings_provider.h"
+#include "ash/components/settings/timezone_settings.h"
 #include "ash/constants/ash_paths.h"
 #include "base/bind.h"
 #include "base/check.h"
@@ -74,9 +77,6 @@
 #include "chromeos/network/network_cert_loader.h"
 #include "chromeos/network/network_handler.h"
 #include "chromeos/network/onc/onc_certificate_importer_impl.h"
-#include "chromeos/settings/cros_settings_names.h"
-#include "chromeos/settings/cros_settings_provider.h"
-#include "chromeos/settings/timezone_settings.h"
 #include "chromeos/system/statistics_provider.h"
 #include "chromeos/tpm/install_attributes.h"
 #include "components/policy/core/common/cloud/cloud_policy_client.h"
@@ -224,7 +224,8 @@ void BrowserPolicyConnectorAsh::Init(
         std::make_unique<ActiveDirectoryDeviceStateUploader>(
             /*client_id=*/GetInstallAttributes()->GetDeviceId(),
             device_management_service(), state_keys_broker_.get(),
-            url_loader_factory, std::make_unique<DMTokenStorage>(local_state));
+            url_loader_factory, std::make_unique<DMTokenStorage>(local_state),
+            local_state);
     active_directory_device_state_uploader_->Init();
   }
 
@@ -311,7 +312,7 @@ void BrowserPolicyConnectorAsh::Init(
             GetPolicyService()));
   }
   system_proxy_handler_ =
-      std::make_unique<SystemProxyHandler>(chromeos::CrosSettings::Get());
+      std::make_unique<SystemProxyHandler>(ash::CrosSettings::Get());
 
   adb_sideloading_allowance_mode_policy_handler_ =
       std::make_unique<AdbSideloadingAllowanceModePolicyHandler>(
@@ -399,18 +400,13 @@ std::string BrowserPolicyConnectorAsh::GetEnterpriseEnrollmentDomain() const {
   return chromeos::InstallAttributes::Get()->GetDomain();
 }
 
-std::string BrowserPolicyConnectorAsh::GetEnterpriseDisplayDomain() const {
-  const em::PolicyData* policy = GetDevicePolicy();
-  if (policy && policy->has_display_domain())
-    return policy->display_domain();
-  return GetEnterpriseEnrollmentDomain();
-}
-
 std::string BrowserPolicyConnectorAsh::GetEnterpriseDomainManager() const {
   const em::PolicyData* policy = GetDevicePolicy();
   if (policy && policy->has_managed_by())
     return policy->managed_by();
-  return GetEnterpriseDisplayDomain();
+  if (policy && policy->has_display_domain())
+    return policy->display_domain();
+  return GetEnterpriseEnrollmentDomain();
 }
 
 std::string BrowserPolicyConnectorAsh::GetSSOProfile() const {
@@ -551,7 +547,7 @@ BrowserPolicyConnectorAsh::CreatePolicyProviders() {
 }
 
 void BrowserPolicyConnectorAsh::SetTimezoneIfPolicyAvailable() {
-  typedef chromeos::CrosSettingsProvider Provider;
+  typedef ash::CrosSettingsProvider Provider;
   Provider::TrustedStatus result =
       ash::CrosSettings::Get()->PrepareTrustedValues(base::BindOnce(
           &BrowserPolicyConnectorAsh::SetTimezoneIfPolicyAvailable,
@@ -561,10 +557,10 @@ void BrowserPolicyConnectorAsh::SetTimezoneIfPolicyAvailable() {
     return;
 
   std::string timezone;
-  if (ash::CrosSettings::Get()->GetString(chromeos::kSystemTimezonePolicy,
+  if (ash::CrosSettings::Get()->GetString(ash::kSystemTimezonePolicy,
                                           &timezone) &&
       !timezone.empty()) {
-    chromeos::system::SetSystemAndSigninScreenTimezone(timezone);
+    ash::system::SetSystemAndSigninScreenTimezone(timezone);
   }
 }
 

@@ -8,8 +8,6 @@
 #include <memory>
 #include <vector>
 
-#include "base/macros.h"
-
 class Profile;
 
 namespace base {
@@ -49,6 +47,8 @@ class ReceivingUiHandlerRegistry {
 
   AndroidNotificationHandler* GetAndroidNotificationHandlerForProfile(
       Profile* profile);
+
+  void OnProfileShutdown(Profile* profile);
 
  private:
   friend struct base::DefaultSingletonTraits<ReceivingUiHandlerRegistry>;

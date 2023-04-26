@@ -16,7 +16,6 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/macros.h"
 #include "base/notreached.h"
 #include "base/observer_list.h"
 #include "base/run_loop.h"
@@ -56,8 +55,8 @@
 #include "components/account_id/account_id.h"
 #include "components/arc/arc_features.h"
 #include "components/arc/arc_prefs.h"
-#include "components/arc/arc_service_manager.h"
 #include "components/arc/arc_util.h"
+#include "components/arc/session/arc_service_manager.h"
 #include "components/arc/session/arc_session_runner.h"
 #include "components/arc/test/arc_util_test_support.h"
 #include "components/arc/test/fake_arc_session.h"
@@ -2204,7 +2203,7 @@ TEST_F(ArcSessionManagerPowerwashTest, PowerwashRequestBlocksArcStart) {
       /* create_settings_service=*/false};
   settings_helper.ReplaceDeviceSettingsProviderWithStub();
   settings_helper.SetInteger(
-      chromeos::kDeviceRebootOnUserSignout,
+      ash::kDeviceRebootOnUserSignout,
       enterprise_management::DeviceRebootOnUserSignoutProto::ALWAYS);
 
   // Initialize cryptohome to require powerwash.

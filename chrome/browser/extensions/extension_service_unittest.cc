@@ -709,14 +709,7 @@ class ExtensionServiceTest : public ExtensionServiceTestWithInstall {
                    const std::string& pref_path) {
     const base::DictionaryValue* pref =
         GetExtensionPref(extension_id, pref_path);
-    if (!pref) {
-      return false;
-    }
-    bool val;
-    if (!pref->GetBoolean(pref_path, &val)) {
-      return false;
-    }
-    return true;
+    return pref && pref->FindBoolPath(pref_path).has_value();
   }
 
   bool DoesIntegerPrefExist(const std::string& extension_id,
@@ -726,11 +719,7 @@ class ExtensionServiceTest : public ExtensionServiceTestWithInstall {
     if (!pref) {
       return false;
     }
-    int val;
-    if (!pref->GetInteger(pref_path, &val)) {
-      return false;
-    }
-    return true;
+    return pref->FindIntPath(pref_path).has_value();
   }
 
   void SetPref(const std::string& extension_id,
@@ -3531,11 +3520,10 @@ TEST_F(ExtensionServiceTest, NoUnsetBlocklistInPrefs) {
   service()->PerformActionBasedOnOmahaAttributes(good0, attributes);
   EXPECT_TRUE(blocklist_prefs::HasOmahaBlocklistState(
       good0, BitMapBlocklistState::BLOCKLISTED_MALWARE, prefs));
-  EXPECT_TRUE(DoesIntegerPrefExist(good0, kPrefBlocklistState));
   EXPECT_FALSE(registry()->enabled_extensions().Contains(good0));
   EXPECT_TRUE(registry()->blocklisted_extensions().Contains(good0));
 
-  // Un-blocklist all extensions.
+  // Un-blocklist all extensions from the Safe Browsing blocklist.
   test_blocklist.Clear(false);
   task_environment()->RunUntilIdle();
 
@@ -3545,7 +3533,8 @@ TEST_F(ExtensionServiceTest, NoUnsetBlocklistInPrefs) {
   // unblocklisting/re-enabling.
   EXPECT_FALSE(registry()->enabled_extensions().Contains(good0));
   EXPECT_TRUE(registry()->blocklisted_extensions().Contains(good0));
-  ValidateIntegerPref(good0, kPrefBlocklistState, kBlocklistedMalwareInteger);
+  EXPECT_TRUE(blocklist_prefs::HasOmahaBlocklistState(
+      good0, BitMapBlocklistState::BLOCKLISTED_MALWARE, prefs));
   EXPECT_FALSE(DoesIntegerPrefExist(good1, kPrefBlocklistState));
 }
 #endif  // defined(ENABLE_BLOCKLIST_TESTS)

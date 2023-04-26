@@ -11,7 +11,6 @@
 #include "base/bind.h"
 #include "base/files/file_util.h"
 #include "base/json/json_reader.h"
-#include "base/macros.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/task_environment.h"
@@ -187,10 +186,8 @@ class NetworkConnectionHandlerImplTest : public testing::Test {
   }
 
   void Init(bool use_cellular_connection_handler = true) {
-    network_config_handler_.reset(
-        NetworkConfigurationHandler::InitializeForTest(
-            helper_.network_state_handler(),
-            nullptr /* network_device_handler */));
+    network_config_handler_ = NetworkConfigurationHandler::InitializeForTest(
+        helper_.network_state_handler(), nullptr /* network_device_handler */);
 
     network_profile_handler_.reset(new NetworkProfileHandler());
     network_profile_handler_->Init();

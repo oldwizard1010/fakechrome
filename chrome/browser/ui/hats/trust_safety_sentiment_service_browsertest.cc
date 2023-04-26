@@ -51,11 +51,11 @@ class TrustSafetySentimentServiceBrowserTest : public InProcessBrowserTest {
     permission.type = ContentSettingsType::NOTIFICATIONS;
     permission.setting = ContentSetting::CONTENT_SETTING_BLOCK;
     permission.default_setting = ContentSetting::CONTENT_SETTING_ASK;
-    permission.source = content_settings::SettingSource::SETTING_SOURCE_USER;
 
-    static_cast<PageInfoBubbleView*>(
-        PageInfoBubbleView::GetPageInfoBubbleForTesting())
-        ->OnPermissionChanged(permission);
+    auto* bubble = static_cast<PageInfoBubbleView*>(
+        PageInfoBubbleView::GetPageInfoBubbleForTesting());
+    bubble->presenter_for_testing()->OnSitePermissionChanged(
+        permission.type, permission.setting, permission.is_one_time);
   }
 
   void OpenEnoughNewTabs() {

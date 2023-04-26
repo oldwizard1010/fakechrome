@@ -12,7 +12,6 @@
 
 #include "base/bind.h"
 #include "base/compiler_specific.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
@@ -91,6 +90,8 @@ class TabRestoreServiceImplTest : public ChromeRenderViewHostTestHarness {
     user_agent_override_.ua_metadata_override.emplace();
     user_agent_override_.ua_metadata_override->brand_version_list.emplace_back(
         "Chrome", "18");
+    user_agent_override_.ua_metadata_override->brand_full_version_list
+        .emplace_back("Chrome", "18.0.1025.45");
     user_agent_override_.ua_metadata_override->full_version = "18.0.1025.45";
     user_agent_override_.ua_metadata_override->platform = "Linux";
     user_agent_override_.ua_metadata_override->architecture = "x86_64";
@@ -601,6 +602,31 @@ TEST_F(TabRestoreServiceImplTest, DontLoadWhenSavingIsDisabled) {
   SynchronousLoadTabsFromLastSession();
 
   ASSERT_EQ(0U, service_->entries().size());
+}
+
+// Regression test to ensure Window::show_state is set correctly when reading
+// TabRestoreSession from saved state.
+TEST_F(TabRestoreServiceImplTest, WindowShowStateIsSet) {
+  CreateSessionServiceWithOneWindow(false);
+
+  SessionServiceFactory::GetForProfile(profile())
+      ->MoveCurrentSessionToLastSession();
+
+  SynchronousLoadTabsFromLastSession();
+
+  RecreateService();
+
+  // There should be at least one window and its show state should be the
+  // default.
+  bool got_window = false;
+  for (auto& entry : service_->entries()) {
+    if (entry->type == sessions::TabRestoreService::WINDOW) {
+      got_window = true;
+      Window* window = static_cast<Window*>(entry.get());
+      EXPECT_EQ(window->show_state, ui::SHOW_STATE_DEFAULT);
+    }
+  }
+  EXPECT_TRUE(got_window);
 }
 
 TEST_F(TabRestoreServiceImplTest, LoadPreviousSessionAndTabs) {

@@ -2738,7 +2738,8 @@ bool IsContentPositionOrLeftOrRightKeyword(CSSValueID id) {
 
 bool IsCSSWideKeyword(CSSValueID id) {
   return id == CSSValueID::kInherit || id == CSSValueID::kInitial ||
-         id == CSSValueID::kUnset || id == CSSValueID::kRevert;
+         id == CSSValueID::kUnset || id == CSSValueID::kRevert ||
+         id == CSSValueID::kRevertLayer;
 }
 
 // https://drafts.csswg.org/css-values-4/#css-wide-keywords
@@ -3756,7 +3757,7 @@ String ConcatenateFamilyName(CSSParserTokenRange& range) {
                        IsDefaultKeyword(first_token.Value()))) {
     return String();
   }
-  return builder.ToString();
+  return builder.ReleaseString();
 }
 
 CSSValueList* CombineToRangeList(const CSSPrimitiveValue* range_start,
@@ -3782,6 +3783,11 @@ CSSValue* ConsumeFontStyle(CSSParserTokenRange& range,
                            const CSSParserContext& context) {
   if (range.Peek().Id() == CSSValueID::kNormal ||
       range.Peek().Id() == CSSValueID::kItalic)
+    return ConsumeIdent(range);
+
+  if (RuntimeEnabledFeatures::CSSFontFaceAutoVariableRangeEnabled() &&
+      range.Peek().Id() == CSSValueID::kAuto &&
+      context.Mode() == kCSSFontFaceRuleMode)
     return ConsumeIdent(range);
 
   if (range.Peek().Id() != CSSValueID::kOblique)
@@ -3816,18 +3822,24 @@ CSSValue* ConsumeFontStyle(CSSParserTokenRange& range,
       *oblique_identifier, *range_list);
 }
 
-CSSIdentifierValue* ConsumeFontStretchKeywordOnly(CSSParserTokenRange& range) {
+CSSIdentifierValue* ConsumeFontStretchKeywordOnly(
+    CSSParserTokenRange& range,
+    const CSSParserContext& context) {
   const CSSParserToken& token = range.Peek();
   if (token.Id() == CSSValueID::kNormal ||
       (token.Id() >= CSSValueID::kUltraCondensed &&
        token.Id() <= CSSValueID::kUltraExpanded))
+    return ConsumeIdent(range);
+  if (RuntimeEnabledFeatures::CSSFontFaceAutoVariableRangeEnabled() &&
+      token.Id() == CSSValueID::kAuto && context.Mode() == kCSSFontFaceRuleMode)
     return ConsumeIdent(range);
   return nullptr;
 }
 
 CSSValue* ConsumeFontStretch(CSSParserTokenRange& range,
                              const CSSParserContext& context) {
-  CSSIdentifierValue* parsed_keyword = ConsumeFontStretchKeywordOnly(range);
+  CSSIdentifierValue* parsed_keyword =
+      ConsumeFontStretchKeywordOnly(range, context);
   if (parsed_keyword)
     return parsed_keyword;
 
@@ -3853,6 +3865,12 @@ CSSValue* ConsumeFontWeight(CSSParserTokenRange& range,
   const CSSParserToken& token = range.Peek();
   if (token.Id() >= CSSValueID::kNormal && token.Id() <= CSSValueID::kLighter)
     return ConsumeIdent(range);
+
+  if (RuntimeEnabledFeatures::CSSFontFaceAutoVariableRangeEnabled() &&
+      token.Id() == CSSValueID::kAuto &&
+      context.Mode() == kCSSFontFaceRuleMode) {
+    return ConsumeIdent(range);
+  }
 
   // Avoid consuming the first zero of font: 0/0; e.g. in the Acid3 test.  In
   // font:0/0; the first zero is the font size, the second is the line height.
@@ -3947,8 +3965,7 @@ Vector<String> ParseGridTemplateAreasColumnNames(const String& grid_row_names) {
   for (unsigned i = 0; i < text.length(); ++i) {
     if (IsCSSSpace(text[i])) {
       if (!area_name.IsEmpty()) {
-        column_names.push_back(area_name.ToString());
-        area_name.Clear();
+        column_names.push_back(area_name.ReleaseString());
       }
       continue;
     }
@@ -3956,15 +3973,13 @@ Vector<String> ParseGridTemplateAreasColumnNames(const String& grid_row_names) {
       if (area_name == ".")
         continue;
       if (!area_name.IsEmpty()) {
-        column_names.push_back(area_name.ToString());
-        area_name.Clear();
+        column_names.push_back(area_name.ReleaseString());
       }
     } else {
       if (!IsNameCodePoint(text[i]))
         return Vector<String>();
       if (area_name == ".") {
-        column_names.push_back(area_name.ToString());
-        area_name.Clear();
+        column_names.push_back(area_name.ReleaseString());
       }
     }
 
@@ -3972,7 +3987,7 @@ Vector<String> ParseGridTemplateAreasColumnNames(const String& grid_row_names) {
   }
 
   if (!area_name.IsEmpty())
-    column_names.push_back(area_name.ToString());
+    column_names.push_back(area_name.ReleaseString());
 
   return column_names;
 }

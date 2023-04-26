@@ -16,7 +16,6 @@
 
 #include "base/component_export.h"
 #include "base/containers/flat_set.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/synchronization/lock.h"
@@ -264,11 +263,6 @@ static const int32_t kAllDesktops = -1;
 // property not found.
 COMPONENT_EXPORT(UI_BASE_X)
 bool GetWindowDesktop(x11::Window window, int32_t* desktop);
-
-// Returns all children windows of a given window in top-to-bottom stacking
-// order.
-COMPONENT_EXPORT(UI_BASE_X)
-bool GetXWindowStack(x11::Window window, std::vector<x11::Window>* windows);
 
 enum WindowManagerName {
   WM_OTHER,    // We were able to obtain the WM's name, but there is

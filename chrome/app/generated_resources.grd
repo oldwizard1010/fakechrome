@@ -287,7 +287,7 @@ are declared in tools/grit/grit_rule.gni.
       <part file="media_router_strings.grdp" />
 
       <!-- Global Media Controls specific strings -->
-      <part file="global_media_controls_strings.grdp" />
+      <part file="gmc_strings.grdp" />
 
       <!-- Profiles specific strings -->
       <part file="profiles_strings.grdp" />
@@ -521,6 +521,12 @@ are declared in tools/grit/grit_rule.gni.
             This dialog is not currently focused. Press Alt-Shift A to focus this dialog.
           </message>
         </if>
+        <message name="IDS_FOCUS_HELP_BUBBLE_DESCRIPTION" is_accessibility_with_no_ui="true" desc="Message announced to screen reader users when a general help bubble is shown.">
+          Press |<ph name="ACCELERATOR">$1<ex>F6</ex></ph>| to focus this help bubble.
+        </message>
+        <message name="IDS_FOCUS_HELP_BUBBLE_TOGGLE_DESCRIPTION" is_accessibility_with_no_ui="true" desc="Message announced to screen reader when a help bubble pointing to a specific element is shown.">
+          Press |<ph name="ACCELERATOR">$1<ex>F6</ex></ph>| to toggle focus between this help bubble and the element it is pointing to.
+        </message>
       </if>
 
        <!-- content area context menus. Android does not use it -->
@@ -6557,6 +6563,9 @@ Keep your key file in a safe place. You will need it to create new versions of y
           Remind me later
         </message>
       </if>
+      <message name="IDS_SHARED_HIGHLIGHTING_PROMO" desc="The title of in-product-help message encouraging users to interact with the highlight">
+        To create a highlight like this one, select any text and right-click.
+      </message>
 
       <!-- Browser Hung Plugin Detector -->
       <if expr="is_win">
@@ -8899,9 +8908,6 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_DIRECTORY_LISTING_DATE_MODIFIED" desc="When viewing a local directory, this is the text for the column above the last modified dates.">
         Date Modified
       </message>
-      <message name="IDS_DIRECTORY_LISTING_PARSING_ERROR_BOX_TEXT" desc="Text to show in a box when we failed to parse FTP directory listing.">
-        Oh, no! This server is sending data <ph name="PRODUCT_NAME">$1<ex>Google Chrome</ex></ph> can't understand. Please <ph name="BEGIN_LINK">&lt;a href="http://code.google.com/p/chromium/issues/entry"&gt;</ph>report a bug<ph name="END_LINK">&lt;/a&gt;<ex>&lt;/a&gt;</ex></ph>, and include the <ph name="BEGIN2_LINK">&lt;a href="LOCATION"&gt;</ph>raw listing<ph name="END2_LINK">&lt;/a&gt;</ph>.
-      </message>
 
       <!-- Saving Page-->
       <message name="IDS_SAVE_PAGE_DESC_HTML_ONLY" desc="In the Save Page dialog, the description of saving only the HTML of a webpage.">
@@ -9210,6 +9216,9 @@ Please help our engineers fix this problem. Tell us what happened right before y
         <if expr="chromeos">
           <message name="IDS_SYNC_RELOGIN_BUTTON" desc="The text to display on the button when the user needs to sign out and sign in again to use sync on Chrome OS.">
             Sign out
+          </message>
+          <message name="IDS_SYNC_TOKEN_HANDLE_ERROR_BUBBLE_VIEW_MESSAGE" desc="Message in the sign-in error bubble view when the user's token handle is invalid.">
+            Your account sign-in details are out of date. Please sign out and sign in again.
           </message>
           <message name="IDS_ACTIVE_DIRECTORY_PASSWORD_EXPIRED" desc="The text to display on the hyperlink when the user needs to sign out and sign in again to change their password.">
             Your password has expired. Please sign out then sign in again to change it.
@@ -10506,6 +10515,9 @@ Please help our engineers fix this problem. Tell us what happened right before y
       <message name="IDS_DESKTOP_MEDIA_PICKER_PREVIEW_ACCESSIBLE_NAME" desc="Name used by screen readers for a preview screenshot of a tab selected for screensharing." >
         Preview of shared tab
       </message>
+      <message name="IDS_DESKTOP_MEDIA_SOURCE_EMPTY_ACCESSIBLE_NAME" desc="Names used by screen readers for media sources without labels." >
+        Unnamed media source
+      </message>
 
       <message name="IDS_TAB_CAPTURE_TERMINATED_BY_POLICY_TITLE" desc="Title for a confirmation dialog shown on the captured tab when capture of that tab is terminated due to enterprise policy.">
         Screen sharing has ended
@@ -10809,7 +10821,7 @@ Please help our engineers fix this problem. Tell us what happened right before y
           Open Settings to connect <ph name="USB_DEVICE_NAME">$1<ex>Nexus 5</ex></ph> to <ph name="USB_VM_NAME">$2<ex>Linux</ex></ph>
       </message>
       <message name="IDS_CROSUSB_DEVICE_DETECTED_NOTIFICATION_LINUX_PLUGIN_VM" desc="Content for notification shown to the user when a USB device gets plugged in and both Parallels and Linux are enabled. Do not translate 'Parallels Desktop' or 'Linux'.">
-          Open Settings to connect <ph name="USB_DEVICE_NAME">$1<ex>Nexus 5</ex></ph> to Parallels Desktop or Linux
+          Open Settings to connect <ph name="USB_DEVICE_NAME">$1<ex>Nexus 5</ex></ph> to Linux or Parallels Desktop
       </message>
       <message name="IDS_CROSUSB_DEVICE_DETECTED_NOTIFICATION_TITLE" desc="Title for notification shown to the user when a USB device gets plugged in.">
         USB device detected
@@ -11770,6 +11782,17 @@ Please help our engineers fix this problem. Tell us what happened right before y
       Open now
     </message>
 
+    <!-- Tailored security dialog for unconsented primary accounts -->
+    <message name="IDS_TAILORED_SECURITY_UNCONSENTED_MODAL_TITLE" desc="Title shown in the tab modal dialog when the account tailored security setting changes for an unconsented primary account">
+      Also turn on Enhanced Safe Browsing for this Chrome profile?
+    </message>
+    <message name="IDS_TAILORED_SECURITY_UNCONSENTED_ACCEPT_BUTTON" desc="The text on the accept button in the tab modal dialog when the account tailored security setting changes for an unconsented primary account">
+      Turn on
+    </message>
+    <message name="IDS_TAILORED_SECURITY_UNCONSENTED_CANCEL_BUTTON" desc="The text on the cancel button in the tab modal dialog when the account tailored security setting changes for an unconsented primary account">
+      No thanks
+    </message>
+
     <!-- Enterprise file system connector service providers' display names -->
     <message name="IDS_FILE_SYSTEM_CONNECTOR_BOX" meaning="box.com" desc="Display name for Box.">
       Box
@@ -11904,10 +11927,6 @@ Please help our engineers fix this problem. Tell us what happened right before y
     <message name="IDS_COMMANDER_LABEL"
              desc="Label to identify the Commander feature in Task Manager">
       Commander
-    </message>
-    <message name="IDS_SHOW_KALEIDOSCOPE"
-             desc="Menu item to launch the Chrome watch feature">
-      Watch
     </message>
 
     <!-- ChromeLabs bubble -->

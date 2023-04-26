@@ -199,9 +199,12 @@ class CrostiniManager : public KeyedService,
 
   struct RestartOptions {
     bool start_vm_only = false;
+    bool stop_after_lxd_available = false;
     // These two options only affect new containers.
     absl::optional<std::string> container_username;
     absl::optional<int64_t> disk_size_bytes;
+    absl::optional<std::string> image_server_url;
+    absl::optional<std::string> image_alias;
 
     RestartOptions();
     ~RestartOptions();
@@ -305,6 +308,8 @@ class CrostiniManager : public KeyedService,
   // CiceroneClient::CreateLxdContainer. |callback| is called immediately if the
   // arguments are bad, or once the container has been created.
   void CreateLxdContainer(ContainerId container_id,
+                          absl::optional<std::string> opt_image_server_url,
+                          absl::optional<std::string> opt_image_alias,
                           CrostiniResultCallback callback);
 
   // Checks the arguments for deleting an Lxd container via
@@ -454,6 +459,12 @@ class CrostiniManager : public KeyedService,
                                        CrostiniResultCallback callback,
                                        RestartObserver* observer = nullptr);
 
+  // Set options for the next restart of |container_id|. The restart will
+  // consume the options.
+  // TODO(crbug:1261319): Get rid of the need for this.
+  void SetRestartOptions(ContainerId container_id,
+                         RestartOptions restart_options);
+
   // Aborts a restart. A "next" restarter with the same ContainerId will run, if
   // there is one. |callback| will be called once the restart has finished
   // aborting
@@ -500,12 +511,12 @@ class CrostiniManager : public KeyedService,
       UpgradeContainerProgressObserver* observer);
 
   // Add/remove vm shutdown observers.
-  void AddVmShutdownObserver(chromeos::VmShutdownObserver* observer);
-  void RemoveVmShutdownObserver(chromeos::VmShutdownObserver* observer);
+  void AddVmShutdownObserver(ash::VmShutdownObserver* observer);
+  void RemoveVmShutdownObserver(ash::VmShutdownObserver* observer);
 
   // Add/remove vm starting observers.
-  void AddVmStartingObserver(chromeos::VmStartingObserver* observer);
-  void RemoveVmStartingObserver(chromeos::VmStartingObserver* observer);
+  void AddVmStartingObserver(ash::VmStartingObserver* observer);
+  void RemoveVmStartingObserver(ash::VmStartingObserver* observer);
 
   // AnomalyDetectorClient::Observer:
   void OnGuestFileCorruption(
@@ -853,6 +864,9 @@ class CrostiniManager : public KeyedService,
       export_lxd_container_callbacks_;
   std::map<ContainerId, CrostiniResultCallback> import_lxd_container_callbacks_;
 
+  // Restart options that are required to start particular containers
+  std::map<ContainerId, RestartOptions> restart_options_;
+
   // Callbacks to run after Tremplin is started, keyed by vm_name. These are
   // used if StartTerminaVm completes but we need to wait from Tremplin to
   // start.
@@ -888,8 +902,8 @@ class CrostiniManager : public KeyedService,
   base::ObserverList<UpgradeContainerProgressObserver>::Unchecked
       upgrade_container_progress_observers_;
 
-  base::ObserverList<chromeos::VmShutdownObserver> vm_shutdown_observers_;
-  base::ObserverList<chromeos::VmStartingObserver> vm_starting_observers_;
+  base::ObserverList<ash::VmShutdownObserver> vm_shutdown_observers_;
+  base::ObserverList<ash::VmStartingObserver> vm_starting_observers_;
 
   // Only one restarter flow is actually running for a given container, other
   // restarters will just have their callback called when the running restarter

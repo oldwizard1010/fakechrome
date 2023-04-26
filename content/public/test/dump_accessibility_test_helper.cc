@@ -14,6 +14,7 @@
 #include "build/build_config.h"
 #include "content/public/common/content_switches.h"
 #include "ui/accessibility/accessibility_switches.h"
+#include "ui/accessibility/platform/inspect/ax_api_type.h"
 #include "ui/accessibility/platform/inspect/ax_inspect_scenario.h"
 #include "ui/base/buildflags.h"
 
@@ -67,6 +68,14 @@ const TypeInfo kTypeInfos[] = {
         },
     },
     {
+        "fuchsia",
+        {
+            "@FUCHSIA-",
+            FILE_PATH_LITERAL("-fuchsia"),
+            [](base::CommandLine*) {},
+        },
+    },
+    {
         "linux",
         {
             "@AURALINUX-",
@@ -104,7 +113,7 @@ const TypeInfo kTypeInfos[] = {
         },
     },
     {
-        "win",
+        "ia2",
         {
             "@WIN-",
             FILE_PATH_LITERAL("-win"),
@@ -131,7 +140,7 @@ const TypeInfo::Mapping* TypeMapping(const std::string& type) {
 }  // namespace
 
 DumpAccessibilityTestHelper::DumpAccessibilityTestHelper(
-    AXInspectFactory::Type type)
+    ui::AXApiType::Type type)
     : expectation_type_(type) {}
 
 DumpAccessibilityTestHelper::DumpAccessibilityTestHelper(
@@ -189,34 +198,45 @@ ui::AXInspectScenario DumpAccessibilityTestHelper::ParseScenario(
                                      default_filters);
 }
 
+absl::optional<ui::AXInspectScenario>
+DumpAccessibilityTestHelper::ParseScenario(
+    const base::FilePath& scenario_path,
+    const std::vector<ui::AXPropertyFilter>& default_filters) {
+  const TypeInfo::Mapping* mapping = TypeMapping(expectation_type_);
+  if (!mapping)
+    return ui::AXInspectScenario();
+  return ui::AXInspectScenario::From(mapping->directive_prefix, scenario_path,
+                                     default_filters);
+}
+
 // static
-std::vector<AXInspectFactory::Type>
-DumpAccessibilityTestHelper::TreeTestPasses() {
+std::vector<ui::AXApiType::Type> DumpAccessibilityTestHelper::TreeTestPasses() {
   return
 #if !BUILDFLAG(HAS_PLATFORM_ACCESSIBILITY_SUPPORT)
-      {AXInspectFactory::kBlink};
+      {ui::AXApiType::kBlink};
 #elif defined(OS_WIN)
-      {AXInspectFactory::kBlink, AXInspectFactory::kWinIA2,
-       AXInspectFactory::kWinUIA};
+      {ui::AXApiType::kBlink, ui::AXApiType::kWinIA2, ui::AXApiType::kWinUIA};
 #elif defined(OS_MAC)
-      {AXInspectFactory::kBlink, AXInspectFactory::kMac};
+      {ui::AXApiType::kBlink, ui::AXApiType::kMac};
 #elif defined(OS_ANDROID)
-      {AXInspectFactory::kAndroid};
+      {ui::AXApiType::kAndroid};
+#elif defined(OS_FUCHSIA)
+      {ui::AXApiType::kFuchsia};
 #else  // linux
-      {AXInspectFactory::kBlink, AXInspectFactory::kLinux};
+      {ui::AXApiType::kBlink, ui::AXApiType::kLinux};
 #endif
 }
 
 // static
-std::vector<AXInspectFactory::Type>
+std::vector<ui::AXApiType::Type>
 DumpAccessibilityTestHelper::EventTestPasses() {
   return
 #if defined(OS_WIN)
-      {AXInspectFactory::kWinIA2, AXInspectFactory::kWinUIA};
+      {ui::AXApiType::kWinIA2, ui::AXApiType::kWinUIA};
 #elif defined(OS_MAC)
-      {AXInspectFactory::kMac};
+      {ui::AXApiType::kMac};
 #elif BUILDFLAG(USE_ATK)
-      {AXInspectFactory::kLinux};
+      {ui::AXApiType::kLinux};
 #else
       {};
 #endif

@@ -217,21 +217,17 @@ std::unique_ptr<CanvasResourceProvider> CreateProvider(
     const SkImageInfo& info,
     const scoped_refptr<StaticBitmapImage>& source_image,
     bool fallback_to_software) {
-  IntSize size(info.width(), info.height());
-
   const cc::PaintFlags::FilterQuality filter_quality =
       cc::PaintFlags::FilterQuality::kLow;
-  const CanvasResourceParams resource_params(info);
-
   if (context_provider) {
     uint32_t usage_flags =
         context_provider->ContextProvider()
             ->SharedImageInterface()
             ->UsageForMailbox(source_image->GetMailboxHolder().mailbox);
     auto resource_provider = CanvasResourceProvider::CreateSharedImageProvider(
-        size, filter_quality, resource_params,
-        CanvasResourceProvider::ShouldInitialize::kNo, context_provider,
-        RasterMode::kGPU, source_image->IsOriginTopLeft(), usage_flags);
+        info, filter_quality, CanvasResourceProvider::ShouldInitialize::kNo,
+        context_provider, RasterMode::kGPU, source_image->IsOriginTopLeft(),
+        usage_flags);
     if (resource_provider)
       return resource_provider;
 
@@ -240,8 +236,7 @@ std::unique_ptr<CanvasResourceProvider> CreateProvider(
   }
 
   return CanvasResourceProvider::CreateBitmapProvider(
-      size, filter_quality, resource_params,
-      CanvasResourceProvider::ShouldInitialize::kNo);
+      info, filter_quality, CanvasResourceProvider::ShouldInitialize::kNo);
 }
 
 scoped_refptr<StaticBitmapImage> FlipImageVertically(
@@ -427,7 +422,7 @@ static scoped_refptr<StaticBitmapImage> CropImageAndApplyColorSpaceConversion(
   DCHECK(image);
   DCHECK(!image->HasData());
 
-  IntRect img_rect(IntPoint(), IntSize(image->width(), image->height()));
+  IntRect img_rect(gfx::Point(), IntSize(image->width(), image->height()));
   const IntRect& src_rect{parsed_options.crop_rect};
   const IntRect intersect_rect = IntersectRects(img_rect, src_rect);
 
@@ -687,7 +682,7 @@ ImageBitmap::ImageBitmap(ImageData* data,
     return;
 
   const IntRect& src_rect{parsed_options.crop_rect};
-  const IntRect data_src_rect = IntRect(IntPoint(), data->Size());
+  const IntRect data_src_rect = IntRect(gfx::Point(), data->Size());
   const IntRect intersect_rect =
       crop_rect ? IntersectRects(src_rect, data_src_rect) : data_src_rect;
 
@@ -916,7 +911,7 @@ ScriptPromise ImageBitmap::CreateAsync(ImageElementBase* image,
 
   scoped_refptr<Image> input = image->CachedImage()->GetImage();
   DCHECK(input->IsSVGImage());
-  IntRect input_rect(IntPoint(), input->Size());
+  IntRect input_rect(gfx::Point(), input->Size());
 
   // In the case when |crop_rect| doesn't intersect the source image, we return
   // a transparent black image, respecting the color_params but ignoring

@@ -4,6 +4,7 @@
 
 #import "content/app_shim_remote_cocoa/render_widget_host_view_cocoa.h"
 
+#include <Carbon/Carbon.h>  // for <HIToolbox/Events.h>
 #include <limits>
 #include <utility>
 
@@ -11,6 +12,7 @@
 #include "base/cxx17_backports.h"
 #include "base/debug/crash_logging.h"
 #import "base/mac/foundation_util.h"
+#include "base/macros.h"
 #include "base/strings/sys_string_conversions.h"
 #import "content/browser/accessibility/browser_accessibility_cocoa.h"
 #import "content/browser/accessibility/browser_accessibility_mac.h"
@@ -68,6 +70,9 @@ class DummyHostHelper : public RenderWidgetHostNSViewHostHelper {
  public:
   explicit DummyHostHelper() {}
 
+  DummyHostHelper(const DummyHostHelper&) = delete;
+  DummyHostHelper& operator=(const DummyHostHelper&) = delete;
+
  private:
   // RenderWidgetHostNSViewHostHelper implementation.
   id GetRootBrowserAccessibilityElement() override { return nil; }
@@ -92,8 +97,6 @@ class DummyHostHelper : public RenderWidgetHostNSViewHostHelper {
   void GestureUpdate(blink::WebGestureEvent update_event) override {}
   void GestureEnd(blink::WebGestureEvent end_event) override {}
   void SmartMagnify(const blink::WebGestureEvent& web_event) override {}
-
-  DISALLOW_COPY_AND_ASSIGN(DummyHostHelper);
 };
 
 // Touch bar identifier.
@@ -1006,9 +1009,20 @@ void ExtractUnderlines(NSAttributedString* string,
   _hasEditCommands = NO;
   _editCommands.clear();
 
-  // Sends key down events to input method first, then we can decide what should
-  // be done according to input method's feedback.
-  [self interpretKeyEvents:@[ theEvent ]];
+  // Since Mac Eisu Kana keys cannot be handled by interpretKeyEvents to enable/
+  // disable an IME, we need to pass the event to processInputKeyBindings.
+  // processInputKeyBindings is available at least on 10.11-11.0.
+  if (keyCode == kVK_JIS_Eisu || keyCode == kVK_JIS_Kana) {
+    if ([NSTextInputContext
+            respondsToSelector:@selector(processInputKeyBindings:)]) {
+      [NSTextInputContext performSelector:@selector(processInputKeyBindings:)
+                               withObject:theEvent];
+    }
+  } else {
+    // Sends key down events to input method first, then we can decide what
+    // should be done according to input method's feedback.
+    [self interpretKeyEvents:@[ theEvent ]];
+  }
 
   _handlingKeyDown = NO;
 

@@ -13,7 +13,6 @@
 #include "base/debug/debugging_buildflags.h"
 #include "base/debug/profiler.h"
 #include "base/i18n/number_formatting.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
@@ -96,7 +95,7 @@
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/policy/handlers/system_features_disable_list_policy_handler.h"
+#include "chrome/browser/policy/system_features_disable_list_policy_handler.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #endif
 
@@ -712,12 +711,6 @@ void AppMenuModel::LogMenuMetrics(int command_id) {
         UMA_HISTOGRAM_MEDIUM_TIMES("WrenchMenu.TimeToAction.AppInfo", delta);
       LogMenuAction(MENU_ACTION_APP_INFO);
       break;
-    case IDC_SHOW_KALEIDOSCOPE:
-      if (!uma_action_recorded_)
-        UMA_HISTOGRAM_MEDIUM_TIMES("WrenchMenu.TimeToAction.ShowKaleidoscope",
-                                   delta);
-      LogMenuAction(MENU_ACTION_SHOW_KALEIDOSCOPE);
-      break;
   }
 
   if (!uma_action_recorded_) {
@@ -820,11 +813,6 @@ void AppMenuModel::Build() {
     AddItemWithStringId(IDC_NEW_INCOGNITO_WINDOW, IDS_NEW_INCOGNITO_WINDOW);
   AddSeparator(ui::NORMAL_SEPARATOR);
 
-  if (!browser_->profile()->IsOffTheRecord() &&
-      base::FeatureList::IsEnabled(media::kKaleidoscopeInMenu)) {
-    AddItemWithStringId(IDC_SHOW_KALEIDOSCOPE, IDS_SHOW_KALEIDOSCOPE);
-  }
-
   if (!browser_->profile()->IsOffTheRecord()) {
     sub_menus_.push_back(
         std::make_unique<RecentTabsSubMenuModel>(provider_, browser_));
@@ -872,12 +860,17 @@ void AppMenuModel::Build() {
                  web_app::GetWebAppForActiveTab(browser_)) {
     auto* provider =
         web_app::WebAppProvider::GetForLocalAppsUnchecked(browser_->profile());
-    const std::u16string short_name =
-        base::UTF8ToUTF16(provider->registrar().GetAppShortName(*app_id));
-    const std::u16string truncated_name = gfx::TruncateString(
-        short_name, kMaxAppNameLength, gfx::CHARACTER_BREAK);
-    AddItem(IDC_OPEN_IN_PWA_WINDOW,
-            l10n_util::GetStringFUTF16(IDS_OPEN_IN_APP_WINDOW, truncated_name));
+    // Only applies to apps that open in an app window.
+    if (provider->registrar().GetAppUserDisplayMode(*app_id) !=
+        web_app::DisplayMode::kBrowser) {
+      const std::u16string short_name =
+          base::UTF8ToUTF16(provider->registrar().GetAppShortName(*app_id));
+      const std::u16string truncated_name = gfx::TruncateString(
+          short_name, kMaxAppNameLength, gfx::CHARACTER_BREAK);
+      AddItem(
+          IDC_OPEN_IN_PWA_WINDOW,
+          l10n_util::GetStringFUTF16(IDS_OPEN_IN_APP_WINDOW, truncated_name));
+    }
   }
 
   if (dom_distiller::IsDomDistillerEnabled() &&

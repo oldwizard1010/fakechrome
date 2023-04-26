@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "ash/components/settings/cros_settings_names.h"
 #include "base/test/task_environment.h"
 #include "base/time/clock.h"
 #include "base/time/time.h"
@@ -19,7 +20,6 @@
 #include "chrome/test/base/testing_browser_process.h"
 #include "chromeos/dbus/power/fake_power_manager_client.h"
 #include "chromeos/dbus/power/power_manager_client.h"
-#include "chromeos/settings/cros_settings_names.h"
 #include "components/user_manager/scoped_user_manager.h"
 #include "services/device/public/cpp/test/test_wake_lock_provider.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -140,7 +140,7 @@ TEST_F(DeviceScheduledRebootHandlerTest,
   // expected reboot and then check if an reboot is not scheduled.
   const base::TimeDelta small_delay = base::Milliseconds(1);
   cros_settings_.device_settings()->Set(
-      chromeos::kDeviceScheduledReboot,
+      ash::kDeviceScheduledReboot,
       std::move(policy_and_next_reboot_time.first));
   int expected_scheduled_reboots = 0;
   int expected_reboot_requests = 0;
@@ -178,7 +178,7 @@ TEST_F(DeviceScheduledRebootHandlerTest,
   // expected reboot and then check if an reboot is not scheduled.
   const base::TimeDelta small_delay = base::Milliseconds(1);
   cros_settings_.device_settings()->Set(
-      chromeos::kDeviceScheduledReboot,
+      ash::kDeviceScheduledReboot,
       std::move(policy_and_next_reboot_time.first));
   int expected_scheduled_reboots = 0;
   int expected_reboot_requests = 0;
@@ -224,7 +224,7 @@ TEST_F(DeviceScheduledRebootHandlerTest, CheckIfWeeklyUpdateCheckIsScheduled) {
   int expected_reboot_requests = 0;
   const base::TimeDelta small_delay = base::Milliseconds(1);
   cros_settings_.device_settings()->Set(
-      chromeos::kDeviceScheduledReboot,
+      ash::kDeviceScheduledReboot,
       std::move(policy_and_next_reboot_time.first));
   task_environment_.FastForwardBy(delay_from_now - small_delay);
   EXPECT_TRUE(CheckStats(expected_scheduled_reboots, expected_reboot_requests));
@@ -266,7 +266,7 @@ TEST_F(DeviceScheduledRebootHandlerTest, CheckIfMonthlyRebootIsScheduled) {
   int expected_reboot_requests = 0;
   const base::TimeDelta small_delay = base::Milliseconds(1);
   cros_settings_.device_settings()->Set(
-      chromeos::kDeviceScheduledReboot,
+      ash::kDeviceScheduledReboot,
       std::move(policy_and_next_reboot_time.first));
   task_environment_.FastForwardBy(delay_from_now - small_delay);
   EXPECT_TRUE(CheckStats(expected_scheduled_reboots, expected_reboot_requests));

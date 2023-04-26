@@ -117,10 +117,6 @@ extern const char kDetectMainThreadFreezeDescription[];
 extern const char kDiscoverFeedInNtpName[];
 extern const char kDiscoverFeedInNtpDescription[];
 
-// Title and description for the flag to enable .mobileconfig file downloads.
-extern const char kDownloadMobileConfigFileName[];
-extern const char kDownloadMobileConfigFileDescription[];
-
 // Title and description for the flag to enable Vcard support.
 extern const char kDownloadVcardName[];
 extern const char kDownloadVcardDescription[];
@@ -129,10 +125,6 @@ extern const char kDownloadVcardDescription[];
 // iOS.
 extern const char kEditPasswordsInSettingsName[];
 extern const char kEditPasswordsInSettingsDescription[];
-
-// Title and description for the flag to native restore web states.
-extern const char kRestoreSessionFromCacheName[];
-extern const char kRestoreSessionFromCacheDescription[];
 
 extern const char kEnableAutofillAccountWalletStorageName[];
 extern const char kEnableAutofillAccountWalletStorageDescription[];
@@ -191,10 +183,6 @@ extern const char kEnableLongMessageDurationDescription[];
 extern const char kEnableManualPasswordGenerationName[];
 extern const char kEnableManualPasswordGenerationDescription[];
 
-// Title and description for the flag to enable the NTP memory enhancements.
-extern const char kEnableNTPMemoryEnhancementName[];
-extern const char kEnableNTPMemoryEnhancementDescription[];
-
 // Title and description for the flag to enable optimization guide.
 extern const char kEnableOptimizationGuideName[];
 extern const char kEnableOptimizationGuideDescription[];
@@ -218,6 +206,11 @@ extern const char kExpandedTabStripDescription[];
 extern const char kFillingAcrossAffiliatedWebsitesName[];
 extern const char kFillingAcrossAffiliatedWebsitesDescription[];
 
+// Title and description for the flag to introduce following web channels on
+// Chrome iOS.
+extern const char kEnableWebChannelsName[];
+extern const char kEnableWebChannelsDescription[];
+
 // Title and description for the flag to disable all extended sync promos.
 extern const char kForceDisableExtendedSyncPromosName[];
 extern const char kForceDisableExtendedSyncPromosDescription[];
@@ -230,6 +223,12 @@ extern const char kForceStartupSigninPromoDescription[];
 // promo.
 extern const char kCredentialProviderExtensionPromoName[];
 extern const char kCredentialProviderExtensionPromoDescription[];
+
+// Enables the user to track prices of the Shopping URLs they are visiting.
+// The first variation is to display price drops in the Tab Switching UI when
+// they are identified.
+extern const char kCommercePriceTrackingName[];
+extern const char kCommercePriceTrackingDescription[];
 
 // Title and description for the flag to set the major version the UA string to
 // 100.
@@ -249,10 +248,6 @@ extern const char kIncognitoBrandConsistencyForIOSDescription[];
 // Title and description for the flag to enable revamped Incognito NTP page.
 extern const char kIncognitoNtpRevampName[];
 extern const char kIncognitoNtpRevampDescription[];
-
-// Title and description for the flag to auto-dismiss the privacy notice card.
-extern const char kInterestFeedNoticeCardAutoDismissName[];
-extern const char kInterestFeedNoticeCardAutoDismissDescription[];
 
 // Title and description for the flag that conditionally uploads clicks and view
 // actions in the feed (e.g., the user needs to view X cards).
@@ -310,6 +305,11 @@ extern const char kModernTabStripDescription[];
 extern const char kNewOverflowMenuName[];
 extern const char kNewOverflowMenuDescription[];
 
+// Title and description for temporary bug fix to broken NTP view hierarhy.
+// TODO(crbug.com/1262536): Remove this when fixed.
+extern const char kNTPViewHierarchyRepairName[];
+extern const char kNTPViewHierarchyRepairDescription[];
+
 // Title and description for the flag to use the previous sync screen in the new
 // FRE.
 extern const char kOldSyncStringFREName[];
@@ -352,6 +352,14 @@ extern const char kPasswordReuseDetectionDescription[];
 // Title and description for the flag to enable the Reading List Messages.
 extern const char kReadingListMessagesName[];
 extern const char kReadingListMessagesDescription[];
+
+// Title and description for the flag to enable Reading List Time to Read.
+extern const char kReadingListTimeToReadName[];
+extern const char kReadingListTimeToReadDescription[];
+
+// Title and description for the flag to native restore web states.
+extern const char kRestoreSessionFromCacheName[];
+extern const char kRestoreSessionFromCacheDescription[];
 
 // Title and description for the flag that makes Safe Browsing available.
 extern const char kSafeBrowsingAvailableName[];
@@ -399,6 +407,10 @@ extern const char kSharedHighlightingUseBlocklistIOSDescription[];
 extern const char kShowAutofillTypePredictionsName[];
 extern const char kShowAutofillTypePredictionsDescription[];
 
+// Title and description for the flag to use one NTP for all tabs in a Browser.
+extern const char kSingleNtpName[];
+extern const char kSingleNtpDescription[];
+
 // Title and description for the flag to enable the Start Surface.
 extern const char kStartSurfaceName[];
 extern const char kStartSurfaceDescription[];
@@ -407,6 +419,10 @@ extern const char kStartSurfaceDescription[];
 // sandbox servers.
 extern const char kSyncSandboxName[];
 extern const char kSyncSandboxDescription[];
+
+// Title and description for the flag to synthesize native restore web states.
+extern const char kSynthesizedRestoreSessionName[];
+extern const char kSynthesizedRestoreSessionDescription[];
 
 // Title and description for the flag to control if Chrome Sync should support
 // trusted vault RPC.
@@ -426,6 +442,10 @@ extern const char kSyncTrustedVaultPassphraseRecoveryDescription[];
 // Title and description for the flag to enable tabs bulk actions feature.
 extern const char kTabsBulkActionsName[];
 extern const char kTabsBulkActionsDescription[];
+
+// Title and description for the flag to enable tabs search feature.
+extern const char kTabsSearchName[];
+extern const char kTabsSearchDescription[];
 
 // Title and description for the flag to enable the toolbar container
 // implementation.
@@ -461,6 +481,10 @@ extern const char kWalletServiceUseSandboxDescription[];
 extern const char kEnableNewDownloadAPIName[];
 extern const char kEnableNewDownloadAPIDescription[];
 
+// Title and description for the flag to enable unrealized WebStates.
+extern const char kLazilyCreateWebStateOnRestorationName[];
+extern const char kLazilyCreateWebStateOnRestorationDescription[];
+
 // Title and description for the flag to tie the default text zoom level to
 // the dynamic type setting.
 extern const char kWebPageDefaultZoomFromDynamicTypeName[];
@@ -481,11 +505,6 @@ extern const char kWebViewNativeContextMenuDescription[];
 extern const char kWebViewNativeContextMenuPhase2Name[];
 extern const char kWebViewNativeContextMenuPhase2Description[];
 
-// Title and description for the flag to restore Gaia cookies when the user
-// explicitly requests to be signed in to a Google service.
-extern const char kRestoreGaiaCookiesOnUserActionName[];
-extern const char kRestoreGaiaCookiesOnUserActionDescription[];
-
 extern const char kRecordSnapshotSizeName[];
 extern const char kRecordSnapshotSizeDescription[];
 
@@ -494,6 +513,11 @@ extern const char kRecordSnapshotSizeDescription[];
 // default browser.
 extern const char kDefaultBrowserFullscreenPromoExperimentName[];
 extern const char kDefaultBrowserFullscreenPromoExperimentDescription[];
+
+// Title and description for the flag to remove excess NTP tabs that don't have
+// navigation history.
+extern const char kRemoveExcessNTPsExperimentName[];
+extern const char kRemoveExcessNTPsExperimentDescription[];
 
 // Please add names and descriptions above in alphabetical order.
 

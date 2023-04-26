@@ -6,7 +6,6 @@
 #define CHROMEOS_DBUS_FWUPD_FAKE_FWUPD_CLIENT_H_
 
 #include "base/component_export.h"
-#include "base/macros.h"
 #include "chromeos/dbus/fwupd/fwupd_client.h"
 
 namespace chromeos {
@@ -20,8 +19,8 @@ class COMPONENT_EXPORT(CHROMEOS_DBUS_FUWPD) FakeFwupdClient
   ~FakeFwupdClient() override;
 
   void Init(dbus::Bus* bus) override;
-  void GetUpgrades(std::string device_id) override;
-  void GetDevices() override;
+  void RequestUpgrades(std::string device_id) override;
+  void RequestDevices() override;
 };
 
 }  // namespace chromeos

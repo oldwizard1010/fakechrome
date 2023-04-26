@@ -10,7 +10,6 @@
 
 #include "base/bind.h"
 #include "base/feature_list.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/scoped_observation.h"
 #include "build/build_config.h"
@@ -1034,7 +1033,7 @@ void ProfileMenuViewBase::OnWindowClosing() {
 }
 
 bool ProfileMenuViewBase::HandleContextMenu(
-    content::RenderFrameHost* render_frame_host,
+    content::RenderFrameHost& render_frame_host,
     const content::ContextMenuParams& params) {
   // Suppresses the context menu because some features, such as inspecting
   // elements, are not appropriate in a bubble.

@@ -98,54 +98,14 @@ class MODULES_EXPORT BaseRenderingContext2D : public CanvasPath {
   void ResetInternal();  // Called from within blink
 
   void scale(double sx, double sy);
-  void scale(double sx, double sy, double sz);
   void rotate(double angle_in_radians);
-  void rotate3d(double rx, double ry, double rz);
-  void rotateAxis(double axisX,
-                  double axisY,
-                  double axisZ,
-                  double angle_in_radians);
   void translate(double tx, double ty);
-  void translate(double tx, double ty, double tz);
-  void perspective(double length);
   void transform(double m11,
                  double m12,
                  double m21,
                  double m22,
                  double dx,
                  double dy);
-  void transform(double m11,
-                 double m12,
-                 double m13,
-                 double m14,
-                 double m21,
-                 double m22,
-                 double m23,
-                 double m24,
-                 double m31,
-                 double m32,
-                 double m33,
-                 double m34,
-                 double m41,
-                 double m42,
-                 double m43,
-                 double m44);
-  void setTransform(double m11,
-                    double m12,
-                    double m13,
-                    double m14,
-                    double m21,
-                    double m22,
-                    double m23,
-                    double m24,
-                    double m31,
-                    double m32,
-                    double m33,
-                    double m34,
-                    double m41,
-                    double m42,
-                    double m43,
-                    double m44);
   void setTransform(double m11,
                     double m12,
                     double m21,
@@ -310,6 +270,8 @@ class MODULES_EXPORT BaseRenderingContext2D : public CanvasPath {
     return nullptr;
   }
 
+  ExecutionContext* GetTopExecutionContext() const override = 0;
+
   void ValidateStateStack() const {
 #if DCHECK_IS_ON()
     ValidateStateStackWithCanvas(GetPaintCanvas());
@@ -377,25 +339,31 @@ class MODULES_EXPORT BaseRenderingContext2D : public CanvasPath {
   enum class OverdrawOp {
     // Must remain in sync with CanvasOverdrawOp defined in
     // tools/metrics/histograms/enums.xml
+    //
+    // Note: Several enum values are now obsolete because the use cases they
+    // covered were removed because they had low incidence rates in real-world
+    // web content.
+
     kNone = 0,  // Not used in histogram
 
     kTotal = 1,  // Counts total number of overdraw optimization hits.
 
     // Ops. These are mutually exclusive for a given overdraw hit.
     kClearRect = 2,
-    kFillRect = 3,
-    kPutImageData = 4,
+    // kFillRect = 3,  // Removed due to low incidence
+    // kPutImageData = 4,  // Removed due to low incidence
     kDrawImage = 5,
     kContextReset = 6,
-    kClearForSrcBlendMode = 7,
+    // kClearForSrcBlendMode = 7,  // Removed due to low incidence
 
     // Modifiers
-    kHasOpaqueShader = 8,
     kHasTransform = 9,
-    kSourceOverBlendMode = 10,
-    kClearBlendMode = 11,
+    // kSourceOverBlendMode = 10,  // Removed due to low incidence
+    // kClearBlendMode = 11,  // Removed due to low incidence
+    kHasClip = 12,
+    kHasClipAndTransform = 13,
 
-    kMaxValue = kClearBlendMode,
+    kMaxValue = kHasClipAndTransform,
   };
 
   struct UsageCounters {
@@ -475,16 +443,10 @@ class MODULES_EXPORT BaseRenderingContext2D : public CanvasPath {
     return nullptr;
   }
 
-  enum DrawType {
-    kClipFill,  // Fill that is already known to cover the current clip
-    kUntransformedUnclippedFill
-  };
-
   void CheckOverdraw(const SkRect&,
                      const PaintFlags*,
                      CanvasRenderingContext2DState::ImageType,
-                     BaseRenderingContext2D::OverdrawOp overdraw_op,
-                     BaseRenderingContext2D::DrawType draw_type);
+                     BaseRenderingContext2D::OverdrawOp overdraw_op);
 
   HeapVector<Member<CanvasRenderingContext2DState>> state_stack_;
   // Counts how many states have been pushed with BeginLayer.
@@ -530,9 +492,7 @@ class MODULES_EXPORT BaseRenderingContext2D : public CanvasPath {
   virtual void DisableAcceleration() {}
 
   virtual bool IsPaint2D() const { return false; }
-  void WillOverwriteCanvas(OverdrawOp,
-                           SkBlendMode,
-                           bool has_opaque_shader = false);
+  void WillOverwriteCanvas(OverdrawOp);
   virtual void WillOverwriteCanvas() = 0;
 
   bool context_restorable_{true};
@@ -620,12 +580,14 @@ class MODULES_EXPORT BaseRenderingContext2D : public CanvasPath {
   void SetOriginTaintedByContent();
 
   void PutByteArray(const SkPixmap& source,
-                    const IntRect& source_rect,
-                    const IntPoint& dest_point);
+                    const gfx::Rect& source_rect,
+                    const gfx::Vector2d& dest_offset);
   virtual bool IsCanvas2DBufferValid() const {
     NOTREACHED();
     return false;
   }
+
+  virtual void FlushCanvas() = 0;
 
   // Only call if identifiability_study_helper_.ShouldUpdateBuilder() returns
   // true.
@@ -642,8 +604,7 @@ ALWAYS_INLINE void BaseRenderingContext2D::CheckOverdraw(
     const SkRect& rect,
     const PaintFlags* flags,
     CanvasRenderingContext2DState::ImageType image_type,
-    BaseRenderingContext2D::OverdrawOp overdraw_op,
-    BaseRenderingContext2D::DrawType draw_type) {
+    BaseRenderingContext2D::OverdrawOp overdraw_op) {
   // Note on performance: because this method is inlined, all conditional
   // branches on arguments that are static at the call site can be optimized-out
   // by the compiler.
@@ -654,70 +615,31 @@ ALWAYS_INLINE void BaseRenderingContext2D::CheckOverdraw(
   if (UNLIKELY(!c))
     return;
 
-  SkRect device_rect;
-  if (draw_type == kUntransformedUnclippedFill) {  // static branch
-    device_rect = rect;
-  } else {
+  if (overdraw_op == OverdrawOp::kDrawImage) {  // static branch
+    if (UNLIKELY(flags->getBlendMode() != SkBlendMode::kSrcOver) ||
+        UNLIKELY(flags->getLooper()) || UNLIKELY(flags->getImageFilter()) ||
+        UNLIKELY(flags->getMaskFilter()) ||
+        UNLIKELY(flags->getAlpha() < 0xFF) ||
+        UNLIKELY(image_type == CanvasRenderingContext2DState::kNonOpaqueImage))
+      return;
+  }
+
+  if (overdraw_op == OverdrawOp::kClearRect ||
+      overdraw_op == OverdrawOp::kDrawImage) {  // static branch
     if (UNLIKELY(GetState().HasComplexClip()))
       return;
 
     SkIRect sk_i_bounds;
     if (UNLIKELY(!c->getDeviceClipBounds(&sk_i_bounds)))
       return;
-    device_rect = SkRect::Make(sk_i_bounds);
-  }
-
-  const SkImageInfo& image_info = c->imageInfo();
-  if (LIKELY(!device_rect.contains(
-          SkRect::MakeWH(image_info.width(), image_info.height()))))
-    return;
-
-  if (overdraw_op == OverdrawOp::kFillRect ||
-      overdraw_op == OverdrawOp::kDrawImage) {  // static branch
-    unsigned alpha = 0xFF;
-    if (UNLIKELY(flags->getLooper()) || UNLIKELY(flags->getImageFilter()) ||
-        UNLIKELY(flags->getMaskFilter()))
+    SkRect device_rect = SkRect::Make(sk_i_bounds);
+    const SkImageInfo& image_info = c->imageInfo();
+    if (LIKELY(!device_rect.contains(
+            SkRect::MakeWH(image_info.width(), image_info.height()))))
       return;
-
-    SkBlendMode mode = flags->getBlendMode();
-    bool is_source_over = mode == SkBlendMode::kSrcOver;
-    if (UNLIKELY(!is_source_over) && LIKELY(mode != SkBlendMode::kSrc) &&
-        LIKELY(mode != SkBlendMode::kClear))
-      return;  // The code below only knows how to handle Src, SrcOver, and
-               // Clear
-
-    alpha = flags->getAlpha();
-
-    if (overdraw_op == OverdrawOp::kFillRect &&  // static term
-        LIKELY(image_type == CanvasRenderingContext2DState::kNoImage) &&
-        LIKELY(is_source_over)) {
-      if (UNLIKELY(flags->HasShader())) {
-        if (flags->ShaderIsOpaque() && alpha == 0xFF) {
-          WillOverwriteCanvas(overdraw_op, mode, /*has_opaque_shader=*/true);
-        }
-        return;
-      }
-    }
-
-    if (LIKELY(is_source_over)) {
-      // With source over, we need to certify that alpha == 0xFF for all pixels
-      if (image_type == CanvasRenderingContext2DState::kNonOpaqueImage)
-        return;
-      if (UNLIKELY(alpha < 0xFF))
-        return;
-    }
   }
 
-  SkBlendMode blend_mode =
-      (overdraw_op == OverdrawOp::kClearForSrcBlendMode ||
-       overdraw_op == OverdrawOp::kPutImageData)
-          ?
-          // Note: The kSrc composite op does not have an associated histogram
-          // bucket in the overdraw histogram. This is intentional sice it would
-          // be redundant with kClearForSrcBlendMode and kPutImageData
-          SkBlendMode::kSrc
-          : flags->getBlendMode();
-  WillOverwriteCanvas(overdraw_op, blend_mode);
+  WillOverwriteCanvas(overdraw_op);
 }
 
 template <BaseRenderingContext2D::OverdrawOp CurrentOverdrawOp,
@@ -753,12 +675,17 @@ void BaseRenderingContext2D::DrawInternal(
         // Because CurrentOverdrawOp is a template argument the following branch
         // is optimized-out at compile time.
         if (CurrentOverdrawOp != OverdrawOp::kNone) {
-          CheckOverdraw(bounds, flags, image_type, CurrentOverdrawOp,
-                        kClipFill);
+          CheckOverdraw(bounds, flags, image_type, CurrentOverdrawOp);
         }
       }
       draw_func(GetPaintCanvasForDraw(dirty_rect, draw_type), flags);
     }
+  }
+  if (UNLIKELY(GetPaintCanvas()->NeedsFlush())) {
+    // This happens if draw_func called flush() on the PaintCanvas. The flush
+    // cannot be performed inside the scope of draw_func because it would break
+    // the logic of CompositedDraw.
+    FlushCanvas();
   }
 }
 
@@ -800,6 +727,20 @@ void BaseRenderingContext2D::CompositedDraw(
     cc::PaintCanvas* c,
     CanvasRenderingContext2DState::PaintType paint_type,
     CanvasRenderingContext2DState::ImageType image_type) {
+  // Due to the complexity of composited draw operations, we need to grant an
+  // exception to allow multi-pass rendereing, and state finalization
+  // operations to proceed between the time when a flush is requested by
+  // draw_func and when the flush request is fulfilled in DrawInternal. We
+  // cannot fulfill flush request in the middle of a composited draw because
+  // it would break the rendering behavior.
+  // It is safe to cast 'c' to RecordPaintCanvas below because we know that
+  // CanvasResourceProvider always creates PaintCanvases of that type.
+  // TODO(junov): We could pass 'c' as a RecordingPaintCanvas in order to
+  // eliminate the static_cast.  This would require changing a lot of plumbing
+  // and fixing virtual methods that have non-virtual overloads.
+  cc::RecordPaintCanvas::DisableFlushCheckScope disable_flush_check_scope(
+      static_cast<cc::RecordPaintCanvas*>(c));
+
   sk_sp<PaintFilter> canvas_filter = StateGetFilter();
   const CanvasRenderingContext2DState& state = GetState();
   DCHECK(IsFullCanvasCompositeMode(state.GlobalComposite()) || canvas_filter ||

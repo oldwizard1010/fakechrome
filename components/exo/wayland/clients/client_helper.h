@@ -7,7 +7,7 @@
 
 #include <alpha-compositing-unstable-v1-client-protocol.h>
 #include <aura-shell-client-protocol.h>
-#include <color-space-unstable-v1-client-protocol.h>
+#include <chrome-color-management-client-protocol.h>
 #include <cursor-shapes-unstable-v1-client-protocol.h>
 #include <extended-drag-unstable-v1-client-protocol.h>
 #include <fullscreen-shell-unstable-v1-client-protocol.h>
@@ -82,6 +82,11 @@ DEFAULT_DELETER_FDECL(struct wp_presentation_feedback)
 DEFAULT_DELETER_FDECL(zaura_shell)
 DEFAULT_DELETER_FDECL(zaura_surface)
 DEFAULT_DELETER_FDECL(zaura_output)
+DEFAULT_DELETER_FDECL(zcr_color_manager_v1)
+DEFAULT_DELETER_FDECL(zcr_color_management_output_v1)
+DEFAULT_DELETER_FDECL(zcr_color_management_surface_v1)
+DEFAULT_DELETER_FDECL(zcr_color_space_creator_v1)
+DEFAULT_DELETER_FDECL(zcr_color_space_v1)
 DEFAULT_DELETER_FDECL(zwp_linux_buffer_release_v1)
 DEFAULT_DELETER_FDECL(zwp_fullscreen_shell_v1)
 DEFAULT_DELETER_FDECL(zwp_input_timestamps_manager_v1)
@@ -90,7 +95,6 @@ DEFAULT_DELETER_FDECL(zwp_linux_buffer_params_v1)
 DEFAULT_DELETER_FDECL(zwp_linux_dmabuf_v1)
 DEFAULT_DELETER_FDECL(zwp_linux_explicit_synchronization_v1)
 DEFAULT_DELETER_FDECL(zwp_linux_surface_synchronization_v1)
-DEFAULT_DELETER_FDECL(zcr_color_space_v1)
 DEFAULT_DELETER_FDECL(zcr_vsync_feedback_v1)
 DEFAULT_DELETER_FDECL(zcr_vsync_timing_v1)
 DEFAULT_DELETER_FDECL(wl_data_device_manager)

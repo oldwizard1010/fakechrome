@@ -514,7 +514,8 @@ void CSSAnimations::CalculateCompositorAnimationUpdate(
     Element& element,
     const ComputedStyle& style,
     const ComputedStyle* parent_style,
-    bool was_viewport_resized) {
+    bool was_viewport_resized,
+    bool force_update) {
   ElementAnimations* element_animations =
       animating_element.GetElementAnimations();
 
@@ -541,9 +542,10 @@ void CSSAnimations::CalculateCompositorAnimationUpdate(
     if (!keyframe_effect)
       return false;
 
-    if ((transform_zoom_changed || was_viewport_resized) &&
-        (keyframe_effect->Affects(PropertyHandle(GetCSSPropertyTransform())) ||
-         keyframe_effect->Affects(PropertyHandle(GetCSSPropertyTranslate()))))
+    if (force_update ||
+        ((transform_zoom_changed || was_viewport_resized) &&
+         (keyframe_effect->Affects(PropertyHandle(GetCSSPropertyTransform())) ||
+          keyframe_effect->Affects(PropertyHandle(GetCSSPropertyTranslate())))))
       keyframe_effect->InvalidateCompositorKeyframesSnapshot();
 
     if (keyframe_effect->SnapshotAllCompositorKeyframesIfNecessary(
@@ -1210,6 +1212,8 @@ bool CSSAnimations::CanCalculateTransitionUpdateForProperty(
            ->CssAnimations()
            .previous_active_interpolations_for_animations_.Contains(
                property))) {
+    UseCounter::Count(state.animating_element.GetDocument(),
+                      WebFeature::kCSSTransitionBlockedByAnimation);
     return false;
   }
   return true;

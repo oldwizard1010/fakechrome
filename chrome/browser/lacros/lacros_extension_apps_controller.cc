@@ -107,7 +107,7 @@ void LacrosExtensionAppsController::GetMenuModel(
 
 void LacrosExtensionAppsController::LoadIcon(const std::string& app_id,
                                              apps::mojom::IconKeyPtr icon_key,
-                                             apps::mojom::IconType icon_type,
+                                             apps::IconType icon_type,
                                              int32_t size_hint_in_dip,
                                              LoadIconCallback callback) {
   Profile* profile = nullptr;
@@ -116,15 +116,14 @@ void LacrosExtensionAppsController::LoadIcon(const std::string& app_id,
       lacros_extension_apps_utility::DemuxId(app_id, &profile, &extension);
   if (success && icon_key) {
     LoadIconFromExtension(
-        apps::ConvertMojomIconTypeToIconType(icon_type), size_hint_in_dip,
-        profile, extension->id(),
+        icon_type, size_hint_in_dip, profile, extension->id(),
         static_cast<apps::IconEffects>(icon_key->icon_effects),
         std::move(callback));
     return;
   }
 
   // On failure, we still run the callback, with the zero IconValue.
-  std::move(callback).Run(apps::mojom::IconValue::New());
+  std::move(callback).Run(std::make_unique<apps::IconValue>());
 }
 
 void LacrosExtensionAppsController::OpenNativeSettings(
@@ -193,7 +192,12 @@ void LacrosExtensionAppsController::Launch(
       extensions::ExtensionPrefs::Get(profile), extension);
   auto params = apps::CreateAppLaunchParamsForIntent(
       extension->id(), ui::EF_NONE, launch_params->launch_source,
-      display::kInvalidDisplayId, launch_container, std::move(intent));
+      display::kInvalidDisplayId, launch_container, std::move(intent), profile);
+  if (launch_params->intent && launch_params->intent->files.has_value()) {
+    for (const auto& file : launch_params->intent->files.value()) {
+      params.launch_files.push_back(file->file_path);
+    }
+  }
   OpenApplication(profile, std::move(params));
 
   // TODO(https://crbug.com/1225848): Store the resulting instance token, which

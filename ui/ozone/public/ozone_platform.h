@@ -12,7 +12,6 @@
 #include "base/callback.h"
 #include "base/component_export.h"
 #include "base/containers/flat_set.h"
-#include "base/macros.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
@@ -192,6 +191,10 @@ class COMPONENT_EXPORT(OZONE) OzonePlatform {
     // must have the appropriate logic in its GetPlatformRuntimeProperties()
     // method.
     static SupportsSsdForTest override_supports_ssd_for_test;
+
+    // Wayland only: determines whether solid color overlays can be delegated
+    // without a backing image via a wayland protocol.
+    bool supports_non_backed_solid_color_buffers = false;
   };
 
   // Corresponds to chrome_browser_main_extra_parts.h.
@@ -294,7 +297,8 @@ class COMPONENT_EXPORT(OZONE) OzonePlatform {
   virtual const PlatformProperties& GetPlatformProperties();
 
   // Returns runtime properties of the current platform implementation available
-  // after InitializeForUI() runs.
+  // after either InitializeUI() or InitializeGPU() runs. Runtime properties for
+  // UI and GPU may be different depending on availability of platform objects.
   virtual const PlatformRuntimeProperties& GetPlatformRuntimeProperties();
 
   // Ozone platform implementations may also choose to expose mojo interfaces to

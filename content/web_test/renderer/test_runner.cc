@@ -18,7 +18,6 @@
 #include "base/containers/cxx20_erase.h"
 #include "base/containers/unique_ptr_adapters.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "cc/paint/paint_canvas.h"
@@ -204,6 +203,9 @@ class SetAcceptLanguagesVisitor : public RenderViewVisitor {
 class TestRunnerBindings : public gin::Wrappable<TestRunnerBindings> {
  public:
   static gin::WrapperInfo kWrapperInfo;
+
+  TestRunnerBindings(const TestRunnerBindings&) = delete;
+  TestRunnerBindings& operator=(const TestRunnerBindings&) = delete;
 
   static void Install(TestRunner* test_runner,
                       WebFrameTestProxy* frame,
@@ -437,8 +439,6 @@ class TestRunnerBindings : public gin::Wrappable<TestRunnerBindings> {
   std::unique_ptr<AppBannerService> app_banner_service_;
 
   base::WeakPtrFactory<TestRunnerBindings> weak_ptr_factory_{this};
-
-  DISALLOW_COPY_AND_ASSIGN(TestRunnerBindings);
 };
 
 gin::WrapperInfo TestRunnerBindings::kWrapperInfo = {gin::kEmbedderNativeGin};

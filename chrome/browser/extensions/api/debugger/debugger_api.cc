@@ -18,7 +18,6 @@
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/lazy_instance.h"
-#include "base/macros.h"
 #include "base/memory/singleton.h"
 #include "base/scoped_observation.h"
 #include "base/strings/string_number_conversions.h"
@@ -137,12 +136,19 @@ bool ExtensionMayAttachToWebContents(const Extension& extension,
     return false;
   }
 
-  for (content::RenderFrameHost* rfh : web_contents.GetAllFrames()) {
-    if (!ExtensionMayAttachToURL(extension, rfh->GetLastCommittedURL(), profile,
-                                 error))
-      return false;
-  }
-  return true;
+  bool result = true;
+  web_contents.GetMainFrame()->ForEachRenderFrameHost(base::BindRepeating(
+      [](const Extension& extension, Profile* profile, std::string* error,
+         bool& result, content::RenderFrameHost* rfh) {
+        if (!ExtensionMayAttachToURL(extension, rfh->GetLastCommittedURL(),
+                                     profile, error)) {
+          result = false;
+          return content::RenderFrameHost::FrameIterationAction::kStop;
+        }
+        return content::RenderFrameHost::FrameIterationAction::kContinue;
+      },
+      std::ref(extension), profile, error, std::ref(result)));
+  return result;
 }
 
 bool ExtensionMayAttachToAgentHost(const Extension& extension,
@@ -376,8 +382,8 @@ void ExtensionDevToolsClientHost::DispatchProtocolMessage(
   base::DictionaryValue* dictionary =
       static_cast<base::DictionaryValue*>(result.get());
 
-  int id;
-  if (!dictionary->GetInteger("id", &id)) {
+  absl::optional<int> id = dictionary->FindIntKey("id");
+  if (!id) {
     std::string method_name;
     if (!dictionary->GetString("method", &method_name))
       return;
@@ -394,7 +400,7 @@ void ExtensionDevToolsClientHost::DispatchProtocolMessage(
     EventRouter::Get(profile_)->DispatchEventToExtension(extension_id(),
                                                          std::move(event));
   } else {
-    auto it = pending_requests_.find(id);
+    auto it = pending_requests_.find(*id);
     if (it == pending_requests_.end())
       return;
 

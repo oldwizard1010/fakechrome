@@ -15,6 +15,7 @@
 #include "third_party/blink/renderer/core/event_type_names.h"
 #include "third_party/blink/renderer/core/events/gesture_event.h"
 #include "third_party/blink/renderer/core/events/pointer_event_factory.h"
+#include "third_party/blink/renderer/core/fragment_directive/text_fragment_handler.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
@@ -26,7 +27,6 @@
 #include "third_party/blink/renderer/core/input/input_device_capabilities.h"
 #include "third_party/blink/renderer/core/page/chrome_client.h"
 #include "third_party/blink/renderer/core/page/page.h"
-#include "third_party/blink/renderer/core/page/scrolling/text_fragment_handler.h"
 #include "third_party/blink/renderer/core/paint/paint_layer_scrollable_area.h"
 #include "third_party/blink/renderer/core/scroll/scroll_animator_base.h"
 #include "third_party/blink/renderer/platform/wtf/deque.h"
@@ -197,7 +197,7 @@ WebInputEventResult GestureManager::HandleGestureTap(
 
   // We use the adjusted position so the application isn't surprised to see a
   // event with co-ordinates outside the target's bounds.
-  IntPoint adjusted_point = frame_view->ConvertFromRootFrame(
+  gfx::Point adjusted_point = frame_view->ConvertFromRootFrame(
       FlooredIntPoint(gesture_event.PositionInRootFrame()));
 
   const unsigned modifiers = gesture_event.GetModifiers();
@@ -236,13 +236,10 @@ WebInputEventResult GestureManager::HandleGestureTap(
   }
 
   // Capture data for showUnhandledTapUIIfNeeded.
-  IntPoint tapped_position =
+  gfx::Point tapped_position =
       FlooredIntPoint(gesture_event.PositionInRootFrame());
   Node* tapped_node = current_hit_test.InnerNode();
   Element* tapped_element = current_hit_test.InnerElement();
-  LocalFrame::NotifyUserActivation(
-      tapped_node ? tapped_node->GetDocument().GetFrame() : nullptr,
-      mojom::blink::UserActivationNotificationType::kInteraction);
 
   mouse_event_manager_->SetClickElement(tapped_element);
 
@@ -355,7 +352,7 @@ WebInputEventResult GestureManager::HandleGestureTap(
     bool style_changed =
         pre_dispatch_style_version != frame_->GetDocument()->StyleVersion();
 
-    IntPoint tapped_position_in_viewport =
+    gfx::Point tapped_position_in_viewport =
         frame_->GetPage()->GetVisualViewport().RootFrameToViewport(
             tapped_position);
     ShowUnhandledTapUIIfNeeded(dom_tree_changed, style_changed, tapped_node,
@@ -403,6 +400,10 @@ WebInputEventResult GestureManager::HandleGestureLongPress(
     return WebInputEventResult::kNotHandled;
   }
 
+  // For touch pointer interactions, pointerup is an activation triggering
+  // event.  A long-press gesture doesn't fire a pointerup event (fires a
+  // pointercancel instead), but for compat reasons we need user activation
+  // here.
   LocalFrame::NotifyUserActivation(
       inner_node ? inner_node->GetDocument().GetFrame() : nullptr,
       mojom::blink::UserActivationNotificationType::kInteraction);
@@ -517,7 +518,7 @@ void GestureManager::ShowUnhandledTapUIIfNeeded(
     bool style_changed,
     Node* tapped_node,
     Element* tapped_element,
-    const IntPoint& tapped_position_in_viewport) {
+    const gfx::Point& tapped_position_in_viewport) {
 #if BUILDFLAG(ENABLE_UNHANDLED_TAP)
   WebNode web_node(tapped_node);
   // TODO(donnd): roll in ML-identified signals for suppression once identified.
@@ -548,7 +549,7 @@ void GestureManager::ShowUnhandledTapUIIfNeeded(
 
     // Notify the Browser.
     auto tapped_info = mojom::blink::UnhandledTapInfo::New(
-        ToGfxPoint(tapped_position_in_viewport), font_size, text_run_length);
+        tapped_position_in_viewport, font_size, text_run_length);
     provider->ShowUnhandledTapUIIfNeeded(std::move(tapped_info));
   }
 #endif  // BUILDFLAG(ENABLE_UNHANDLED_TAP)

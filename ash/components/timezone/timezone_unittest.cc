@@ -11,7 +11,6 @@
 #include "ash/components/timezone/timezone_provider.h"
 #include "ash/components/timezone/timezone_resolver.h"
 #include "base/bind.h"
-#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "net/http/http_response_headers.h"
@@ -91,6 +90,10 @@ class TestTimeZoneAPILoaderFactory : public network::TestURLLoaderFactory {
     AddResponseWithCode(net::HTTP_INTERNAL_SERVER_ERROR);
   }
 
+  TestTimeZoneAPILoaderFactory(const TestTimeZoneAPILoaderFactory&) = delete;
+  TestTimeZoneAPILoaderFactory& operator=(const TestTimeZoneAPILoaderFactory&) =
+      delete;
+
   void Intercept(const network::ResourceRequest& request) {
     EXPECT_EQ(url_, request.url);
 
@@ -129,8 +132,6 @@ class TestTimeZoneAPILoaderFactory : public network::TestURLLoaderFactory {
   const size_t require_retries_;
   size_t attempts_ = 0;
   TimeZoneProvider* provider_;
-
-  DISALLOW_COPY_AND_ASSIGN(TestTimeZoneAPILoaderFactory);
 };
 
 class TimeZoneReceiver {

@@ -721,8 +721,19 @@ void LayoutText::AbsoluteQuadsForRange(Vector<FloatQuad>& quads,
       }
       if (UNLIKELY(text_combine))
         rect = text_combine->AdjustRectForBoundingBox(rect);
-      rect.Move(cursor.CurrentOffsetInBlockFlow());
-      const FloatQuad quad = LocalRectToAbsoluteQuad(rect);
+      FloatQuad quad;
+      if (item.Type() == NGFragmentItem::kSvgText) {
+        gfx::RectF float_rect(rect);
+        float_rect.Offset(item.SvgFragmentData()->rect.OffsetFromOrigin());
+        quad = item.BuildSvgTransformForBoundingBox().MapQuad(
+            FloatRect(float_rect));
+        const float scaling_factor = item.SvgScalingFactor();
+        quad.Scale(1 / scaling_factor, 1 / scaling_factor);
+        quad = LocalToAbsoluteQuad(quad);
+      } else {
+        rect.Move(cursor.CurrentOffsetInBlockFlow());
+        quad = LocalRectToAbsoluteQuad(rect);
+      }
       if (!is_collapsed) {
         quads.push_back(quad);
         found_non_collapsed_quad = true;
@@ -935,7 +946,7 @@ PositionWithAffinity LayoutText::PositionForPoint(
         }
       }
       if (!EnclosingIntRect(cursor.Current().RectInContainerFragment())
-               .Contains(FlooredIntPoint(point_in_container_fragment)))
+               .Contains(ToFlooredPoint(point_in_container_fragment)))
         continue;
       if (auto position_with_affinity =
               cursor.PositionForPointInChild(point_in_container_fragment)) {
@@ -2466,7 +2477,7 @@ PhysicalRect LayoutText::LocalSelectionVisualRect() const {
       if (svg_inline_text) {
         FloatRect float_rect(item_rect);
         const NGFragmentItem& item = *cursor.CurrentItem();
-        float_rect.MoveBy(item.SvgFragmentData()->rect.origin());
+        float_rect.MoveBy(FloatPoint(item.SvgFragmentData()->rect.origin()));
         if (item.HasSvgTransformForBoundingBox()) {
           float_rect =
               item.BuildSvgTransformForBoundingBox().MapRect(float_rect);

@@ -811,16 +811,18 @@ void CompositorFrameReporter::ReportCompositorLatencyHistograms() const {
       }
     }
   }
+
+  if (global_trackers_.latency_ukm_reporter) {
+    global_trackers_.latency_ukm_reporter->ReportCompositorLatencyUkm(
+        report_types_, stage_history_, active_trackers_,
+        *processed_blink_breakdown_, *processed_viz_breakdown_);
+  }
+
   for (size_t type = 0; type < report_types_.size(); ++type) {
     if (!report_types_.test(type))
       continue;
     FrameReportType report_type = static_cast<FrameReportType>(type);
     UMA_HISTOGRAM_ENUMERATION("CompositorLatency.Type", report_type);
-    if (global_trackers_.latency_ukm_reporter) {
-      global_trackers_.latency_ukm_reporter->ReportCompositorLatencyUkm(
-          report_type, stage_history_, active_trackers_,
-          *processed_blink_breakdown_, *processed_viz_breakdown_);
-    }
     bool any_active_interaction = false;
     for (size_t fst_type = 0; fst_type < active_trackers_.size(); ++fst_type) {
       const auto tracker_type = static_cast<FrameSequenceTrackerType>(fst_type);
@@ -1058,7 +1060,8 @@ void CompositorFrameReporter::ReportCompositorLatencyTraceEvents() const {
 
   if (IsDroppedFrameAffectingSmoothness()) {
     devtools_instrumentation::DidDropSmoothnessFrame(
-        layer_tree_host_id_, args_.frame_time, args_.frame_id.sequence_number);
+        layer_tree_host_id_, args_.frame_time, args_.frame_id.sequence_number,
+        has_partial_update_);
   }
 
   const auto trace_track =

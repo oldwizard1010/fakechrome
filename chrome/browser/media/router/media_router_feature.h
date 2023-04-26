@@ -8,6 +8,7 @@
 #include "base/feature_list.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class PrefRegistrySimple;
 class PrefService;
@@ -78,7 +79,8 @@ bool GetCastAllowAllIPsPref(PrefService* pref_service);
 // randomly generated string and stored in |pref_service|.
 std::string GetReceiverIdHashToken(PrefService* pref_service);
 
-// Returns true if browser side DIAL Media Route Provider is enabled.
+// Returns true if support for DIAL devices is enabled.  Disabling DIAL support
+// also disables SSDP-based discovery for Cast devices.
 bool DialMediaRouteProviderEnabled();
 
 // Returns true if global media controls are used to start and stop casting.
@@ -91,6 +93,7 @@ bool GetAccessCodeCastEnabledPref(PrefService* pref_service);
 // Returns the duration that a scanned cast device is allowed to remain
 // in the cast list.
 base::TimeDelta GetAccessCodeDeviceDurationPref(PrefService* pref_service);
+
 #endif  // !defined(OS_ANDROID)
 
 }  // namespace media_router

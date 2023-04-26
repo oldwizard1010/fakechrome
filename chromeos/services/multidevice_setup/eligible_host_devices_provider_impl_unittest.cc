@@ -8,7 +8,6 @@
 
 #include "ash/constants/ash_features.h"
 #include "base/containers/flat_set.h"
-#include "base/macros.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/time/time_override.h"
 #include "chromeos/components/multidevice/remote_device_test_util.h"
@@ -31,6 +30,12 @@ const size_t kNumTestDevices = 6;
 
 class MultiDeviceSetupEligibleHostDevicesProviderImplTest
     : public ::testing::TestWithParam<std::tuple<bool, bool>> {
+ public:
+  MultiDeviceSetupEligibleHostDevicesProviderImplTest(
+      const MultiDeviceSetupEligibleHostDevicesProviderImplTest&) = delete;
+  MultiDeviceSetupEligibleHostDevicesProviderImplTest& operator=(
+      const MultiDeviceSetupEligibleHostDevicesProviderImplTest&) = delete;
+
  protected:
   MultiDeviceSetupEligibleHostDevicesProviderImplTest()
       : test_devices_(
@@ -118,8 +123,6 @@ class MultiDeviceSetupEligibleHostDevicesProviderImplTest
   bool use_connectivity_status_;
 
   base::test::ScopedFeatureList scoped_feature_list_;
-
-  DISALLOW_COPY_AND_ASSIGN(MultiDeviceSetupEligibleHostDevicesProviderImplTest);
 };
 
 TEST_P(MultiDeviceSetupEligibleHostDevicesProviderImplTest, Empty) {

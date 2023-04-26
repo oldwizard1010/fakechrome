@@ -6,8 +6,11 @@
 
 #include <vector>
 
+#include "ash/constants/ash_features.h"
 #include "ash/constants/devicetype.h"
 #include "ash/public/cpp/tablet_mode.h"
+#include "ash/webui/camera_app_ui/url_constants.h"
+#include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
@@ -31,7 +34,6 @@
 #include "chrome/browser/web_applications/web_app_id_constants.h"
 #include "chrome/browser/web_applications/web_app_tab_helper.h"
 #include "chrome/browser/web_launch/web_launch_files_helper.h"
-#include "chromeos/components/camera_app_ui/url_constants.h"
 #include "components/services/app_service/public/mojom/types.mojom.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
@@ -64,7 +66,7 @@ std::string DeviceTypeToString(chromeos::DeviceType device_type) {
 void ChromeCameraAppUIDelegate::CameraAppDialog::ShowIntent(
     const std::string& queries,
     gfx::NativeWindow parent) {
-  std::string url = chromeos::kChromeUICameraAppMainURL + queries;
+  std::string url = ash::kChromeUICameraAppMainURL + queries;
   CameraAppDialog* dialog = new CameraAppDialog(url);
   dialog->ShowSystemDialog(parent);
 }
@@ -178,7 +180,10 @@ void ChromeCameraAppUIDelegate::SetLaunchDirectory() {
       file_manager::util::GetMyFilesFolderForProfile(profile);
 
   web_launch::WebLaunchFilesHelper::SetLaunchDirectoryAndLaunchPaths(
-      web_contents, web_contents->GetURL(), my_files_folder_path,
+      web_contents,
+      /*app_scope=*/GURL(ash::kChromeUICameraAppScopeURL),
+      /*await_navigation=*/true,
+      /*launch_url=*/GURL(ash::kChromeUICameraAppMainURL), my_files_folder_path,
       std::vector<base::FilePath>{empty_file_path});
   web_app::WebAppTabHelper::CreateForWebContents(web_contents);
 }
@@ -189,6 +194,10 @@ void ChromeCameraAppUIDelegate::PopulateLoadTimeData(
   source->AddString("board_name", base::SysInfo::GetLsbReleaseBoard());
   source->AddString("device_type",
                     DeviceTypeToString(chromeos::GetDeviceType()));
+  // Add chrome flags.
+  source->AddBoolean("cameraAppDocumentManualCrop",
+                     base::FeatureList::IsEnabled(
+                         chromeos::features::kCameraAppDocumentManualCrop));
 }
 
 bool ChromeCameraAppUIDelegate::IsMetricsAndCrashReportingEnabled() {
@@ -218,7 +227,7 @@ void ChromeCameraAppUIDelegate::OpenFeedbackDialog(
   // Note that category_tag is the name of the listnr bucket we want our
   // reports to end up in.
   Profile* profile = Profile::FromWebUI(web_ui_);
-  chrome::ShowFeedbackPage(GURL(chromeos::kChromeUICameraAppURL), profile,
+  chrome::ShowFeedbackPage(GURL(ash::kChromeUICameraAppURL), profile,
                            chrome::kFeedbackSourceCameraApp,
                            std::string() /* description_template */,
                            placeholder /* description_placeholder_text */,

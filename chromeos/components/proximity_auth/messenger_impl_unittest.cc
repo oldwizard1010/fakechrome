@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/macros.h"
 #include "base/test/scoped_feature_list.h"
 #include "chromeos/components/multidevice/remote_device_ref.h"
 #include "chromeos/components/multidevice/remote_device_test_util.h"
@@ -75,6 +74,12 @@ class TestMessenger : public MessengerImpl {
 }  // namespace
 
 class ProximityAuthMessengerImplTest : public testing::Test {
+ public:
+  ProximityAuthMessengerImplTest(const ProximityAuthMessengerImplTest&) =
+      delete;
+  ProximityAuthMessengerImplTest& operator=(
+      const ProximityAuthMessengerImplTest&) = delete;
+
  protected:
   ProximityAuthMessengerImplTest() = default;
 
@@ -104,10 +109,6 @@ class ProximityAuthMessengerImplTest : public testing::Test {
   std::unique_ptr<TestMessenger> messenger_;
 
   std::unique_ptr<MockMessengerObserver> observer_;
-
- private:
-
-  DISALLOW_COPY_AND_ASSIGN(ProximityAuthMessengerImplTest);
 };
 
 TEST_F(ProximityAuthMessengerImplTest,

@@ -10,7 +10,6 @@
 
 #include "base/component_export.h"
 #include "base/containers/flat_set.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "components/global_media_controls/public/media_item_manager.h"
@@ -87,4 +86,4 @@ class COMPONENT_EXPORT(GLOBAL_MEDIA_CONTROLS) MediaItemManagerImpl
 
 }  // namespace global_media_controls
 
-#endif  // COMPONENTS_GLOBAL_MEDIA_CONTROLS_MEDIA_ITEMS_MANAGER_H_
+#endif  // COMPONENTS_GLOBAL_MEDIA_CONTROLS_MEDIA_ITEM_MANAGER_IMPL_H_

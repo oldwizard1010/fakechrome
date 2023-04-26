@@ -379,6 +379,8 @@ component("net") {
     "cert/symantec_certs.h",
     "cert/test_root_certs.cc",
     "cert/test_root_certs.h",
+    "cert/trial_comparison_cert_verifier_util.cc",
+    "cert/trial_comparison_cert_verifier_util.h",
     "cert/x509_cert_types.cc",
     "cert/x509_cert_types.h",
     "cert/x509_certificate.cc",
@@ -1141,8 +1143,6 @@ component("net") {
   if (is_android) {
     sources += [
       "android/android_http_util.cc",
-      "android/cellular_signal_strength.cc",
-      "android/cellular_signal_strength.h",
       "android/cert_verify_result_android.cc",
       "android/cert_verify_result_android.h",
       "android/gurl_utils.cc",
@@ -1173,7 +1173,7 @@ component("net") {
     ]
   }
 
-  if (is_chromeos_ash && use_nss_certs) {
+  if ((is_chromeos_ash || is_chromeos_lacros) && use_nss_certs) {
     sources += [
       "cert/nss_cert_database_chromeos.cc",
       "cert/nss_cert_database_chromeos.h",
@@ -2493,7 +2493,6 @@ if (is_linux || is_chromeos) {
 if (is_android) {
   generate_jni("net_jni_headers") {
     sources = [
-      "android/java/src/org/chromium/net/AndroidCellularSignalStrength.java",
       "android/java/src/org/chromium/net/AndroidCertVerifyResult.java",
       "android/java/src/org/chromium/net/AndroidKeyStore.java",
       "android/java/src/org/chromium/net/AndroidNetworkLibrary.java",
@@ -4437,7 +4436,6 @@ test("net_unittests") {
 
   if (is_android) {
     sources += [
-      "android/cellular_signal_strength_unittest.cc",
       "android/dummy_spnego_authenticator.cc",
       "android/dummy_spnego_authenticator.h",
       "android/http_auth_negotiate_android_unittest.cc",
@@ -4885,7 +4883,6 @@ if (use_fuzzing_engine) {
       "socket/fuzzed_socket.h",
       "socket/fuzzed_socket_factory.cc",
       "socket/fuzzed_socket_factory.h",
-      "third_party/quiche/src/quic/platform/api/quic_fuzzed_data_provider.h",
     ]
     public_deps = [
       "//base/test:test_support",
@@ -5164,6 +5161,7 @@ fuzzer_test("net_canonical_cookie_fuzzer") {
     ":net_fuzzer_test_support",
     "//net",
   ]
+  dict = "data/fuzzer_dictionaries/net_cookies_fuzzer.dict"
   seed_corpus = "data/fuzzer_data/cookies/"
 }
 
@@ -5181,6 +5179,7 @@ fuzzer_test("net_parse_cookie_line_fuzzer") {
     ":net_fuzzer_test_support",
     "//net",
   ]
+  dict = "data/fuzzer_dictionaries/net_cookies_fuzzer.dict"
   seed_corpus = "data/fuzzer_data/cookies/"
 }
 
@@ -5286,14 +5285,32 @@ fuzzer_test("net_websocket_frame_parser_fuzzer") {
   libfuzzer_options = [ "max_len=256" ]
 }
 
-fuzzer_test("net_web_socket_encoder_fuzzer") {
-  sources = [ "server/web_socket_encoder_fuzzer.cc" ]
-  deps = [
-    ":net_fuzzer_test_support",
-    "//net",
-    "//net/server:http_server",
-  ]
-  libfuzzer_options = [ "max_len=256" ]
+if (use_fuzzing_engine) {
+  # This is a separate target because //net/server:http_server
+  # wants to limit its visibility to a select number of target, but the
+  # "fuzzer_test" template expands on iOS to many targets that need to
+  # have the "deps" information propagated in order to support "fat"
+  # binaries.
+  source_set("net_web_socket_encoder_fuzzer_deps") {
+    testonly = true
+    visibility = [
+      ":net_web_socket_encoder_fuzzer",
+      ":net_web_socket_encoder_fuzzer_arch_executable",
+      ":net_web_socket_encoder_fuzzer_arch_executable_sources",
+      ":run_net_web_socket_encoder_fuzzer",
+    ]
+    public_deps = [
+      ":net_fuzzer_test_support",
+      "//net",
+      "//net/server:http_server",
+    ]
+  }
+
+  fuzzer_test("net_web_socket_encoder_fuzzer") {
+    sources = [ "server/web_socket_encoder_fuzzer.cc" ]
+    deps = [ ":net_web_socket_encoder_fuzzer_deps" ]
+    libfuzzer_options = [ "max_len=256" ]
+  }
 }
 
 fuzzer_test("net_http_chunked_decoder_fuzzer") {

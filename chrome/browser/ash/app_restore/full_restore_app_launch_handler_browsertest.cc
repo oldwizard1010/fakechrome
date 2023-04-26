@@ -43,6 +43,7 @@
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
 #include "chrome/browser/web_applications/web_app_id.h"
+#include "chrome/browser/web_applications/web_app_utils.h"
 #include "chrome/browser/web_applications/web_application_info.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -54,9 +55,9 @@
 #include "components/app_restore/full_restore_utils.h"
 #include "components/app_restore/window_info.h"
 #include "components/app_restore/window_properties.h"
-#include "components/arc/arc_service_manager.h"
 #include "components/arc/mojom/app.mojom.h"
 #include "components/arc/session/arc_bridge_service.h"
+#include "components/arc/session/arc_service_manager.h"
 #include "components/arc/test/arc_util_test_support.h"
 #include "components/arc/test/fake_app_instance.h"
 #include "components/exo/buffer.h"
@@ -1035,7 +1036,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerChromeAppBrowserTest,
 
   EXPECT_TRUE(wm::CanActivateWindow(window));
 
-  EXPECT_EQ(0, ::full_restore::FetchRestoreWindowId(extension->id()));
+  EXPECT_EQ(0, ::app_restore::FetchRestoreWindowId(extension->id()));
 
   // Close the window.
   CloseAppWindow(app_window);
@@ -2566,7 +2567,7 @@ class FullRestoreAppLaunchHandlerSystemWebAppsBrowserTest
   void ModifyAppReadiness(apps::mojom::Readiness readiness) {
     apps::mojom::AppType app_type = apps::mojom::AppType::kWeb;
     if (crosapi::browser_util::IsLacrosEnabled() &&
-        base::FeatureList::IsEnabled(features::kWebAppsCrosapi)) {
+        web_app::IsWebAppsCrosapiEnabled()) {
       app_type = apps::mojom::AppType::kSystemWeb;
     }
 

@@ -8,7 +8,6 @@
 #include <string>
 
 #include "base/compiler_specific.h"
-#include "base/macros.h"
 #include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_ui_controller.h"
 
@@ -61,8 +60,7 @@ class AboutUI : public content::WebUIController {
 namespace about_ui {
 
 // Helper functions
-void AppendHeader(std::string* output, int refresh,
-                  const std::string& unescaped_title);
+void AppendHeader(std::string* output, const std::string& unescaped_title);
 void AppendBody(std::string *output);
 void AppendFooter(std::string *output);
 

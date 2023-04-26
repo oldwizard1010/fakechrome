@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
 #include "components/invalidation/public/invalidation.h"
@@ -47,7 +46,6 @@ class SyncEngineBackend : public base::RefCountedThreadSafe<SyncEngineBackend>,
     RestoredLocalTransportData(const RestoredLocalTransportData&) = delete;
     ~RestoredLocalTransportData();
 
-    std::string keystore_encryption_bootstrap_token;
     std::map<ModelType, int64_t> invalidation_versions;
 
     // Initial authoritative values (usually read from prefs).

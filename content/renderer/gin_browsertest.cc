@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 #include "base/command_line.h"
-#include "base/macros.h"
 #include "content/public/test/render_view_test.h"
 #include "content/renderer/render_view_impl.h"
 #include "gin/handle.h"
@@ -28,13 +27,14 @@ class TestGinObject : public gin::Wrappable<TestGinObject> {
     return gin::CreateHandle(isolate, new TestGinObject(alive));
   }
 
+  TestGinObject(const TestGinObject&) = delete;
+  TestGinObject& operator=(const TestGinObject&) = delete;
+
  private:
   TestGinObject(bool* alive) : alive_(alive) { *alive_ = true; }
   ~TestGinObject() override { *alive_ = false; }
 
   bool* alive_;
-
-  DISALLOW_COPY_AND_ASSIGN(TestGinObject);
 };
 
 gin::WrapperInfo TestGinObject::kWrapperInfo = { gin::kEmbedderNativeGin };

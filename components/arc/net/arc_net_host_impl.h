@@ -13,7 +13,6 @@
 
 #include "base/callback_forward.h"
 #include "base/files/scoped_file.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread_checker.h"
 #include "base/values.h"
@@ -84,6 +83,11 @@ class ArcNetHostImpl : public KeyedService,
   void AndroidVpnConnected(mojom::AndroidVpnConfigurationPtr cfg) override;
 
   void AndroidVpnStateChanged(mojom::ConnectionStateType state) override;
+
+  void AddPasspointCredentials(
+      mojom::PasspointCredentialsPtr credentials) override;
+
+  void RemovePasspointCredentials(const std::string& package_name) override;
 
   void SetAlwaysOnVpn(const std::string& vpnPackage, bool lockdown) override;
 

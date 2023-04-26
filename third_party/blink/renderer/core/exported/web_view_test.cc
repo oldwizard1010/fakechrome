@@ -489,6 +489,7 @@ TEST_F(WebViewTest, SetBaseBackgroundColorBeforeMainFrame) {
                       /*is_hidden=*/false,
                       /*is_prerendering=*/false,
                       /*is_inside_portal=*/false,
+                      /*is_fenced_frame=*/false,
                       /*compositing_enabled=*/true,
                       /*widgets_never_composited=*/false,
                       /*opener=*/nullptr, mojo::NullAssociatedReceiver(),
@@ -2694,17 +2695,17 @@ bool WebViewTest::TapElement(WebInputEvent::Type type, Element* element) {
   DCHECK(web_view_helper_.GetWebView());
   element->scrollIntoViewIfNeeded();
 
-  gfx::PointF center(ToGfxPoint(
+  gfx::Point center =
       web_view_helper_.GetWebView()
           ->MainFrameImpl()
           ->GetFrameView()
           ->FrameToScreen(element->GetLayoutObject()->AbsoluteBoundingBoxRect())
-          .CenterPoint()));
+          .CenterPoint();
 
   WebGestureEvent event(type, WebInputEvent::kNoModifiers,
                         WebInputEvent::GetStaticTimeStampForTests(),
                         WebGestureDevice::kTouchscreen);
-  event.SetPositionInWidget(center);
+  event.SetPositionInWidget(gfx::PointF(center));
 
   web_view_helper_.GetWebView()->MainFrameWidget()->HandleInputEvent(
       WebCoalescedInputEvent(event, ui::LatencyInfo()));
@@ -2743,6 +2744,7 @@ TEST_F(WebViewTest, ClientTapHandlingNullWebViewClient) {
   WebViewImpl* web_view = To<WebViewImpl>(WebView::Create(
       /*client=*/nullptr, /*is_hidden=*/false, /*is_prerendering=*/false,
       /*is_inside_portal=*/false,
+      /*is_fenced_frame=*/false,
       /*compositing_enabled=*/false,
       /*widgets_never_composited=*/false,
       /*opener=*/nullptr, mojo::NullAssociatedReceiver(),
@@ -6100,7 +6102,7 @@ TEST_F(WebViewTest, LongPressAndThenLongTapLinkInIframeShouldShowContextMenu) {
   Document* child_document =
       To<HTMLIFrameElement>(child_frame)->contentDocument();
   Element* anchor = child_document->getElementById("anchorTag");
-  IntPoint center =
+  gfx::Point center =
       To<WebLocalFrameImpl>(
           web_view->MainFrame()->FirstChild()->ToWebLocalFrame())
           ->GetFrameView()

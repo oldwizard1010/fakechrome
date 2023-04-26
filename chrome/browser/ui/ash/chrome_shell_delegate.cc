@@ -24,6 +24,7 @@
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part_chromeos.h"
+#include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/nearby_sharing/nearby_share_delegate_impl.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -60,6 +61,9 @@
 #include "components/app_restore/full_restore_utils.h"
 #include "components/app_restore/restore_data.h"
 #include "components/app_restore/window_properties.h"
+#include "components/favicon/core/favicon_service.h"
+#include "components/services/app_service/public/cpp/app_registry_cache.h"
+#include "components/services/app_service/public/mojom/types.mojom.h"
 #include "components/ui_devtools/devtools_server.h"
 #include "components/user_manager/user_manager.h"
 #include "content/public/browser/device_service.h"
@@ -107,43 +111,6 @@ std::vector<GURL> GetURLsIfApplicable(TabStripModel* tab_strip_model) {
   for (int i = 0; i < tab_strip_model->count(); ++i)
     urls.push_back(tab_strip_model->GetWebContentsAt(i)->GetLastCommittedURL());
   return urls;
-}
-
-// Returns true if `window` is supported in desk templates feature.
-bool IsWindowSupportedForDeskTemplate(aura::Window* window,
-                                      Profile* user_profile) {
-  // For now we'll crostini and lacros windows in desk template. We'll also
-  // ignore ARC apps unless the flag is turned on.
-  const ash::AppType app_type =
-      static_cast<ash::AppType>(window->GetProperty(aura::client::kAppType));
-  switch (app_type) {
-    case ash::AppType::NON_APP:
-    case ash::AppType::CROSTINI_APP:
-    case ash::AppType::LACROS:
-      return false;
-    case ash::AppType::ARC_APP:
-      if (!app_restore::features::IsArcAppsForDesksTemplatesEnabled())
-        return false;
-      break;
-    case ash::AppType::BROWSER:
-    case ash::AppType::CHROME_APP:
-    case ash::AppType::SYSTEM_APP:
-      break;
-  }
-
-  DCHECK(user_profile);
-  // Exclude window that does not asscociate with a full restore app id.
-  const std::string app_id = full_restore::GetAppId(window);
-  if (app_id.empty())
-    return false;
-
-  // Exclude incognito browser window.
-  BrowserView* browser_view =
-      BrowserView::GetBrowserViewForNativeWindow(window);
-  if (browser_view && browser_view->GetIncognito())
-    return false;
-
-  return true;
 }
 
 }  // namespace
@@ -360,7 +327,7 @@ ChromeShellDelegate::GetAppLaunchDataForDeskTemplate(
   if (!user_profile)
     return nullptr;
 
-  if (!IsWindowSupportedForDeskTemplate(window, user_profile))
+  if (!IsWindowSupportedForDeskTemplate(window))
     return nullptr;
 
   // Get |full_restore_data| from FullRestoreSaveHandler which contains all
@@ -426,6 +393,93 @@ void ChromeShellDelegate::OpenFeedbackPageForPersistentDesksBar() {
                              /*description_template=*/"#BentoBar\n\n");
 }
 
+desks_storage::DeskModel* ChromeShellDelegate::GetDeskModel() {
+  return DesksClient::Get()->GetDeskModel();
+}
+
+void ChromeShellDelegate::GetFaviconForUrl(
+    const std::string& page_url,
+    int desired_icon_size,
+    favicon_base::FaviconRawBitmapCallback callback,
+    base::CancelableTaskTracker* tracker) const {
+  favicon::FaviconService* favicon_service =
+      FaviconServiceFactory::GetForProfile(
+          ProfileManager::GetActiveUserProfile(),
+          ServiceAccessType::EXPLICIT_ACCESS);
+
+  favicon_service->GetRawFaviconForPageURL(
+      GURL(page_url), {favicon_base::IconType::kFavicon}, desired_icon_size,
+      /*fallback_to_host=*/false, std::move(callback), tracker);
+}
+
+void ChromeShellDelegate::GetIconForAppId(
+    const std::string& app_id,
+    int desired_icon_size,
+    base::OnceCallback<void(apps::mojom::IconValuePtr icon_value)> callback)
+    const {
+  auto* app_service_proxy = apps::AppServiceProxyFactory::GetForProfile(
+      ProfileManager::GetActiveUserProfile());
+  if (!app_service_proxy) {
+    std::move(callback).Run(apps::mojom::IconValue::New());
+    return;
+  }
+
+  app_service_proxy->LoadIcon(
+      app_service_proxy->AppRegistryCache().GetAppType(app_id), app_id,
+      apps::mojom::IconType::kStandard, desired_icon_size,
+      /*allow_placeholder_icon=*/false, std::move(callback));
+}
+
+void ChromeShellDelegate::LaunchAppsFromTemplate(
+    std::unique_ptr<ash::DeskTemplate> desk_template) {
+  DesksClient::Get()->LaunchAppsFromTemplate(std::move(desk_template));
+}
+
+// Returns true if `window` is supported in desk templates feature.
+bool ChromeShellDelegate::IsWindowSupportedForDeskTemplate(
+    aura::Window* window) const {
+  // For now we'll crostini and lacros windows in desk template. We'll also
+  // ignore ARC apps unless the flag is turned on.
+  const ash::AppType app_type =
+      static_cast<ash::AppType>(window->GetProperty(aura::client::kAppType));
+  switch (app_type) {
+    case ash::AppType::NON_APP:
+    case ash::AppType::CROSTINI_APP:
+    case ash::AppType::LACROS:
+      return false;
+    case ash::AppType::ARC_APP:
+      if (!app_restore::features::IsArcAppsForDesksTemplatesEnabled())
+        return false;
+      break;
+    case ash::AppType::BROWSER:
+    case ash::AppType::CHROME_APP:
+    case ash::AppType::SYSTEM_APP:
+      break;
+  }
+
+  const user_manager::User* active_user =
+      user_manager::UserManager::Get()->GetActiveUser();
+  DCHECK(active_user);
+  Profile* user_profile =
+      ash::ProfileHelper::Get()->GetProfileByUser(active_user);
+  if (!user_profile)
+    return false;
+
+  DCHECK(user_profile);
+  // Exclude window that does not asscociate with a full restore app id.
+  const std::string app_id = full_restore::GetAppId(window);
+  if (app_id.empty())
+    return false;
+
+  // Exclude incognito browser window.
+  BrowserView* browser_view =
+      BrowserView::GetBrowserViewForNativeWindow(window);
+  if (browser_view && browser_view->GetIncognito())
+    return false;
+
+  return true;
+}
+
 // static
 void ChromeShellDelegate::SetDisableLoggingRedirectForTesting(bool value) {
   disable_logging_redirect_for_testing = value;
@@ -434,8 +488,4 @@ void ChromeShellDelegate::SetDisableLoggingRedirectForTesting(bool value) {
 // static
 void ChromeShellDelegate::ResetDisableLoggingRedirectForTesting() {
   disable_logging_redirect_for_testing.reset();
-}
-
-desks_storage::DeskModel* ChromeShellDelegate::GetDeskModel() {
-  return DesksClient::Get()->GetDeskModel();
 }

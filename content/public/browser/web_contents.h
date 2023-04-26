@@ -29,6 +29,7 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/page.h"
 #include "content/public/browser/page_navigator.h"
+#include "content/public/browser/prerender_handle.h"
 #include "content/public/browser/save_page_type.h"
 #include "content/public/browser/visibility.h"
 #include "content/public/common/stop_find_action.h"
@@ -419,11 +420,6 @@ class WebContents : public PageNavigator,
   // silently.
   virtual void ForEachFrame(
       const base::RepeatingCallback<void(RenderFrameHost*)>& on_frame) = 0;
-
-  // TODO(1208438): Migrate to |ForEachRenderFrameHost|.
-  // Returns a vector of all RenderFrameHosts in the currently active view in
-  // breadth-first traversal order.
-  virtual std::vector<RenderFrameHost*> GetAllFrames() = 0;
 
   // TODO(1208438): Migrate to |ForEachRenderFrameHost|.
   // Sends the given IPC to all live frames in this WebContents and returns the
@@ -1322,6 +1318,23 @@ class WebContents : public PageNavigator,
   virtual void UpdateBrowserControlsState(cc::BrowserControlsState constraints,
                                           cc::BrowserControlsState current,
                                           bool animate) = 0;
+
+  // Sets the last time a tab switch made this WebContents visible.
+  // `start_time` is the timestamp of the input event that triggered the tab
+  // switch. `destination_is_loaded` is true when
+  // ResourceCoordinatorTabHelper::IsLoaded() is true for the new tab contents.
+  // These will be used to record metrics with the latency between the input
+  // event and the time when the WebContents is painted.
+  virtual void SetTabSwitchStartTime(base::TimeTicks start_time,
+                                     bool destination_is_loaded) = 0;
+
+  // Starts an embedder triggered (browser-initiated) prerendering page and
+  // returns the unique_ptr<PrerenderHandle>, which cancels prerendering on its
+  // destruction. If the prerendering failed to start (e.g. if prerendering is
+  // disabled, failure happened or because this URL is already being
+  // prerendered), this function returns a nullptr.
+  virtual std::unique_ptr<PrerenderHandle> StartPrerendering(
+      const GURL& prerendering_url) = 0;
 
  private:
   // This interface should only be implemented inside content.

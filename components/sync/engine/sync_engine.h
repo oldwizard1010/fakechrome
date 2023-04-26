@@ -11,7 +11,6 @@
 
 #include "base/callback_forward.h"
 #include "base/files/file_path.h"
-#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/time/time.h"
 #include "components/signin/public/identity_manager/account_info.h"
@@ -124,11 +123,6 @@ class SyncEngine : public ModelTypeConfigurer {
   // may be triggered at a later time. It is an error to call this when there
   // are no pending keys.
   virtual void SetDecryptionPassphrase(const std::string& passphrase) = 0;
-
-  // Legacy bootstrap token stored in preferences.
-  // TODO(crbug.com/1010397): Delete this API together with the preferences.
-  virtual void SetKeystoreEncryptionBootstrapToken(
-      const std::string& token) = 0;
 
   // Analogous to SetDecryptionPassphrase but specifically for
   // TRUSTED_VAULT_PASSPHRASE: it provides new decryption keys that could

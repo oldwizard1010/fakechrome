@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "base/android/jni_android.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -80,9 +79,9 @@ class AutocompleteControllerAndroid : public AutocompleteController::Observer,
       jlong elapsed_time_since_input_change,
       const base::android::JavaParamRef<jstring>& jnew_query_text,
       const base::android::JavaParamRef<jobjectArray>& jnew_query_params);
-  base::android::ScopedJavaLocalRef<jobject> FindMatchingTabWithUrl(
+  base::android::ScopedJavaLocalRef<jobject> GetMatchingTabForSuggestion(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& j_gurl);
+      jint index);
 
   // KeyedService:
   void Shutdown() override;

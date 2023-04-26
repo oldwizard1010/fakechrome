@@ -6,13 +6,15 @@
 
 #include <utility>
 
+#include "base/containers/extend.h"
 #include "base/scoped_observation.h"
+#include "chrome/browser/apps/app_service/intent_util.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/extension_ui_util.h"
 #include "chrome/browser/lacros/lacros_extension_apps_utility.h"
-#include "chrome/browser/lacros/window_utility.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/app_list/extension_app_utils.h"
+#include "chrome/browser/ui/lacros/window_utility.h"
 #include "chromeos/crosapi/mojom/app_window_tracker.mojom.h"
 #include "chromeos/lacros/lacros_service.h"
 #include "components/services/app_service/public/mojom/types.mojom.h"
@@ -22,6 +24,8 @@
 #include "extensions/browser/extension_prefs_observer.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
+#include "extensions/browser/extension_system.h"
+#include "extensions/browser/management_policy.h"
 #include "extensions/browser/unloaded_extension_reason.h"
 
 namespace {
@@ -282,7 +286,22 @@ class LacrosExtensionAppsPublisher::ProfileTracker
     app->show_in_launcher = show;
     app->show_in_shelf = show;
     app->show_in_search = show;
-    app->show_in_management = show;
+
+    app->show_in_management = extension->ShouldDisplayInAppLauncher()
+                                  ? apps::mojom::OptionalBool::kTrue
+                                  : apps::mojom::OptionalBool::kFalse;
+    app->handles_intents = show;
+
+    const extensions::ManagementPolicy* policy =
+        extensions::ExtensionSystem::Get(profile_)->management_policy();
+    app->allow_uninstall = (policy->UserMayModifySettings(extension, nullptr) &&
+                            !policy->MustRemainInstalled(extension, nullptr))
+                               ? apps::mojom::OptionalBool::kTrue
+                               : apps::mojom::OptionalBool::kFalse;
+
+    // Add file_handlers.
+    base::Extend(app->intent_filters,
+                 apps_util::CreateChromeAppIntentFilters(extension));
 
     return app;
   }

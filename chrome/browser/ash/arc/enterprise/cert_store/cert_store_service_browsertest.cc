@@ -21,7 +21,8 @@
 #include "chrome/browser/ash/policy/affiliation/affiliation_mixin.h"
 #include "chrome/browser/ash/policy/affiliation/affiliation_test_helper.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
-#include "chrome/browser/net/nss_context.h"
+#include "chrome/browser/net/nss_service.h"
+#include "chrome/browser/net/nss_service_factory.h"
 #include "chrome/browser/platform_keys/extension_key_permissions_service.h"
 #include "chrome/browser/platform_keys/extension_key_permissions_service_factory.h"
 #include "chrome/browser/platform_keys/platform_keys.h"
@@ -110,9 +111,12 @@ class FakeArcCertInstaller : public ArcCertInstaller {
       std::vector<CertDescription> certs,
       InstallArcCertsCallback callback) override {
     certs_.clear();
+    cert_ids_.clear();
     for (const auto& cert : certs) {
-      certs_[x509_certificate_model::GetCertNameOrNickname(
-          cert.nss_cert.get())] = GetDerCert64(cert.nss_cert.get());
+      std::string cert_name =
+          x509_certificate_model::GetCertNameOrNickname(cert.nss_cert.get());
+      certs_[cert_name] = GetDerCert64(cert.nss_cert.get());
+      cert_ids_[cert_name] = cert.id;
     }
 
     callback_ = std::move(callback);
@@ -136,9 +140,12 @@ class FakeArcCertInstaller : public ArcCertInstaller {
 
   std::map<std::string, std::string> certs() const { return certs_; }
 
+  std::map<std::string, std::string> cert_ids() const { return cert_ids_; }
+
  private:
   std::unique_ptr<base::RunLoop> run_loop_;
   std::map<std::string, std::string> certs_;
+  std::map<std::string, std::string> cert_ids_;
   InstallArcCertsCallback callback_;
 };
 
@@ -193,7 +200,7 @@ std::unique_ptr<KeyedService> BuildCertStoreService(
 //                 |
 //       run_loop.QuitClosure
 //                 |
-//     CreateNSSCertDatabaseGetter
+//   NssService::CreateNSSCertDatabaseGetterForIOThread
 //                 |
 //                 \--------------------------------v
 //                                 IsSystemSlotAvailableWithDbGetterOnIO
@@ -240,7 +247,8 @@ bool IsSystemSlotAvailable(Profile* profile) {
   content::GetIOThreadTaskRunner({})->PostTask(
       FROM_HERE,
       base::BindOnce(IsSystemSlotAvailableWithDbGetterOnIO,
-                     CreateNSSCertDatabaseGetter(profile),
+                     NssServiceFactory::GetForContext(profile)
+                         ->CreateNSSCertDatabaseGetterForIOThread(),
                      &system_slot_available, run_loop.QuitClosure()));
   run_loop.Run();
   return system_slot_available;
@@ -427,10 +435,10 @@ void CertStoreServiceTest::SetUpCerts(
 
   // Read certs from files.
   base::RunLoop loop;
-  GetNSSCertDatabaseForProfile(
-      profile(), base::BindOnce(&CertStoreServiceTest::SetUpTestClientCerts,
-                                base::Unretained(this), certs_to_setup,
-                                loop.QuitClosure()));
+  NssServiceFactory::GetForContext(profile())
+      ->UnsafelyGetNSSCertDatabaseForTesting(base::BindOnce(
+          &CertStoreServiceTest::SetUpTestClientCerts, base::Unretained(this),
+          certs_to_setup, loop.QuitClosure()));
   loop.Run();
 
   // Verify |certs_to_setup.size()| new certs have been installed.
@@ -444,10 +452,10 @@ void CertStoreServiceTest::SetUpCerts(
       RegisterCorporateKey(cert.nss_cert.get());
     // Import cert to NSS cert database.
     base::RunLoop loop;
-    GetNSSCertDatabaseForProfile(
-        profile(), base::BindOnce(&CertStoreServiceTest::ImportCert,
-                                  base::Unretained(this), cert.nss_cert.get(),
-                                  loop.QuitClosure()));
+    NssServiceFactory::GetForContext(profile())
+        ->UnsafelyGetNSSCertDatabaseForTesting(base::BindOnce(
+            &CertStoreServiceTest::ImportCert, base::Unretained(this),
+            cert.nss_cert.get(), loop.QuitClosure()));
     loop.Run();
     // Wait till new cert event is processed by CertStoreService.
     installer_->Wait();
@@ -467,8 +475,9 @@ void CertStoreServiceTest::RegisterCorporateKey(CERTCertificate* cert) {
 
 void CertStoreServiceTest::DeleteCert(CERTCertificate* cert) {
   base::RunLoop loop;
-  GetNSSCertDatabaseForProfile(
-      profile(), base::BindOnce(&DeleteCertAndKey, cert, loop.QuitClosure()));
+  NssServiceFactory::GetForContext(profile())
+      ->UnsafelyGetNSSCertDatabaseForTesting(
+          base::BindOnce(&DeleteCertAndKey, cert, loop.QuitClosure()));
   loop.Run();
   installed_certs_.pop_back();
   // Wait till deleted cert event is processed by CertStoreService.
@@ -507,20 +516,15 @@ void CertStoreServiceTest::CheckInstalledCerts(
       EXPECT_EQ(x509_certificate_model::GetCertNameOrNickname(nss_cert.get()),
                 cert_name);
       found = true;
-      // Check KeyInfo.
-      auto key_info =
-          service->GetKeyInfoForDummySpki(installer_->certs()[cert_name]);
-      EXPECT_TRUE(key_info.has_value());
-      EXPECT_EQ(key_info.value().nickname, cert_name);
+      std::string cert_id = installer_->cert_ids()[cert_name];
       // Check CKA_ID and slot.
       int slot_id;
-      std::string hex_encoded_id = base::HexEncode(key_info.value().id.data(),
-                                                   key_info.value().id.size());
+      std::string hex_encoded_id =
+          base::HexEncode(cert_id.data(), cert_id.size());
       EXPECT_EQ(hex_encoded_id,
                 chromeos::NetworkCertLoader::GetPkcs11IdAndSlotForCert(
                     nss_cert.get(), &slot_id));
-      EXPECT_TRUE(PlaceholdersContainIdAndSlot(key_info.value().id,
-                                               cert.test_data.slot));
+      EXPECT_TRUE(PlaceholdersContainIdAndSlot(cert_id, cert.test_data.slot));
       break;
     }
     // Check the required cert was found.

@@ -15,10 +15,10 @@
 #include "extensions/common/constants.h"
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
+#include "ash/webui/projector_app/public/cpp/projector_app_constants.h"
 #include "chrome/browser/ash/file_manager/app_id.h"
 #include "chrome/browser/ash/plugin_vm/plugin_vm_util.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_utils.h"
-#include "chromeos/components/projector_app/projector_app_constants.h"
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 namespace {
@@ -215,8 +215,6 @@ void RecordAppLaunch(const std::string& app_id,
     RecordDefaultAppLaunch(DefaultAppName::kCalculator, launch_source);
   } else if (app_id == web_app::kCanvasAppId) {
     RecordDefaultAppLaunch(DefaultAppName::kChromeCanvas, launch_source);
-  } else if (app_id == extension_misc::kCameraAppId) {
-    RecordDefaultAppLaunch(DefaultAppName::kCamera, launch_source);
   } else if (app_id == web_app::kCameraAppId) {
     RecordDefaultAppLaunch(DefaultAppName::kCamera, launch_source);
   } else if (app_id == web_app::kHelpAppId) {
@@ -225,9 +223,9 @@ void RecordAppLaunch(const std::string& app_id,
     RecordDefaultAppLaunch(DefaultAppName::kMediaApp, launch_source);
   } else if (app_id == extension_misc::kChromeAppId) {
     RecordDefaultAppLaunch(DefaultAppName::kChrome, launch_source);
-  } else if (app_id == extension_misc::kGoogleDocAppId) {
+  } else if (app_id == extension_misc::kGoogleDocsAppId) {
     RecordDefaultAppLaunch(DefaultAppName::kDocs, launch_source);
-  } else if (app_id == extension_misc::kDriveHostedAppId) {
+  } else if (app_id == extension_misc::kGoogleDriveAppId) {
     RecordDefaultAppLaunch(DefaultAppName::kDrive, launch_source);
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   } else if (app_id == arc::kGoogleDuoAppId) {
@@ -288,8 +286,10 @@ void RecordAppLaunch(const std::string& app_id,
                            launch_source);
   } else if (app_id == web_app::kShimlessRMAAppId) {
     RecordDefaultAppLaunch(DefaultAppName::kShimlessRMAApp, launch_source);
-  } else if (app_id == chromeos::kChromeUITrustedProjectorSwaAppId) {
+  } else if (app_id == ash::kChromeUITrustedProjectorSwaAppId) {
     RecordDefaultAppLaunch(DefaultAppName::kProjector, launch_source);
+  } else if (app_id == web_app::kFirmwareUpdateAppId) {
+    RecordDefaultAppLaunch(DefaultAppName::kFirmwareUpdateApp, launch_source);
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
   }
 

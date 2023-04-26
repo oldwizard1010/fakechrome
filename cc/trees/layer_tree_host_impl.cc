@@ -276,13 +276,14 @@ DEFINE_SCOPED_UMA_HISTOGRAM_TIMER(PendingTreeRasterDurationHistogramTimer,
                                   "Scheduling.%s.PendingTreeRasterDuration")
 
 void LayerTreeHostImpl::DidUpdateScrollAnimationCurve() {
-  // Because we updated the animation target, notify the SwapPromiseMonitor
-  // to tell it that something happened that will cause a swap in the future.
-  // This will happen within the scope of the dispatch of a gesture scroll
-  // update input event. If we don't notify during the handling of the input
-  // event, the LatencyInfo associated with the input event will not be
-  // added as a swap promise and we won't get any swap results.
-  NotifySwapPromiseMonitorsOfSetNeedsRedraw();
+  // Because we updated the animation target, notify the
+  // `LatencyInfoSwapPromiseMonitor` to tell it that something happened that
+  // will cause a swap in the future. This will happen within the scope of the
+  // dispatch of a gesture scroll update input event. If we don't notify during
+  // the handling of the input event, the `LatencyInfo` associated with the
+  // input event will not be added as a swap promise and we won't get any swap
+  // results.
+  NotifyLatencyInfoSwapPromiseMonitors();
   events_metrics_manager_.SaveActiveEventMetrics();
 }
 
@@ -441,7 +442,7 @@ LayerTreeHostImpl::LayerTreeHostImpl(
 
   // LTHI always has an active tree.
   active_tree_ = std::make_unique<LayerTreeImpl>(
-      this, new SyncedProperty<ScaleGroup>, new SyncedBrowserControls,
+      this, new SyncedScale, new SyncedBrowserControls,
       new SyncedBrowserControls, new SyncedElasticOverscroll);
   active_tree_->property_trees()->is_active = true;
 
@@ -464,6 +465,15 @@ LayerTreeHostImpl::LayerTreeHostImpl(
   SetDebugState(settings.initial_debug_state);
   compositor_frame_reporting_controller_->SetDroppedFrameCounter(
       &dropped_frame_counter_);
+
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+  const bool is_ui = settings.is_layer_tree_for_ui;
+  if (is_ui) {
+    dropped_frame_counter_.EnableReporForUI();
+    compositor_frame_reporting_controller_->SetThreadAffectsSmoothness(
+        FrameSequenceMetrics::ThreadType::kMain, true);
+  }
+#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
   dropped_frame_counter_.set_total_counter(&total_frame_counter_);
   frame_trackers_.set_custom_tracker_results_added_callback(
@@ -539,7 +549,7 @@ void LayerTreeHostImpl::BeginMainFrameAborted(
     bool scroll_and_viewport_changes_synced) {
   if (reason == CommitEarlyOutReason::ABORTED_NOT_VISIBLE ||
       reason == CommitEarlyOutReason::FINISHED_NO_UPDATES) {
-    frame_trackers_.NotifyMainFrameCausedNoDamage(args);
+    frame_trackers_.NotifyMainFrameCausedNoDamage(args, true);
   } else {
     frame_trackers_.NotifyMainFrameProcessed(args);
   }
@@ -987,10 +997,10 @@ void LayerTreeHostImpl::SetNeedsAnimateInput() {
   SetNeedsOneBeginImplFrame();
 }
 
-std::unique_ptr<SwapPromiseMonitor>
+std::unique_ptr<LatencyInfoSwapPromiseMonitor>
 LayerTreeHostImpl::CreateLatencyInfoSwapPromiseMonitor(
     ui::LatencyInfo* latency) {
-  return base::WrapUnique(new LatencyInfoSwapPromiseMonitor(latency, this));
+  return std::make_unique<LatencyInfoSwapPromiseMonitor>(latency, this);
 }
 
 std::unique_ptr<EventsMetricsManager::ScopedMonitor>
@@ -1173,15 +1183,15 @@ DrawResult LayerTreeHostImpl::CalculateRenderPasses(FrameData* frame) {
   // Create the render passes in dependency order.
   size_t render_surface_list_size = frame->render_surface_list->size();
   for (size_t i = 0; i < render_surface_list_size; ++i) {
-    size_t surface_index = render_surface_list_size - 1 - i;
+    const size_t surface_index = render_surface_list_size - 1 - i;
     RenderSurfaceImpl* render_surface =
         (*frame->render_surface_list)[surface_index];
     const auto& shared_element_id =
         render_surface->GetDocumentTransitionSharedElementId();
 
-    bool is_root_surface =
+    const bool is_root_surface =
         render_surface->EffectTreeIndex() == EffectTree::kContentsRootNodeId;
-    bool should_draw_into_render_pass =
+    const bool should_draw_into_render_pass =
         is_root_surface || render_surface->contributes_to_drawn_surface() ||
         render_surface->CopyOfOutputRequired() || shared_element_id.valid();
     if (should_draw_into_render_pass)
@@ -1328,6 +1338,8 @@ DrawResult LayerTreeHostImpl::CalculateRenderPasses(FrameData* frame) {
     }
     frame->use_default_lower_bound_deadline |=
         append_quads_data.use_default_lower_bound_deadline;
+    frame->has_shared_element_resources |=
+        append_quads_data.has_shared_element_resources;
   }
 
   if (GetActivelyScrollingType() != ActivelyScrollingType::kNone &&
@@ -1623,7 +1635,10 @@ void LayerTreeHostImpl::RemoveRenderPasses(FrameData* frame) {
 
     if (pass->quad_list.empty() && pass->copy_requests.empty() &&
         !pass->subtree_capture_id.is_valid() && pass->filters.IsEmpty() &&
-        pass->backdrop_filters.IsEmpty()) {
+        pass->backdrop_filters.IsEmpty() &&
+        // TODO(khushalsagar) : Send information about no-op passes to viz to
+        // retain this optimization for shared elements. See crbug.com/1265178.
+        !pass->shared_element_resource_id.IsValid()) {
       // Remove the pass and decrement |i| to counter the for loop's increment,
       // so we don't skip the next pass in the loop.
       frame->render_passes.erase(frame->render_passes.begin() + i);
@@ -1642,8 +1657,10 @@ void LayerTreeHostImpl::RemoveRenderPasses(FrameData* frame) {
     // drop references to earlier RenderPasses allowing them to be removed to.
     viz::CompositorRenderPass* pass =
         frame->render_passes[frame->render_passes.size() - 2 - i].get();
-    if (!pass->copy_requests.empty())
+    if (!pass->copy_requests.empty() ||
+        pass->shared_element_resource_id.IsValid()) {
       continue;
+    }
     if (pass_references[pass->id])
       continue;
 
@@ -2192,6 +2209,29 @@ void LayerTreeHostImpl::OnCanDrawStateChangedForTree() {
   client_->OnCanDrawStateChanged(CanDraw());
 }
 
+viz::RegionCaptureBounds LayerTreeHostImpl::CollectRegionCaptureBounds() {
+  viz::RegionCaptureBounds bounds;
+  for (const auto* layer : base::Reversed(*active_tree())) {
+    for (const auto& bounds_pair : layer->capture_bounds().bounds()) {
+      // Perform transformation from the coordinate system of this |layer|
+      // to that of the root render surface.
+      gfx::Rect bounds_in_screen_space = MathUtil::ProjectEnclosingClippedRect(
+          layer->ScreenSpaceTransform(), bounds_pair.second);
+
+      const RenderSurfaceImpl* root_surface =
+          active_tree()->RootRenderSurface();
+      const gfx::Rect content_rect_in_screen_space = gfx::ToEnclosedRect(
+          MathUtil::MapClippedRect(root_surface->screen_space_transform(),
+                                   root_surface->DrawableContentRect()));
+
+      // The transformed bounds may be partially or entirely offscreen.
+      bounds_in_screen_space.Intersect(content_rect_in_screen_space);
+      bounds.Set(bounds_pair.first, bounds_in_screen_space);
+    }
+  }
+  return bounds;
+}
+
 viz::CompositorFrameMetadata LayerTreeHostImpl::MakeCompositorFrameMetadata() {
   viz::CompositorFrameMetadata metadata;
   metadata.frame_token = ++next_frame_token_;
@@ -2248,6 +2288,8 @@ viz::CompositorFrameMetadata LayerTreeHostImpl::MakeCompositorFrameMetadata() {
         delegated_ink_metadata->ToString());
     metadata.delegated_ink_metadata = std::move(delegated_ink_metadata);
   }
+
+  metadata.capture_bounds = CollectRegionCaptureBounds();
   return metadata;
 }
 
@@ -2366,6 +2408,8 @@ bool LayerTreeHostImpl::DrawLayers(FrameData* frame) {
     DCHECK(!resourceless_software_draw_);
 
     frame_trackers_.NotifyImplFrameCausedNoDamage(frame->begin_frame_ack);
+    frame_trackers_.NotifyMainFrameCausedNoDamage(
+        frame->origin_begin_main_frame_args, false);
     TRACE_EVENT_INSTANT0("cc", "EarlyOut_NoDamage", TRACE_EVENT_SCOPE_THREAD);
     active_tree()->BreakSwapPromises(SwapPromise::SWAP_FAILS);
     active_tree()->ResetAllChangeTracking();
@@ -2514,7 +2558,8 @@ viz::CompositorFrame LayerTreeHostImpl::GenerateCompositorFrame(
 
   viz::CompositorFrameMetadata metadata = MakeCompositorFrameMetadata();
 
-  std::map<DocumentTransitionSharedElementId, viz::CompositorRenderPassId>
+  std::map<DocumentTransitionSharedElementId,
+           DocumentTransitionRequest::SharedElementInfo>
       shared_element_render_pass_id_map;
   for (RenderSurfaceImpl* render_surface : *frame->render_surface_list) {
     const auto& shared_element_id =
@@ -2523,8 +2568,10 @@ viz::CompositorFrame LayerTreeHostImpl::GenerateCompositorFrame(
       continue;
     DCHECK(
         !base::Contains(shared_element_render_pass_id_map, shared_element_id));
-    shared_element_render_pass_id_map[shared_element_id] =
+    shared_element_render_pass_id_map[shared_element_id].render_pass_id =
         render_surface->render_pass_id();
+    shared_element_render_pass_id_map[shared_element_id].resource_id =
+        render_surface->OwningEffectNode()->shared_element_resource_id;
   }
 
   for (auto& request : active_tree_->TakeDocumentTransitionRequests()) {
@@ -2533,6 +2580,7 @@ viz::CompositorFrame LayerTreeHostImpl::GenerateCompositorFrame(
   }
 
   PopulateMetadataContentColorUsage(frame, &metadata);
+  metadata.has_shared_element_resources = frame->has_shared_element_resources;
   metadata.may_contain_video = frame->may_contain_video;
   metadata.deadline = viz::FrameDeadline(
       CurrentBeginFrameArgs().frame_time,
@@ -3034,9 +3082,8 @@ absl::optional<viz::HitTestRegionList> LayerTreeHostImpl::BuildHitTestData() {
         continue;
       }
 
-      gfx::Rect content_rect(
-          gfx::ScaleToEnclosingRect(gfx::Rect(surface_layer->bounds()),
-                                    device_scale_factor, device_scale_factor));
+      gfx::Rect content_rect(gfx::ScaleToEnclosingRect(
+          gfx::Rect(surface_layer->bounds()), device_scale_factor));
 
       gfx::Rect layer_screen_space_rect = MathUtil::MapEnclosingClippedRect(
           surface_layer->ScreenSpaceTransform(),
@@ -3418,16 +3465,13 @@ void LayerTreeHostImpl::SetVisible(bool visible) {
 }
 
 void LayerTreeHostImpl::SetNeedsOneBeginImplFrame() {
-  // TODO(miletus): This is just the compositor-thread-side call to the
-  // SwapPromiseMonitor to say something happened that may cause a swap in the
-  // future. The name should not refer to SetNeedsRedraw but it does for now.
-  NotifySwapPromiseMonitorsOfSetNeedsRedraw();
+  NotifyLatencyInfoSwapPromiseMonitors();
   events_metrics_manager_.SaveActiveEventMetrics();
   client_->SetNeedsOneBeginImplFrameOnImplThread();
 }
 
 void LayerTreeHostImpl::SetNeedsRedraw() {
-  NotifySwapPromiseMonitorsOfSetNeedsRedraw();
+  NotifyLatencyInfoSwapPromiseMonitors();
   events_metrics_manager_.SaveActiveEventMetrics();
   client_->SetNeedsRedrawOnImplThread();
 }
@@ -4732,18 +4776,19 @@ void LayerTreeHostImpl::ScheduleMicroBenchmark(
   micro_benchmark_controller_.ScheduleRun(std::move(benchmark));
 }
 
-void LayerTreeHostImpl::InsertSwapPromiseMonitor(SwapPromiseMonitor* monitor) {
-  swap_promise_monitor_.insert(monitor);
+void LayerTreeHostImpl::InsertLatencyInfoSwapPromiseMonitor(
+    LatencyInfoSwapPromiseMonitor* monitor) {
+  latency_info_swap_promise_monitor_.insert(monitor);
 }
 
-void LayerTreeHostImpl::RemoveSwapPromiseMonitor(SwapPromiseMonitor* monitor) {
-  swap_promise_monitor_.erase(monitor);
+void LayerTreeHostImpl::RemoveLatencyInfoSwapPromiseMonitor(
+    LatencyInfoSwapPromiseMonitor* monitor) {
+  latency_info_swap_promise_monitor_.erase(monitor);
 }
 
-void LayerTreeHostImpl::NotifySwapPromiseMonitorsOfSetNeedsRedraw() {
-  auto it = swap_promise_monitor_.begin();
-  for (; it != swap_promise_monitor_.end(); it++)
-    (*it)->OnSetNeedsRedrawOnImpl();
+void LayerTreeHostImpl::NotifyLatencyInfoSwapPromiseMonitors() {
+  for (auto* monitor : latency_info_swap_promise_monitor_)
+    monitor->OnSetNeedsRedrawOnImpl();
 }
 
 bool LayerTreeHostImpl::IsElementInPropertyTrees(

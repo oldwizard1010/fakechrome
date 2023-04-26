@@ -11,7 +11,6 @@
 
 #include "base/compiler_specific.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/field_trial.h"
 #include "base/observer_list.h"
@@ -59,12 +58,8 @@ namespace variations {
 class DeviceVariationsRestrictionByPolicyApplicator;
 #endif
 
-// If enabled, seed fetches will be retried over HTTP after an HTTPS request
-// fails.
-extern const base::Feature kHttpRetryFeature;
-
-// Used to setup field trials based on stored variations seed data, and fetch
-// new seed data from the variations server.
+// Used to (a) set up field trials based on stored variations seed data and (b)
+// fetch new seed data from the variations server.
 class VariationsService
     : public web_resource::ResourceRequestAllowedNotifier::Observer {
  public:
@@ -190,9 +185,9 @@ class VariationsService
     return resource_request_allowed_notifier_.get();
   }
 
-  // Wrapper around VariationsFieldTrialCreator::SetupFieldTrials().
+  // Wrapper around VariationsFieldTrialCreator::SetUpFieldTrials().
   // TODO(crbug/1245646): Remove |extend_variations_safe_mode| param.
-  bool SetupFieldTrials(
+  bool SetUpFieldTrials(
       const std::vector<std::string>& variation_ids,
       const std::vector<base::FeatureList::FeatureOverrideInfo>&
           extra_overrides,

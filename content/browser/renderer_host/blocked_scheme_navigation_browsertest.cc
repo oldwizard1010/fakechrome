@@ -6,7 +6,6 @@
 #include "base/command_line.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/macros.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/strings/pattern.h"
@@ -167,6 +166,11 @@ class BlockedSchemeNavigationBrowserTest
 #else
   BlockedSchemeNavigationBrowserTest() {}
 #endif  // BUILDFLAG(ENABLE_PLUGINS)
+
+  BlockedSchemeNavigationBrowserTest(
+      const BlockedSchemeNavigationBrowserTest&) = delete;
+  BlockedSchemeNavigationBrowserTest& operator=(
+      const BlockedSchemeNavigationBrowserTest&) = delete;
 
  protected:
   void SetUpOnMainThread() override {
@@ -560,8 +564,6 @@ class BlockedSchemeNavigationBrowserTest
 #endif  // BUILDFLAG(ENABLE_PLUGINS)
 
   GURL data_url_;
-
-  DISALLOW_COPY_AND_ASSIGN(BlockedSchemeNavigationBrowserTest);
 };
 
 INSTANTIATE_TEST_SUITE_P(All,

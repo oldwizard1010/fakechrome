@@ -279,6 +279,11 @@ class WaylandConnection {
   bool surface_submission_in_pixel_coordinates() const {
     return surface_submission_in_pixel_coordinates_;
   }
+
+  void set_surface_submission_in_pixel_coordinates(bool enabled) {
+    surface_submission_in_pixel_coordinates_ = enabled;
+  }
+
   wl::SerialTracker& serial_tracker() { return serial_tracker_; }
 
   void set_tablet_layout_state(display::TabletState tablet_layout_state) {
@@ -375,6 +380,9 @@ class WaylandConnection {
   wl::Object<zcr_extended_drag_v1> extended_drag_v1_;
   wl::Object<zxdg_output_manager_v1> xdg_output_manager_;
 
+  // Manages Wayland windows.
+  WaylandWindowManager wayland_window_manager_;
+
   // Event source instance. Must be declared before input objects so it
   // outlives them so thus being able to properly handle their destruction.
   std::unique_ptr<WaylandEventSource> event_source_;
@@ -428,9 +436,6 @@ class WaylandConnection {
   // that Wayland holds. For example, wl_surface and others. It's only
   // created when platform window test config is set.
   std::unique_ptr<wl::WaylandProxy> wayland_proxy_;
-
-  // Manages Wayland windows.
-  WaylandWindowManager wayland_window_manager_;
 
   WaylandCursorBufferListener* listener_ = nullptr;
 

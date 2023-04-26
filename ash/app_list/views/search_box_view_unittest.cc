@@ -29,7 +29,6 @@
 #include "ash/search_box/search_box_view_delegate.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
-#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/metrics/user_action_tester.h"
@@ -51,6 +50,10 @@ namespace ash {
 namespace {
 
 using test::AppListTestViewDelegate;
+
+SearchModel* GetSearchModel() {
+  return AppListModelProvider::Get()->search_model();
+}
 
 class KeyPressCounterView : public ContentsView {
  public:
@@ -197,9 +200,7 @@ class SearchBoxViewTest : public views::test::WidgetTest,
     results()->AddAt(index, std::move(search_result));
   }
 
-  SearchModel::SearchResults* results() {
-    return view_delegate_.GetSearchModel()->results();
-  }
+  SearchModel::SearchResults* results() { return GetSearchModel()->results(); }
 
  private:
   // Overridden from SearchBoxViewDelegate:
@@ -270,7 +271,6 @@ TEST_F(SearchBoxViewTest, SearchBoxInactiveSearchBoxGoogle) {
   SetSearchBoxActive(false, ui::ET_UNKNOWN);
   const gfx::ImageSkia expected_icon = gfx::CreateVectorIcon(
       kGoogleBlackIcon, kSearchBoxIconSize, kDefaultSearchboxColor);
-  view()->ModelChanged();
 
   const gfx::ImageSkia actual_icon =
       view()->get_search_icon_for_test()->GetImage();
@@ -285,7 +285,6 @@ TEST_F(SearchBoxViewTest, SearchBoxActiveSearchEngineGoogle) {
   SetSearchBoxActive(true, ui::ET_MOUSE_PRESSED);
   const gfx::ImageSkia expected_icon = gfx::CreateVectorIcon(
       kGoogleColorIcon, kSearchBoxIconSize, kDefaultSearchboxColor);
-  view()->ModelChanged();
 
   const gfx::ImageSkia actual_icon =
       view()->get_search_icon_for_test()->GetImage();
@@ -300,7 +299,6 @@ TEST_F(SearchBoxViewTest, SearchBoxInactiveSearchEngineNotGoogle) {
   SetSearchBoxActive(false, ui::ET_UNKNOWN);
   const gfx::ImageSkia expected_icon = gfx::CreateVectorIcon(
       kSearchEngineNotGoogleIcon, kSearchBoxIconSize, kDefaultSearchboxColor);
-  view()->ModelChanged();
 
   const gfx::ImageSkia actual_icon =
       view()->get_search_icon_for_test()->GetImage();
@@ -315,7 +313,6 @@ TEST_F(SearchBoxViewTest, SearchBoxActiveSearchEngineNotGoogle) {
   SetSearchBoxActive(true, ui::ET_UNKNOWN);
   const gfx::ImageSkia expected_icon = gfx::CreateVectorIcon(
       kSearchEngineNotGoogleIcon, kSearchBoxIconSize, kDefaultSearchboxColor);
-  view()->ModelChanged();
 
   const gfx::ImageSkia actual_icon =
       view()->get_search_icon_for_test()->GetImage();
@@ -833,8 +830,7 @@ class SearchBoxViewAssistantButtonTest : public SearchBoxViewTest {
   // Overridden from testing::Test
   void SetUp() override {
     SearchBoxViewTest::SetUp();
-    view_delegate()->GetSearchModel()->search_box()->SetShowAssistantButton(
-        true);
+    GetSearchModel()->search_box()->SetShowAssistantButton(true);
   }
 };
 
@@ -878,12 +874,12 @@ class SearchBoxViewAutocompleteTest : public SearchBoxViewTest {
       // Search box autocomplete suggestion is accepted, but it should not
       // trigger another query, thus it is not reflected in Search Model.
       EXPECT_EQ(u"hello world!", view()->search_box()->GetText());
-      EXPECT_EQ(u"he", view_delegate()->GetSearchModel()->search_box()->text());
+      EXPECT_EQ(u"he", GetSearchModel()->search_box()->text());
     } else {
       // Search box autocomplete suggestion is removed and is reflected in
       // SearchModel.
       EXPECT_EQ(view()->search_box()->GetText(),
-                view_delegate()->GetSearchModel()->search_box()->text());
+                GetSearchModel()->search_box()->text());
       EXPECT_EQ(u"he", view()->search_box()->GetText());
       // ProcessAutocomplete should be a no-op.
       ProcessAutocomplete();
@@ -1152,12 +1148,12 @@ class SearchBoxViewAppListBubbleTest : public AshTestBase {
 
   static void AddSearchResult(const std::string& id,
                               const std::u16string& title) {
-    SearchModel::SearchResults* search_results =
-        Shell::Get()->app_list_controller()->GetSearchModel()->results();
+    SearchModel::SearchResults* search_results = GetSearchModel()->results();
     auto search_result = std::make_unique<TestSearchResult>();
     search_result->set_result_id(id);
     search_result->set_display_type(SearchResultDisplayType::kList);
     search_result->set_title(title);
+    search_result->set_best_match(true);
     search_results->Add(std::move(search_result));
   }
 

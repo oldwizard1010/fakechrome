@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "ash/components/settings/timezone_settings.h"
 #include "ash/public/cpp/multi_user_window_manager.h"
 #include "ash/public/cpp/tablet_mode.h"
 #include "base/bind.h"
@@ -60,7 +61,6 @@
 #include "chrome/common/extensions/api/manifest_types.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/webui_url_constants.h"
-#include "chromeos/settings/timezone_settings.h"
 #include "components/account_id/account_id.h"
 #include "components/arc/arc_prefs.h"
 #include "components/drive/drive_pref_names.h"
@@ -237,9 +237,8 @@ FileManagerPrivateGetPreferencesFunction::Run() {
   result.search_suggest_enabled =
       service->GetBoolean(prefs::kSearchSuggestEnabled);
   result.use24hour_clock = service->GetBoolean(prefs::kUse24HourClock);
-  result.timezone =
-      base::UTF16ToUTF8(chromeos::system::TimezoneSettings::GetInstance()
-                            ->GetCurrentTimezoneID());
+  result.timezone = base::UTF16ToUTF8(
+      ash::system::TimezoneSettings::GetInstance()->GetCurrentTimezoneID());
   result.arc_enabled = service->GetBoolean(arc::prefs::kArcEnabled);
   result.arc_removable_media_access_enabled =
       service->GetBoolean(arc::prefs::kArcHasAccessToRemovableMedia);

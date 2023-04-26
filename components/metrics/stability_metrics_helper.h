@@ -7,7 +7,6 @@
 
 #include <string>
 
-#include "base/macros.h"
 #include "base/process/kill.h"
 
 class PrefRegistrySimple;
@@ -38,8 +37,8 @@ enum class StabilityEventType {
 
 class SystemProfileProto;
 
-// StabilityMetricsHelper is a class that providers functionality common to
-// different embedders' stability metrics providers.
+// Responsible for providing functionality common to different embedders'
+// stability metrics providers.
 class StabilityMetricsHelper {
  public:
   explicit StabilityMetricsHelper(PrefService* local_state);

@@ -9,7 +9,6 @@
 
 #include "base/bind.h"
 #include "base/compiler_specific.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/net/dns_probe_service.h"
 #include "chrome/common/net/net_error_page_support.mojom.h"
@@ -45,8 +44,8 @@ class NetErrorTabHelper
     TESTING_FORCE_ENABLED
   };
 
-  typedef base::RepeatingCallback<void(error_page::DnsProbeStatus)>
-      DnsProbeStatusSnoopCallback;
+  using DnsProbeStatusSnoopCallback =
+      base::RepeatingCallback<void(error_page::DnsProbeStatus)>;
 
   NetErrorTabHelper(const NetErrorTabHelper&) = delete;
   NetErrorTabHelper& operator=(const NetErrorTabHelper&) = delete;

@@ -11,7 +11,6 @@
 
 #include "ash/public/cpp/app_list/app_list_metrics.h"
 #include "ash/public/cpp/app_list/app_list_types.h"
-#include "base/macros.h"
 #include "chrome/browser/ui/app_list/app_list_model_updater.h"
 #include "chrome/browser/ui/app_list/search/ranking/types.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
@@ -155,7 +154,7 @@ class ChromeSearchResult {
   }
 
   // Invokes a custom action on the result. It does nothing by default.
-  virtual void InvokeAction(int action_index);
+  virtual void InvokeAction(ash::SearchResultActionType action);
 
   // Opens the result. Clients should use AppListViewDelegate::OpenSearchResult.
   virtual void Open(int event_flags) = 0;

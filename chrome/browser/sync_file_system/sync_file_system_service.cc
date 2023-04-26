@@ -13,7 +13,6 @@
 #include "base/bind.h"
 #include "base/format_macros.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
 #include "base/task/single_thread_task_runner.h"
@@ -575,20 +574,20 @@ void SyncFileSystemService::DidDumpFiles(
       base::OwnedRef(std::move(callback)));
 
   // After all metadata loaded, sync status can be added to each entry.
-  for (size_t i = 0; i < files->GetList().size(); ++i) {
-    base::DictionaryValue* file = nullptr;
-    std::string path_string;
-    if (!files->GetDictionary(i, &file) ||
-        !file->GetString("path", &path_string)) {
+  for (base::Value& file : files->GetList()) {
+    const std::string* path_string =
+      file.is_dict() ? file.FindStringKey("path") : nullptr;
+    if (!path_string) {
       NOTREACHED();
       accumulate_callback.Run(nullptr, SYNC_FILE_ERROR_FAILED,
                               SYNC_FILE_STATUS_UNKNOWN);
       continue;
     }
-
-    base::FilePath file_path = base::FilePath::FromUTF8Unsafe(path_string);
+    base::FilePath file_path = base::FilePath::FromUTF8Unsafe(*path_string);
     FileSystemURL url = CreateSyncableFileSystemURL(origin, file_path);
-    GetFileSyncStatus(url, base::BindOnce(accumulate_callback, file));
+    base::DictionaryValue* file_value =
+        static_cast<base::DictionaryValue*>(&file);
+    GetFileSyncStatus(url, base::BindOnce(accumulate_callback, file_value));
   }
 }
 

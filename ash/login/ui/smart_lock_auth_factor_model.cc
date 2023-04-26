@@ -16,11 +16,13 @@ namespace ash {
 
 namespace {
 
-constexpr int kSmartLockIconSizeDp = 28;
+constexpr int kSmartLockIconSizeDp = 32;
 
 }  // namespace
 
-SmartLockAuthFactorModel::SmartLockAuthFactorModel() = default;
+SmartLockAuthFactorModel::SmartLockAuthFactorModel(
+    base::RepeatingCallback<void()> arrow_button_tap_callback)
+    : arrow_button_tap_callback_(arrow_button_tap_callback) {}
 
 SmartLockAuthFactorModel::~SmartLockAuthFactorModel() = default;
 
@@ -66,6 +68,11 @@ void SmartLockAuthFactorModel::NotifySmartLockAuthResult(bool result) {
 AuthFactorModel::AuthFactorState
 SmartLockAuthFactorModel::GetAuthFactorState() {
   // TODO(crbug.com/1233614): Handle all SmartLockState values appropriately.
+  if (auth_result_.has_value()) {
+    return auth_result_.value() ? AuthFactorState::kAuthenticated
+                                : AuthFactorState::kErrorTemporary;
+  }
+
   switch (state_) {
     case SmartLockState::kDisabled:
       FALLTHROUGH;
@@ -93,32 +100,31 @@ AuthFactorType SmartLockAuthFactorModel::GetType() {
 int SmartLockAuthFactorModel::GetLabelId() {
   if (auth_result_.has_value()) {
     return auth_result_.value() ? IDS_SMART_LOCK_LABEL_PHONE_LOCKED
-                                : IDS_AUTH_FACTOR_LABEL_UNLOCK_PASSWORD;
+                                : IDS_AUTH_FACTOR_LABEL_CANNOT_UNLOCK;
   }
 
   switch (state_) {
-    // TODO(crbug.com/1233614): ** Add strings for these error states
     case SmartLockState::kDisabled:
       FALLTHROUGH;
     case SmartLockState::kInactive:
       FALLTHROUGH;
-    case SmartLockState::kBluetoothDisabled:  // **
-      FALLTHROUGH;
-    case SmartLockState::kPhoneNotLockable:  // **
-      FALLTHROUGH;
     case SmartLockState::kPasswordReentryRequired:
       FALLTHROUGH;
-    case SmartLockState::kPrimaryUserAbsent:  // **
+    case SmartLockState::kPrimaryUserAbsent:
       FALLTHROUGH;
     case SmartLockState::kPhoneNotAuthenticated:
       return IDS_AUTH_FACTOR_LABEL_UNLOCK_PASSWORD;
+    case SmartLockState::kBluetoothDisabled:
+      return IDS_SMART_LOCK_LABEL_NO_BLUETOOTH;
+    case SmartLockState::kPhoneNotLockable:
+      return IDS_SMART_LOCK_LABEL_NO_PHONE_LOCK_SCREEN;
     case SmartLockState::kConnectingToPhone:
       return IDS_SMART_LOCK_LABEL_LOOKING_FOR_PHONE;
-    case SmartLockState::kPhoneNotFound:
-      FALLTHROUGH;
-    case SmartLockState::kPhoneFoundLockedAndDistant:  // **
+    case SmartLockState::kPhoneFoundLockedAndDistant:
       FALLTHROUGH;
     case SmartLockState::kPhoneFoundUnlockedAndDistant:
+      return IDS_SMART_LOCK_LABEL_PHONE_TOO_FAR;
+    case SmartLockState::kPhoneNotFound:
       return IDS_SMART_LOCK_LABEL_NO_PHONE;
     case SmartLockState::kPhoneFoundLockedAndProximate:
       return IDS_SMART_LOCK_LABEL_PHONE_LOCKED;
@@ -139,18 +145,10 @@ int SmartLockAuthFactorModel::GetAccessibleNameId() {
   return GetLabelId();
 }
 
-void SmartLockAuthFactorModel::UpdateIcon(AuthIconView* icon_view) {
-  if (auth_result_.has_value() && auth_result_.value()) {
-    icon_view->SetImage(gfx::CreateVectorIcon(
-        kLockScreenFingerprintSuccessIcon, kSmartLockIconSizeDp,
-        AshColorProvider::Get()->GetContentLayerColor(
-            AshColorProvider::ContentLayerType::kIconColorPositive)));
-    return;
-  }
-
+void SmartLockAuthFactorModel::UpdateIcon(AuthIconView* icon) {
   const SkColor icon_color = AshColorProvider::Get()->GetContentLayerColor(
       AshColorProvider::ContentLayerType::kIconColorPrimary);
-  const gfx::VectorIcon* icon;
+  const gfx::VectorIcon* vector_icon;
   switch (state_) {
     case SmartLockState::kPhoneNotFound:
       FALLTHROUGH;
@@ -159,10 +157,10 @@ void SmartLockAuthFactorModel::UpdateIcon(AuthIconView* icon_view) {
     case SmartLockState::kPhoneFoundUnlockedAndDistant:
       FALLTHROUGH;
     case SmartLockState::kConnectingToPhone:
-      icon = &kLockScreenSmartLockBluetoothIcon;
+      vector_icon = &kLockScreenSmartLockBluetoothIcon;
       break;
     case SmartLockState::kPhoneFoundLockedAndProximate:
-      icon = &kLockScreenSmartLockPhoneIcon;
+      vector_icon = &kLockScreenSmartLockPhoneIcon;
       break;
     case SmartLockState::kPhoneAuthenticated:
       // Click to enter, icon doesn't matter.
@@ -180,16 +178,22 @@ void SmartLockAuthFactorModel::UpdateIcon(AuthIconView* icon_view) {
     case SmartLockState::kPasswordReentryRequired:
       FALLTHROUGH;
     case SmartLockState::kPrimaryUserAbsent:
-      icon = &kLockScreenSmartLockDisabledIcon;
+      vector_icon = &kLockScreenSmartLockDisabledIcon;
       break;
   }
-  icon_view->SetImage(
-      gfx::CreateVectorIcon(*icon, kSmartLockIconSizeDp, icon_color));
+  icon->SetImage(
+      gfx::CreateVectorIcon(*vector_icon, kSmartLockIconSizeDp, icon_color));
 }
 
 void SmartLockAuthFactorModel::OnTapOrClickEvent() {
   // TODO(crbug.com/1233614): If Smart Lock is not available because of an error
   // and the icon is pressed, show the particular error message.
+}
+
+void SmartLockAuthFactorModel::OnArrowButtonTapOrClickEvent() {
+  if (state_ == SmartLockState::kPhoneAuthenticated) {
+    arrow_button_tap_callback_.Run();
+  }
 }
 
 }  // namespace ash

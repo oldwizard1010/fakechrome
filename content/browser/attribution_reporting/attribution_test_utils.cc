@@ -92,22 +92,22 @@ ConfigurableStorageDelegate::ConfigurableStorageDelegate() = default;
 ConfigurableStorageDelegate::~ConfigurableStorageDelegate() = default;
 
 base::Time ConfigurableStorageDelegate::GetReportTime(
-    const StorableSource& impression,
-    base::Time conversion_time) const {
-  return impression.impression_time() + base::Milliseconds(report_time_ms_);
+    const StorableSource& source,
+    base::Time trigger_time) const {
+  return source.impression_time() + base::Milliseconds(report_time_ms_);
 }
 
-int ConfigurableStorageDelegate::GetMaxConversionsPerImpression(
+int ConfigurableStorageDelegate::GetMaxAttributionsPerSource(
     StorableSource::SourceType source_type) const {
-  return max_conversions_per_impression_;
+  return max_attributions_per_source_;
 }
 
-int ConfigurableStorageDelegate::GetMaxImpressionsPerOrigin() const {
-  return max_impressions_per_origin_;
+int ConfigurableStorageDelegate::GetMaxSourcesPerOrigin() const {
+  return max_sources_per_origin_;
 }
 
-int ConfigurableStorageDelegate::GetMaxConversionsPerOrigin() const {
-  return max_conversions_per_origin_;
+int ConfigurableStorageDelegate::GetMaxAttributionsPerOrigin() const {
+  return max_attributions_per_origin_;
 }
 
 int ConfigurableStorageDelegate::GetMaxAttributionDestinationsPerEventSource()
@@ -125,9 +125,9 @@ uint64_t ConfigurableStorageDelegate::GetFakeEventSourceTriggerData() const {
   return fake_event_source_trigger_data_;
 }
 
-base::TimeDelta
-ConfigurableStorageDelegate::GetDeleteExpiredImpressionsFrequency() const {
-  return delete_expired_impressions_frequency_;
+base::TimeDelta ConfigurableStorageDelegate::GetDeleteExpiredSourcesFrequency()
+    const {
+  return delete_expired_sources_frequency_;
 }
 
 base::TimeDelta
@@ -144,27 +144,27 @@ TestAttributionManager::TestAttributionManager() = default;
 
 TestAttributionManager::~TestAttributionManager() = default;
 
-void TestAttributionManager::HandleImpression(StorableSource impression) {
-  num_impressions_++;
-  last_impression_source_type_ = impression.source_type();
-  last_impression_origin_ = impression.impression_origin();
-  last_attribution_source_priority_ = impression.priority();
+void TestAttributionManager::HandleSource(StorableSource source) {
+  num_sources_++;
+  last_impression_source_type_ = source.source_type();
+  last_impression_origin_ = source.impression_origin();
+  last_attribution_source_priority_ = source.priority();
+  last_impression_time_ = source.impression_time();
 }
 
-void TestAttributionManager::HandleConversion(StorableTrigger conversion) {
-  num_conversions_++;
+void TestAttributionManager::HandleTrigger(StorableTrigger trigger) {
+  num_triggers_++;
 
-  last_conversion_destination_ = conversion.conversion_destination();
+  last_conversion_destination_ = trigger.conversion_destination();
 }
 
-void TestAttributionManager::GetActiveImpressionsForWebUI(
+void TestAttributionManager::GetActiveSourcesForWebUI(
     base::OnceCallback<void(std::vector<StorableSource>)> callback) {
-  std::move(callback).Run(impressions_);
+  std::move(callback).Run(sources_);
 }
 
 void TestAttributionManager::GetPendingReportsForWebUI(
-    base::OnceCallback<void(std::vector<AttributionReport>)> callback,
-    base::Time max_report_time) {
+    base::OnceCallback<void(std::vector<AttributionReport>)> callback) {
   std::move(callback).Run(reports_);
 }
 
@@ -191,15 +191,15 @@ void TestAttributionManager::ClearData(
     base::Time delete_end,
     base::RepeatingCallback<bool(const url::Origin&)> filter,
     base::OnceClosure done) {
-  impressions_.clear();
+  sources_.clear();
   reports_.clear();
   session_storage_.Reset();
   std::move(done).Run();
 }
 
-void TestAttributionManager::SetActiveImpressionsForWebUI(
-    std::vector<StorableSource> impressions) {
-  impressions_ = std::move(impressions);
+void TestAttributionManager::SetActiveSourcesForWebUI(
+    std::vector<StorableSource> sources) {
+  sources_ = std::move(sources);
 }
 
 void TestAttributionManager::SetReportsForWebUI(
@@ -208,14 +208,14 @@ void TestAttributionManager::SetReportsForWebUI(
 }
 
 void TestAttributionManager::Reset() {
-  num_impressions_ = 0u;
-  num_conversions_ = 0u;
+  num_sources_ = 0u;
+  num_triggers_ = 0u;
 }
 
 // Builds an impression with default values. This is done as a builder because
 // all values needed to be provided at construction time.
 SourceBuilder::SourceBuilder(base::Time time)
-    : impression_data_(123),
+    : source_event_id_(123),
       impression_time_(time),
       expiry_(base::Milliseconds(kExpiryTime)),
       impression_origin_(url::Origin::Create(GURL(kDefaultImpressionOrigin))),
@@ -232,8 +232,8 @@ SourceBuilder& SourceBuilder::SetExpiry(base::TimeDelta delta) {
   return *this;
 }
 
-SourceBuilder& SourceBuilder::SetData(uint64_t data) {
-  impression_data_ = data;
+SourceBuilder& SourceBuilder::SetSourceEventId(uint64_t source_event_id) {
+  source_event_id_ = source_event_id;
   return *this;
 }
 
@@ -282,7 +282,7 @@ SourceBuilder& SourceBuilder::SetDedupKeys(std::vector<int64_t> dedup_keys) {
 
 StorableSource SourceBuilder::Build() const {
   StorableSource impression(
-      impression_data_, impression_origin_, conversion_origin_,
+      source_event_id_, impression_origin_, conversion_origin_,
       reporting_origin_, impression_time_,
       /*expiry_time=*/impression_time_ + expiry_, source_type_, priority_,
       attribution_logic_, impression_id_);
@@ -301,8 +301,8 @@ TriggerBuilder::TriggerBuilder()
 
 TriggerBuilder::~TriggerBuilder() = default;
 
-TriggerBuilder& TriggerBuilder::SetConversionData(uint64_t conversion_data) {
-  conversion_data_ = conversion_data;
+TriggerBuilder& TriggerBuilder::SetTriggerData(uint64_t trigger_data) {
+  trigger_data_ = trigger_data;
   return *this;
 }
 
@@ -335,7 +335,7 @@ TriggerBuilder& TriggerBuilder::SetDedupKey(absl::optional<int64_t> dedup_key) {
 }
 
 StorableTrigger TriggerBuilder::Build() const {
-  return StorableTrigger(conversion_data_, conversion_destination_,
+  return StorableTrigger(trigger_data_, conversion_destination_,
                          reporting_origin_, event_source_trigger_data_,
                          priority_, dedup_key_);
 }
@@ -345,7 +345,7 @@ StorableTrigger TriggerBuilder::Build() const {
 bool operator==(const StorableSource& a, const StorableSource& b) {
   const auto tie = [](const StorableSource& impression) {
     return std::make_tuple(
-        impression.impression_data(), impression.impression_origin(),
+        impression.source_event_id(), impression.impression_origin(),
         impression.conversion_origin(), impression.reporting_origin(),
         impression.impression_time(), impression.expiry_time(),
         impression.source_type(), impression.priority(),
@@ -359,7 +359,7 @@ bool operator==(const StorableSource& a, const StorableSource& b) {
 // sqlite db and should not be tested.
 bool operator==(const AttributionReport& a, const AttributionReport& b) {
   const auto tie = [](const AttributionReport& conversion) {
-    return std::make_tuple(conversion.impression, conversion.conversion_data,
+    return std::make_tuple(conversion.impression, conversion.trigger_data,
                            conversion.conversion_time, conversion.report_time,
                            conversion.priority,
                            conversion.failed_send_attempts);
@@ -452,7 +452,7 @@ std::ostream& operator<<(std::ostream& out,
 }
 
 std::ostream& operator<<(std::ostream& out, const StorableTrigger& conversion) {
-  return out << "{conversion_data=" << conversion.conversion_data()
+  return out << "{trigger_data=" << conversion.trigger_data()
              << ",conversion_destination="
              << conversion.conversion_destination().Serialize()
              << ",reporting_origin=" << conversion.reporting_origin()
@@ -466,7 +466,7 @@ std::ostream& operator<<(std::ostream& out, const StorableTrigger& conversion) {
 }
 
 std::ostream& operator<<(std::ostream& out, const StorableSource& impression) {
-  out << "{impression_data=" << impression.impression_data()
+  out << "{source_event_id=" << impression.source_event_id()
       << ",impression_origin=" << impression.impression_origin()
       << ",conversion_origin=" << impression.conversion_origin()
       << ",reporting_origin=" << impression.reporting_origin()
@@ -490,7 +490,7 @@ std::ostream& operator<<(std::ostream& out, const StorableSource& impression) {
 
 std::ostream& operator<<(std::ostream& out, const AttributionReport& report) {
   return out << "{impression=" << report.impression
-             << ",conversion_data=" << report.conversion_data
+             << ",trigger_data=" << report.trigger_data
              << ",conversion_time=" << report.conversion_time
              << ",report_time=" << report.report_time
              << ",priority=" << report.priority << ",conversion_id="
@@ -529,21 +529,21 @@ std::ostream& operator<<(std::ostream& out, const SentReportInfo& info) {
              << ",http_response_code=" << info.http_response_code << "}";
 }
 
-std::vector<AttributionReport> GetConversionsToReportForTesting(
+std::vector<AttributionReport> GetAttributionsToReportForTesting(
     AttributionManagerImpl* manager,
     base::Time max_report_time) {
   base::RunLoop run_loop;
-  std::vector<AttributionReport> conversion_reports;
+  std::vector<AttributionReport> attribution_reports;
   manager->attribution_storage_
-      .AsyncCall(&AttributionStorage::GetConversionsToReport)
+      .AsyncCall(&AttributionStorage::GetAttributionsToReport)
       .WithArgs(max_report_time, /*limit=*/-1)
       .Then(base::BindOnce(base::BindLambdaForTesting(
           [&](std::vector<AttributionReport> reports) {
-            conversion_reports = std::move(reports);
+            attribution_reports = std::move(reports);
             run_loop.Quit();
           })));
   run_loop.Run();
-  return conversion_reports;
+  return attribution_reports;
 }
 
 }  // namespace content

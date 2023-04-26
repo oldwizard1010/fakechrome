@@ -10,7 +10,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/macros.h"
 #include "base/memory/singleton.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
@@ -20,6 +19,7 @@
 #include "base/timer/timer.h"
 #include "components/arc/arc_browser_context_keyed_service_factory_base.h"
 #include "components/arc/metrics/arc_metrics_constants.h"
+#include "components/arc/mojom/anr.mojom.h"
 #include "components/arc/mojom/metrics.mojom.h"
 #include "components/arc/mojom/process.mojom.h"
 #include "components/arc/session/arc_bridge_service.h"
@@ -134,6 +134,7 @@ class ArcMetricsService : public KeyedService,
       mojom::ArcImageCopyPasteCompatAction action_type) override;
   void ReportArcNetworkEvent(mojom::ArcNetworkEvent event) override;
   void ReportArcNetworkError(mojom::ArcNetworkError error) override;
+  void ReportAppPrimaryAbi(mojom::AppPrimaryAbi abi) override;
 
   // wm::ActivationChangeObserver overrides.
   // Records to UMA when a user has interacted with an ARC app window.

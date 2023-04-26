@@ -28,10 +28,10 @@ CONTENT_EXPORT extern const base::Feature kAudioProcessHighPriorityWin;
 CONTENT_EXPORT extern const base::Feature kAudioServiceLaunchOnStartup;
 CONTENT_EXPORT extern const base::Feature kAudioServiceOutOfProcess;
 CONTENT_EXPORT extern const base::Feature kAudioServiceSandbox;
+CONTENT_EXPORT extern const base::Feature kAvoidUnnecessaryBeforeUnloadCheck;
 CONTENT_EXPORT extern const base::Feature kBackgroundFetch;
 CONTENT_EXPORT extern const base::Feature kBackForwardCache;
 CONTENT_EXPORT extern const base::Feature kBackForwardCacheSameSiteForBots;
-CONTENT_EXPORT extern const base::Feature kBackForwardCacheMediaPlay;
 CONTENT_EXPORT extern const base::Feature kBackForwardCacheMemoryControls;
 CONTENT_EXPORT extern const base::Feature kBackForwardCacheMediaSessionService;
 CONTENT_EXPORT extern const base::Feature kBlockCredentialedSubresources;
@@ -73,6 +73,7 @@ CONTENT_EXPORT extern const base::Feature kDocumentPolicyNegotiation;
 CONTENT_EXPORT extern const base::Feature kEarlyHintsPreloadForNavigation;
 CONTENT_EXPORT extern const base::Feature kEmbeddingRequiresOptIn;
 CONTENT_EXPORT extern const base::Feature kEnableCanvas2DLayers;
+CONTENT_EXPORT extern const base::Feature kEnableCanvasContextLostInBackground;
 CONTENT_EXPORT extern const base::Feature kEnableNewCanvas2DAPI;
 CONTENT_EXPORT extern const base::Feature kEnumerateDevicesHideDeviceIDs;
 CONTENT_EXPORT extern const base::Feature kExperimentalAccessibilityLabels;
@@ -145,7 +146,6 @@ CONTENT_EXPORT extern const base::Feature kPepper3DImageChromium;
 CONTENT_EXPORT extern const base::Feature kPepperCrossOriginRedirectRestriction;
 CONTENT_EXPORT extern const base::Feature kPlzServiceWorker;
 CONTENT_EXPORT extern const base::Feature kHighPriorityBeforeUnload;
-CONTENT_EXPORT extern const base::Feature kPrioritizeBootstrapTasks;
 CONTENT_EXPORT extern const base::Feature
     kPrivateNetworkAccessRespectPreflightResults;
 CONTENT_EXPORT extern const base::Feature kPrivateNetworkAccessSendPreflights;
@@ -249,7 +249,6 @@ CONTENT_EXPORT extern const base::Feature kWebAssemblySimd;
 CONTENT_EXPORT extern const base::Feature kWebAssemblyTiering;
 CONTENT_EXPORT extern const base::Feature kWebAssemblyTrapHandler;
 CONTENT_EXPORT extern const base::Feature kWebAuth;
-CONTENT_EXPORT extern const base::Feature kWebAuthAuthenticatorAttachment;
 CONTENT_EXPORT extern const base::Feature kWebAuthCable;
 CONTENT_EXPORT extern const base::Feature kWebAuthConditionalUI;
 CONTENT_EXPORT extern const base::Feature kWebBluetoothNewPermissionsBackend;
@@ -267,6 +266,8 @@ CONTENT_EXPORT extern const base::Feature kWebUIReportOnlyTrustedTypes;
 CONTENT_EXPORT extern const base::Feature kWebUsb;
 CONTENT_EXPORT extern const base::Feature kWebXr;
 CONTENT_EXPORT extern const base::Feature kWebXrArModule;
+CONTENT_EXPORT extern const base::Feature
+    kChangeServiceWorkerPriorityForClientForegroundStateChange;
 
 #if defined(OS_ANDROID)
 CONTENT_EXPORT extern const base::Feature kAccessibilityPageZoom;
@@ -303,10 +304,6 @@ CONTENT_EXPORT extern const char
 CONTENT_EXPORT extern const base::FeatureParam<bool>
     kWebUIJavaScriptErrorReportsSendToProductionParam;
 #endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-CONTENT_EXPORT extern const base::Feature kAuraWindowSubtreeCapture;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 #if defined(WEBRTC_USE_PIPEWIRE)
 CONTENT_EXPORT extern const base::Feature kWebRtcPipeWireCapturer;

@@ -42,7 +42,7 @@
 
 namespace {
 
-apps::AppServiceProxyChromeOs* GetAppServiceProxy(Profile* profile) {
+apps::AppServiceProxy* GetAppServiceProxy(Profile* profile) {
   DCHECK(
       apps::AppServiceProxyFactory::IsAppServiceAvailableForProfile(profile));
   return apps::AppServiceProxyFactory::GetForProfile(profile);
@@ -102,8 +102,8 @@ class WebShareTargetBrowserTest : public WebAppControllerBrowserTest {
         app_id,
         /*event_flags=*/0, apps::mojom::LaunchSource::kFromSharesheet,
         display::kDefaultDisplayId,
-        apps::mojom::LaunchContainer::kLaunchContainerWindow,
-        std::move(intent));
+        apps::mojom::LaunchContainer::kLaunchContainerWindow, std::move(intent),
+        profile());
 
     ui_test_utils::UrlLoadObserver url_observer(
         expected_url, content::NotificationService::AllSources());

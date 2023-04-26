@@ -31,6 +31,10 @@ extern const base::Feature kDoubleTapToZoomInTabletMode;
 extern const base::Feature kQuickSettingsPWANotifications;
 #endif
 
+#if defined(OS_MAC)
+extern const base::Feature kEnableUniveralLinks;
+#endif
+
 #if !defined(OS_ANDROID)
 extern const base::Feature kCopyLinkToText;
 extern const base::Feature kMuteNotificationSnoozeAction;
@@ -53,7 +57,9 @@ bool ShouldTriggerNetworkDataMigration();
 
 extern const base::Feature kWebUsbDeviceDetection;
 
-extern const base::Feature kOmniboxTriggerForPrerender2;
+#if defined(OS_ANDROID)
+extern const base::Feature kCertificateTransparencyAndroid;
+#endif
 
 }  // namespace features
 

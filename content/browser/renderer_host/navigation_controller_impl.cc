@@ -66,6 +66,7 @@
 #include "content/browser/renderer_host/navigator.h"
 #include "content/browser/renderer_host/render_frame_host_delegate.h"
 #include "content/browser/renderer_host/render_view_host_impl.h"
+#include "content/browser/site_info.h"
 #include "content/browser/site_instance_impl.h"
 #include "content/browser/web_package/subresource_web_bundle_navigation_info.h"
 #include "content/browser/web_package/web_bundle_navigation_info.h"
@@ -95,6 +96,7 @@
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "services/metrics/public/cpp/ukm_recorder.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
+#include "services/network/public/mojom/fetch_api.mojom.h"
 #include "skia/ext/platform_canvas.h"
 #include "third_party/blink/public/common/blob/blob_utils.h"
 #include "third_party/blink/public/common/chrome_debug_urls.h"
@@ -1135,7 +1137,8 @@ bool NavigationControllerImpl::RendererDidNavigate(
     bool previous_document_was_activated,
     NavigationRequest* navigation_request) {
   DCHECK(navigation_request);
-  if (ShouldMaintainTrivialSessionHistory() && GetLastCommittedEntry()) {
+  if (ShouldMaintainTrivialSessionHistory(rfh->frame_tree_node()) &&
+      GetLastCommittedEntry()) {
     // Ensure that this navigation does not add a navigation entry, since
     // ShouldMaintainTrivialSessionHistory() means we should not add an entry
     // beyond the last committed one. Therefore, `should_replace_current_entry`
@@ -1170,6 +1173,21 @@ bool NavigationControllerImpl::RendererDidNavigate(
         pending_entry_->GetIsOverridingUserAgent() !=
             GetLastCommittedEntry()->GetIsOverridingUserAgent())
       overriding_user_agent_changed = true;
+#if defined(OS_ANDROID)
+    // TODO(crbug.com/1266277): Clean up the logic of setting
+    // |overriding_user_agent_changed| post-launch.
+    if (base::FeatureList::IsEnabled(features::kRequestDesktopSiteGlobal)) {
+      // Must honor user agent overrides in the |navigation_request|, such as
+      // from things like RequestDesktopSiteWebContentsObserverAndroid. As a
+      // result, besides comparing |pending_entry_|'s user agent against
+      // LastCommittedEntry's, also need to compare |navigation_request|'s user
+      // agent against LastCommittedEntry's.
+      if (navigation_request->is_overriding_user_agent() !=
+          GetLastCommittedEntry()->GetIsOverridingUserAgent()) {
+        overriding_user_agent_changed = true;
+      }
+    }
+#endif  // defined(OS_ANDROID)
   } else {
     // GetLastCommittedEntry() is null, so this is the first entry.
     details->previous_main_frame_url = GURL();
@@ -1180,6 +1198,19 @@ bool NavigationControllerImpl::RendererDidNavigate(
       // well.
       overriding_user_agent_changed = true;
     }
+#if defined(OS_ANDROID)
+    // TODO(crbug.com/1266277): Clean up the logic of setting
+    // |overriding_user_agent_changed| post-launch.
+    if (base::FeatureList::IsEnabled(features::kRequestDesktopSiteGlobal)) {
+      // Must honor user agent overrides in the |navigation_request|, such as
+      // from things like RequestDesktopSiteWebContentsObserverAndroid. As a
+      // result, besides checking |pending_entry_|'s user agent, also need to
+      // check |navigation_request|'s.
+      if (navigation_request->is_overriding_user_agent()) {
+        overriding_user_agent_changed = true;
+      }
+    }
+#endif  // defined(OS_ANDROID)
   }
 
   bool is_main_frame_navigation = !rfh->GetParent();
@@ -1374,12 +1405,6 @@ bool NavigationControllerImpl::RendererDidNavigate(
 
   NotifyNavigationEntryCommitted(details);
 
-  if (active_entry->GetURL().SchemeIs(url::kHttpsScheme) && !rfh->GetParent() &&
-      !navigation_request->DidEncounterError()) {
-    UMA_HISTOGRAM_BOOLEAN("Navigation.SecureSchemeHasSSLStatus",
-                          !!active_entry->GetSSL().certificate);
-  }
-
   if (overriding_user_agent_changed)
     delegate_->UpdateOverridingUserAgent();
 
@@ -1560,6 +1585,57 @@ NavigationType NavigationControllerImpl::ClassifyNavigation(
   return NAVIGATION_TYPE_EXISTING_ENTRY;
 }
 
+void NavigationControllerImpl::UpdateNavigationEntryDetails(
+    NavigationEntryImpl* entry,
+    RenderFrameHostImpl* rfh,
+    const mojom::DidCommitProvisionalLoadParams& params,
+    NavigationRequest* request,
+    NavigationEntryImpl::UpdatePolicy update_policy,
+    bool is_new_entry) {
+  // Update the FrameNavigationEntry.
+  entry->AddOrUpdateFrameEntry(
+      rfh->frame_tree_node(), update_policy, params.item_sequence_number,
+      params.document_sequence_number, params.app_history_key,
+      rfh->GetSiteInstance(), nullptr, params.url,
+      GetCommittedOriginForFrameEntry(params, request),
+      Referrer(*params.referrer), request->common_params().initiator_origin,
+      request->GetRedirectChain(), params.page_state, params.method,
+      params.post_id, nullptr /* blob_url_loader_factory */,
+      request->web_bundle_navigation_info()
+          ? request->web_bundle_navigation_info()->Clone()
+          : nullptr,
+      request->GetSubresourceWebBundleNavigationInfo(),
+      ComputePolicyContainerPoliciesForFrameEntry(
+          rfh, request->IsSameDocument(), request));
+
+  if (rfh->GetParent()) {
+    // Only modify the NavigationEntry for main frame navigations.
+    return;
+  }
+  if (entry->update_virtual_url_with_url())
+    UpdateVirtualURLToURL(entry, params.url);
+  // Don't use the page type from the pending entry. Some interstitial page
+  // may have set the type to interstitial. Once we commit, however, the page
+  // type must always be normal or error.
+  entry->set_page_type(request->DidEncounterError() ? PAGE_TYPE_ERROR
+                                                    : PAGE_TYPE_NORMAL);
+  if (is_new_entry) {
+    // Some properties of the NavigationEntry are only set when the entry is
+    // new (we aren't reusing it).
+    entry->SetTransitionType(params.transition);
+    entry->SetOriginalRequestURL(request->GetOriginalRequestURL());
+    DCHECK_EQ(rfh->is_overriding_user_agent(), params.is_overriding_user_agent);
+    entry->SetIsOverridingUserAgent(params.is_overriding_user_agent);
+  } else {
+    // We are reusing the NavigationEntry. The site instance will normally be
+    // the same except for a few cases:
+    // 1) session restore, when no site instance will be assigned or
+    // 2) redirect, when the site instance is reset.
+    DCHECK(!entry->site_instance() || !entry->GetRedirectChain().empty() ||
+           entry->site_instance() == rfh->GetSiteInstance());
+  }
+}
+
 void NavigationControllerImpl::RendererDidNavigateToNewEntry(
     RenderFrameHostImpl* rfh,
     const mojom::DidCommitProvisionalLoadParams& params,
@@ -1568,8 +1644,6 @@ void NavigationControllerImpl::RendererDidNavigateToNewEntry(
     bool previous_document_was_activated,
     NavigationRequest* request) {
   std::unique_ptr<NavigationEntryImpl> new_entry;
-  bool update_virtual_url = false;
-
   const absl::optional<url::Origin>& initiator_origin =
       request->common_params().initiator_origin;
 
@@ -1598,13 +1672,6 @@ void NavigationControllerImpl::RendererDidNavigateToNewEntry(
       // only tildes. Until we understand that better, don't copy the cert in
       // this case.
       new_entry->GetSSL() = SSLStatus();
-
-      if (params.url.SchemeIs(url::kHttpsScheme) && !rfh->GetParent() &&
-          !request->DidEncounterError()) {
-        UMA_HISTOGRAM_BOOLEAN(
-            "Navigation.SecureSchemeHasSSLStatus.NewPageInPageOriginMismatch",
-            !!new_entry->GetSSL().certificate);
-      }
     }
 
     // It is expected that |frame_entry| is now owned by |new_entry|. This means
@@ -1612,14 +1679,6 @@ void NavigationControllerImpl::RendererDidNavigateToNewEntry(
     // due to the local variable |frame_entry|, and another due to |new_entry|
     // also retaining one. This should never fail, because it's the main frame.
     CHECK(!frame_entry->HasOneRef() && frame_entry->HasAtLeastOneRef());
-
-    update_virtual_url = new_entry->update_virtual_url_with_url();
-
-    if (params.url.SchemeIs(url::kHttpsScheme) && !rfh->GetParent() &&
-        !request->DidEncounterError()) {
-      UMA_HISTOGRAM_BOOLEAN("Navigation.SecureSchemeHasSSLStatus.NewPageInPage",
-                            !!new_entry->GetSSL().certificate);
-    }
   }
 
   // If this is an activation navigation from a prerendered page, transfer the
@@ -1649,16 +1708,8 @@ void NavigationControllerImpl::RendererDidNavigateToNewEntry(
        pending_entry_->site_instance() == rfh->GetSiteInstance())) {
     new_entry = pending_entry_->Clone();
 
-    update_virtual_url = new_entry->update_virtual_url_with_url();
     new_entry->GetSSL() =
         SSLStatus(request->GetSSLInfo().value_or(net::SSLInfo()));
-
-    if (params.url.SchemeIs(url::kHttpsScheme) && !rfh->GetParent() &&
-        !request->DidEncounterError()) {
-      UMA_HISTOGRAM_BOOLEAN(
-          "Navigation.SecureSchemeHasSSLStatus.NewPagePendingEntryMatches",
-          !!new_entry->GetSSL().certificate);
-    }
   }
 
   // For cross-document commits with no matching pending entry, create a new
@@ -1676,24 +1727,16 @@ void NavigationControllerImpl::RendererDidNavigateToNewEntry(
     // update the virtual URL when replaceState is called after a pushState.
     GURL url = params.url;
     bool needs_update = false;
-    BrowserURLHandlerImpl::GetInstance()->RewriteURLIfNecessary(
-        &url, browser_context_, &needs_update);
-    new_entry->set_update_virtual_url_with_url(needs_update);
-
     // When navigating to a new entry, give the browser URL handler a chance to
     // update the virtual URL based on the new URL. For example, this is needed
     // to show chrome://bookmarks/#1 when the bookmarks webui extension changes
     // the URL.
-    update_virtual_url = needs_update;
+    BrowserURLHandlerImpl::GetInstance()->RewriteURLIfNecessary(
+        &url, browser_context_, &needs_update);
+    new_entry->set_update_virtual_url_with_url(needs_update);
+
     new_entry->GetSSL() =
         SSLStatus(request->GetSSLInfo().value_or(net::SSLInfo()));
-
-    if (params.url.SchemeIs(url::kHttpsScheme) && !rfh->GetParent() &&
-        !request->DidEncounterError()) {
-      UMA_HISTOGRAM_BOOLEAN(
-          "Navigation.SecureSchemeHasSSLStatus.NewPageNoMatchingEntry",
-          !!new_entry->GetSSL().certificate);
-    }
   }
 
   // TODO(crbug.com/1179428) - determine which parts of the entry need to be set
@@ -1701,47 +1744,9 @@ void NavigationControllerImpl::RendererDidNavigateToNewEntry(
   // technically won't be creating a new document. Unlike BFCache, prerendering
   // creates a new NavigationEntry rather than using an existing one.
   if (!request->IsPrerenderedPageActivation()) {
-    // Don't use the page type from the pending entry. Some interstitial page
-    // may have set the type to interstitial. Once we commit, however, the page
-    // type must always be normal or error.
-    new_entry->set_page_type(request->DidEncounterError() ? PAGE_TYPE_ERROR
-                                                          : PAGE_TYPE_NORMAL);
-    new_entry->SetURL(params.url);
-    if (update_virtual_url)
-      UpdateVirtualURLToURL(new_entry.get(), params.url);
-    new_entry->SetReferrer(Referrer(*params.referrer));
-    new_entry->SetTransitionType(params.transition);
-    new_entry->set_site_instance(
-        static_cast<SiteInstanceImpl*>(rfh->GetSiteInstance()));
-    new_entry->SetOriginalRequestURL(request->GetOriginalRequestURL());
-
-    DCHECK_EQ(rfh->is_overriding_user_agent(), params.is_overriding_user_agent);
-    new_entry->SetIsOverridingUserAgent(params.is_overriding_user_agent);
-
-    // Update the FrameNavigationEntry for new main frame commits.
-    FrameNavigationEntry* frame_entry =
-        new_entry->GetFrameEntry(rfh->frame_tree_node());
-    frame_entry->set_frame_unique_name(rfh->frame_tree_node()->unique_name());
-    frame_entry->set_item_sequence_number(params.item_sequence_number);
-    frame_entry->set_document_sequence_number(params.document_sequence_number);
-    frame_entry->set_app_history_key(params.app_history_key);
-    frame_entry->set_redirect_chain(request->GetRedirectChain());
-    frame_entry->SetPageState(params.page_state);
-    frame_entry->set_method(params.method);
-    frame_entry->set_post_id(params.post_id);
-    frame_entry->set_policy_container_policies(
-        ComputePolicyContainerPoliciesForFrameEntry(rfh, is_same_document,
-                                                    request));
-
-    if (absl::optional<url::Origin> committed_origin =
-            GetCommittedOriginForFrameEntry(params, request)) {
-      if (committed_origin.has_value())
-        frame_entry->set_committed_origin(committed_origin.value());
-    }
-    if (request->web_bundle_navigation_info()) {
-      frame_entry->set_web_bundle_navigation_info(
-          request->web_bundle_navigation_info()->Clone());
-    }
+    UpdateNavigationEntryDetails(new_entry.get(), rfh, params, request,
+                                 NavigationEntryImpl::UpdatePolicy::kUpdate,
+                                 true /* is_new_entry */);
 
     // history.pushState() is classified as a navigation to a new page, but sets
     // is_same_document to true. In this case, we already have the title and
@@ -1834,22 +1839,6 @@ void NavigationControllerImpl::RendererDidNavigateToExistingEntry(
       entry->GetSSL() =
           SSLStatus(request->GetSSLInfo().value_or(net::SSLInfo()));
     }
-
-    if (params.url.SchemeIs(url::kHttpsScheme) &&
-        !request->DidEncounterError()) {
-      bool has_cert = !!entry->GetSSL().certificate;
-      if (is_same_document) {
-        UMA_HISTOGRAM_BOOLEAN(
-            "Navigation.SecureSchemeHasSSLStatus."
-            "ExistingPageSameDocumentIntendedAsNew",
-            has_cert);
-      } else {
-        UMA_HISTOGRAM_BOOLEAN(
-            "Navigation.SecureSchemeHasSSLStatus."
-            "ExistingPageDifferentDocumentIntendedAsNew",
-            has_cert);
-      }
-    }
   } else if (const int nav_entry_id = request->commit_params().nav_entry_id) {
     // This is a browser-initiated navigation (back/forward/reload).
     entry = GetEntryWithUniqueID(nav_entry_id);
@@ -1879,31 +1868,6 @@ void NavigationControllerImpl::RendererDidNavigateToExistingEntry(
         entry->GetSSL() = SSLStatus();
       }
     }
-
-    if (params.url.SchemeIs(url::kHttpsScheme) && !rfh->GetParent() &&
-        !request->DidEncounterError()) {
-      bool has_cert = !!entry->GetSSL().certificate;
-      if (is_same_document && was_restored) {
-        UMA_HISTOGRAM_BOOLEAN(
-            "Navigation.SecureSchemeHasSSLStatus."
-            "ExistingPageSameDocumentRestoredBrowserInitiated",
-            has_cert);
-      } else if (is_same_document && !was_restored) {
-        UMA_HISTOGRAM_BOOLEAN(
-            "Navigation.SecureSchemeHasSSLStatus."
-            "ExistingPageSameDocumentBrowserInitiated",
-            has_cert);
-      } else if (!is_same_document && was_restored) {
-        UMA_HISTOGRAM_BOOLEAN(
-            "Navigation.SecureSchemeHasSSLStatus."
-            "ExistingPageRestoredBrowserInitiated",
-            has_cert);
-      } else {
-        UMA_HISTOGRAM_BOOLEAN(
-            "Navigation.SecureSchemeHasSSLStatus.ExistingPageBrowserInitiated",
-            has_cert);
-      }
-    }
   } else {
     // This is renderer-initiated. The only kinds of renderer-initated
     // navigations that are EXISTING_ENTRY are same-document navigations that
@@ -1925,57 +1889,12 @@ void NavigationControllerImpl::RendererDidNavigateToExistingEntry(
     if (!is_same_document)
       entry->GetSSL() =
           SSLStatus(request->GetSSLInfo().value_or(net::SSLInfo()));
-
-    if (params.url.SchemeIs(url::kHttpsScheme) && !rfh->GetParent() &&
-        !request->DidEncounterError()) {
-      bool has_cert = !!entry->GetSSL().certificate;
-      if (is_same_document) {
-        UMA_HISTOGRAM_BOOLEAN(
-            "Navigation.SecureSchemeHasSSLStatus."
-            "ExistingPageSameDocumentRendererInitiated",
-            has_cert);
-      } else {
-        UMA_HISTOGRAM_BOOLEAN(
-            "Navigation.SecureSchemeHasSSLStatus."
-            "ExistingPageDifferentDocumentRendererInitiated",
-            has_cert);
-      }
-    }
   }
   DCHECK(entry);
 
-  // The URL may have changed due to redirects.
-  entry->set_page_type(request->DidEncounterError() ? PAGE_TYPE_ERROR
-                                                    : PAGE_TYPE_NORMAL);
-  entry->SetURL(params.url);
-  entry->SetReferrer(Referrer(*params.referrer));
-  if (entry->update_virtual_url_with_url())
-    UpdateVirtualURLToURL(entry, params.url);
-
-  // The site instance will normally be the same except
-  // 1) session restore, when no site instance will be assigned or
-  // 2) redirect, when the site instance is reset.
-  DCHECK(!entry->site_instance() || !entry->GetRedirectChain().empty() ||
-         entry->site_instance() == rfh->GetSiteInstance());
-
-  // Update the existing FrameNavigationEntry to ensure all of its members
-  // reflect the parameters coming from the renderer process.
-  const absl::optional<url::Origin>& initiator_origin =
-      request->common_params().initiator_origin;
-  entry->AddOrUpdateFrameEntry(
-      rfh->frame_tree_node(), NavigationEntryImpl::UpdatePolicy::kUpdate,
-      params.item_sequence_number, params.document_sequence_number,
-      params.app_history_key, rfh->GetSiteInstance(), nullptr, params.url,
-      GetCommittedOriginForFrameEntry(params, request),
-      Referrer(*params.referrer), initiator_origin, request->GetRedirectChain(),
-      params.page_state, params.method, params.post_id,
-      nullptr /* blob_url_loader_factory */,
-      request->web_bundle_navigation_info()
-          ? request->web_bundle_navigation_info()->Clone()
-          : nullptr,
-      request->GetSubresourceWebBundleNavigationInfo(),
-      ComputePolicyContainerPoliciesForFrameEntry(rfh, is_same_document,
-                                                  request));
+  UpdateNavigationEntryDetails(entry, rfh, params, request,
+                               NavigationEntryImpl::UpdatePolicy::kUpdate,
+                               false /* is_new_entry */);
 
   // The redirected to page should not inherit the favicon from the previous
   // page.
@@ -2148,22 +2067,8 @@ bool NavigationControllerImpl::RendererDidNavigateAutoSubframe(
     update_policy = NavigationEntryImpl::UpdatePolicy::kReplace;
   }
 
-  const absl::optional<url::Origin>& initiator_origin =
-      request->common_params().initiator_origin;
-  last_committed->AddOrUpdateFrameEntry(
-      rfh->frame_tree_node(), update_policy, params.item_sequence_number,
-      params.document_sequence_number, params.app_history_key,
-      rfh->GetSiteInstance(), nullptr, params.url,
-      GetCommittedOriginForFrameEntry(params, request),
-      Referrer(*params.referrer), initiator_origin, request->GetRedirectChain(),
-      params.page_state, params.method, params.post_id,
-      nullptr /* blob_url_loader_factory */,
-      request->web_bundle_navigation_info()
-          ? request->web_bundle_navigation_info()->Clone()
-          : nullptr,
-      request->GetSubresourceWebBundleNavigationInfo(),
-      ComputePolicyContainerPoliciesForFrameEntry(rfh, is_same_document,
-                                                  request));
+  UpdateNavigationEntryDetails(last_committed, rfh, params, request,
+                               update_policy, false /* is_new_entry */);
 
   return send_commit_notification;
 }
@@ -3173,9 +3078,10 @@ base::WeakPtr<NavigationHandle> NavigationControllerImpl::NavigateWithoutEntry(
   //
   // If there is an entry, an entry replacement must happen if the current
   // browsing context should maintain a trivial session history.
-  bool should_replace_current_entry = (params.should_replace_current_entry ||
-                                       ShouldMaintainTrivialSessionHistory()) &&
-                                      entries_.size();
+  bool should_replace_current_entry =
+      (params.should_replace_current_entry ||
+       ShouldMaintainTrivialSessionHistory(node)) &&
+      entries_.size();
 
   // Javascript URLs should not create NavigationEntries. All other navigations
   // do, including navigations to chrome renderer debug URLs.
@@ -3545,7 +3451,7 @@ NavigationControllerImpl::CreateNavigationRequestFromLoadParams(
           network::mojom::CSPDisposition::CHECK, std::vector<int>(),
           params.href_translate,
           false /* is_history_navigation_in_new_child_frame */,
-          params.input_start);
+          params.input_start, network::mojom::RequestDestination::kEmpty);
 
   blink::mojom::CommitNavigationParamsPtr commit_params =
       blink::mojom::CommitNavigationParams::New(
@@ -3566,7 +3472,6 @@ NavigationControllerImpl::CreateNavigationRequestFromLoadParams(
           false /* was_discarded */, is_view_source_mode,
           params.should_clear_history_list,
           blink::mojom::NavigationTiming::New(),
-          absl::nullopt /* appcache_host_id */,
           blink::mojom::WasActivatedOption::kUnknown,
           base::UnguessableToken::Create() /* navigation_token */,
           std::vector<blink::mojom::PrefetchedSignedExchangeInfoPtr>(),
@@ -3589,7 +3494,10 @@ NavigationControllerImpl::CreateNavigationRequestFromLoadParams(
           std::vector<
               blink::mojom::
                   AppHistoryEntryPtr>() /* app_history_forward_entries */,
-          std::vector<GURL>() /* early_hints_preloaded_resources */);
+          std::vector<GURL>() /* early_hints_preloaded_resources */,
+          absl::nullopt /* ad_auction_components */,
+          // This timestamp will be populated when the commit IPC is sent.
+          base::TimeTicks() /* commit_sent */);
 #if defined(OS_ANDROID)
   if (ValidateDataURLAsString(params.data_url_as_string)) {
     commit_params->data_url_as_string = params.data_url_as_string->data();
@@ -3801,7 +3709,8 @@ void NavigationControllerImpl::LoadIfNecessary() {
   }
 }
 
-void NavigationControllerImpl::LoadPostCommitErrorPage(
+base::WeakPtr<NavigationHandle>
+NavigationControllerImpl::LoadPostCommitErrorPage(
     RenderFrameHost* render_frame_host,
     const GURL& url,
     const std::string& error_page_html,
@@ -3819,7 +3728,7 @@ void NavigationControllerImpl::LoadPostCommitErrorPage(
   // pages, cancel prerendering.
   if (rfhi->IsInactiveAndDisallowActivation(
           DisallowActivationReasonId::kLoadPostCommitErrorPage)) {
-    return;
+    return nullptr;
   }
 
   FrameTreeNode* node = rfhi->frame_tree_node();
@@ -3855,7 +3764,12 @@ void NavigationControllerImpl::LoadPostCommitErrorPage(
   navigation_request->set_net_error(error);
   node->CreatedNavigationRequest(std::move(navigation_request));
   DCHECK(node->navigation_request());
+
+  // Calling BeginNavigation may destroy the NavigationRequest.
+  base::WeakPtr<NavigationRequest> created_navigation_request(
+      node->navigation_request()->GetWeakPtr());
   node->navigation_request()->BeginNavigation();
+  return created_navigation_request;
 }
 
 void NavigationControllerImpl::NotifyEntryChanged(NavigationEntry* entry) {
@@ -4286,11 +4200,13 @@ void NavigationControllerImpl::NavigateToAppHistoryKey(FrameTreeNode* node,
   }
 }
 
-bool NavigationControllerImpl::ShouldMaintainTrivialSessionHistory() const {
-  // TODO(https://crbug.com/1197384): We may have to add portals and fenced
-  // frames in addition to prerender. This should be kept in sync with
+bool NavigationControllerImpl::ShouldMaintainTrivialSessionHistory(
+    const FrameTreeNode* frame_tree_node) const {
+  // TODO(https://crbug.com/1197384): We may have to add portals in addition to
+  // prerender and fenced frames. This should be kept in sync with
   // LocalFrame version, LocalFrame::ShouldMaintainTrivialSessionHistory.
-  return frame_tree_.is_prerendering();
+  return frame_tree_.is_prerendering() ||
+         frame_tree_node->IsInFencedFrameTree();
 }
 
 }  // namespace content

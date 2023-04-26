@@ -8,10 +8,10 @@
 #include <map>
 #include <memory>
 
+#include "ash/webui/camera_app_ui/url_constants.h"
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/command_line.h"
-#include "base/macros.h"
 #include "base/metrics/field_trial.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
@@ -29,7 +29,6 @@
 #include "chrome/test/base/scoped_testing_local_state.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
-#include "chromeos/components/camera_app_ui/url_constants.h"
 #include "components/browsing_data/content/browsing_data_helper.h"
 #include "components/captive_portal/core/buildflags.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
@@ -72,9 +71,9 @@
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 #include "ash/webui/scanning/url_constants.h"
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
-#include "chrome/browser/ash/policy/handlers/system_features_disable_list_policy_handler.h"
 #include "chrome/browser/ash/policy/networking/policy_cert_service.h"
 #include "chrome/browser/ash/policy/networking/policy_cert_service_factory.h"
+#include "chrome/browser/policy/system_features_disable_list_policy_handler.h"
 #include "components/user_manager/scoped_user_manager.h"
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
@@ -566,7 +565,7 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectScanningAppURL) {
 
 TEST_F(ChromeContentSettingsRedirectTest, RedirectCameraAppURL) {
   TestChromeContentBrowserClient test_content_browser_client;
-  const GURL camera_app_url(chromeos::kChromeUICameraAppMainURL);
+  const GURL camera_app_url(ash::kChromeUICameraAppMainURL);
   GURL dest_url = camera_app_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
   EXPECT_EQ(camera_app_url, dest_url);
@@ -603,7 +602,7 @@ constexpr char kEmail[] = "test@test.com";
 std::unique_ptr<KeyedService> CreateTestPolicyCertService(
     content::BrowserContext* context) {
   return policy::PolicyCertService::CreateForTesting(
-      Profile::FromBrowserContext(context), kEmail);
+      Profile::FromBrowserContext(context));
 }
 }  // namespace
 

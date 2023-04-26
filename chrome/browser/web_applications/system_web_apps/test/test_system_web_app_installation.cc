@@ -109,7 +109,7 @@ UnittestingSystemAppDelegate::GetAppIdsToUninstallAndReplace() const {
 gfx::Size UnittestingSystemAppDelegate::GetMinimumWindowSize() const {
   return minimum_window_size_;
 }
-bool UnittestingSystemAppDelegate::ShouldBeSingleWindow() const {
+bool UnittestingSystemAppDelegate::ShouldReuseExistingWindow() const {
   return single_window_;
 }
 bool UnittestingSystemAppDelegate::ShouldShowNewWindowMenuOption() const {
@@ -169,7 +169,7 @@ void UnittestingSystemAppDelegate::SetAppIdsToUninstallAndReplace(
 void UnittestingSystemAppDelegate::SetMinimumWindowSize(const gfx::Size& size) {
   minimum_window_size_ = size;
 }
-void UnittestingSystemAppDelegate::SetShouldBeSingleWindow(bool value) {
+void UnittestingSystemAppDelegate::SetShouldReuseExistingWindow(bool value) {
   single_window_ = value;
 }
 void UnittestingSystemAppDelegate::SetShouldShowNewWindowMenuOption(
@@ -295,7 +295,7 @@ TestSystemWebAppInstallation::SetUpTabbedMultiWindowApp() {
           SystemAppType::TERMINAL, "Terminal",
           GURL("chrome://test-system-app/pwa.html"),
           base::BindRepeating(&GenerateWebApplicationInfoForTestApp));
-  delegate->SetShouldBeSingleWindow(false);
+  delegate->SetShouldReuseExistingWindow(false);
   delegate->SetShouldHaveTabStrip(true);
 
   return base::WrapUnique(
@@ -535,7 +535,7 @@ TestSystemWebAppInstallation::SetUpAppWithNewWindowMenuItem() {
           GURL("chrome://test-system-app/pwa.html"),
           base::BindRepeating(&GenerateWebApplicationInfoForTestApp));
   delegate->SetShouldShowNewWindowMenuOption(true);
-  delegate->SetShouldBeSingleWindow(false);
+  delegate->SetShouldReuseExistingWindow(false);
 
   return base::WrapUnique(
       new TestSystemWebAppInstallation(std::move(delegate)));
@@ -598,19 +598,19 @@ CreateSystemAppDelegateWithWindowConfig(
 
   switch (window_config) {
     case SystemWebAppWindowConfig::SINGLE_WINDOW:
-      delegate->SetShouldBeSingleWindow(true);
+      delegate->SetShouldReuseExistingWindow(true);
       delegate->SetShouldHaveTabStrip(false);
       break;
     case SystemWebAppWindowConfig::SINGLE_WINDOW_TAB_STRIP:
-      delegate->SetShouldBeSingleWindow(true);
+      delegate->SetShouldReuseExistingWindow(true);
       delegate->SetShouldHaveTabStrip(true);
       break;
     case SystemWebAppWindowConfig::MULTI_WINDOW:
-      delegate->SetShouldBeSingleWindow(false);
+      delegate->SetShouldReuseExistingWindow(false);
       delegate->SetShouldHaveTabStrip(false);
       break;
     case SystemWebAppWindowConfig::MULTI_WINDOW_TAB_STRIP:
-      delegate->SetShouldBeSingleWindow(false);
+      delegate->SetShouldReuseExistingWindow(false);
       delegate->SetShouldHaveTabStrip(true);
       break;
   }

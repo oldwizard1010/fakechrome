@@ -6,7 +6,6 @@
 #define CONTENT_BROWSER_ANDROID_BATTERY_METRICS_H_
 
 #include "base/android/radio_utils.h"
-#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "base/power_monitor/power_observer.h"
 #include "base/sequence_checker.h"
@@ -23,6 +22,9 @@ class AndroidBatteryMetrics
       public ProcessVisibilityTracker::ProcessVisibilityObserver {
  public:
   static AndroidBatteryMetrics* GetInstance();
+
+  AndroidBatteryMetrics(const AndroidBatteryMetrics&) = delete;
+  AndroidBatteryMetrics& operator=(const AndroidBatteryMetrics&) = delete;
 
   // ProcessVisibilityTracker::ProcessVisibilityObserver implementation:
   void OnVisibilityChanged(bool visible) override;
@@ -68,8 +70,6 @@ class AndroidBatteryMetrics
   int observed_capacity_drops_ = 0;
 
   SEQUENCE_CHECKER(sequence_checker_);
-
-  DISALLOW_COPY_AND_ASSIGN(AndroidBatteryMetrics);
 };
 
 }  // namespace content

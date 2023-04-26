@@ -6,7 +6,6 @@
 
 #include "base/bind.h"
 #include "base/command_line.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
@@ -556,6 +555,9 @@ TetherService::TetherFeatureState TetherService::GetTetherFeatureState() {
       // Note that because of the early return above after
       // !HasSyncedTetherHosts, if this point is hit, there are synced tether
       // hosts available, but the multidevice state is unverified.
+      FALLTHROUGH;
+    case chromeos::multidevice_setup::mojom::FeatureState::
+        kUnavailableNoVerifiedHost_ClientNotReady:
       FALLTHROUGH;
     case chromeos::multidevice_setup::mojom::FeatureState::
         kNotSupportedByChromebook:

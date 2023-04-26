@@ -3,8 +3,8 @@
 // found in the LICENSE file.
 import '../strings.m.js';
 
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
 import {addWebUIListener, sendWithPromise} from 'chrome://resources/js/cr.m.js';
+import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
 import {$} from 'chrome://resources/js/util.m.js';
 
 type Decision = {
@@ -23,6 +23,8 @@ type RuleSetList = {
   ieem?: RuleSet;
   external?: RuleSet;
 };
+
+type ListName = 'sitelist'|'greylist';
 
 /**
  * Returned by getRulesetSources().
@@ -79,16 +81,22 @@ function getRuleType(rule: string): string {
  * Creates and returns a <tr> element for the given rule.
  */
 function createRowForRule(
-    rule: string, rulesetName: string): HTMLTableRowElement {
+    rule: string, rulesetName: string,
+    listType: ListName): HTMLTableRowElement {
+  const templateName = `rule-row-template-${listType}`;
   const row = document.importNode(
-                  ($('rule-row-template') as HTMLTemplateElement).content,
-                  true) as unknown as HTMLTableRowElement;
+                  ($(templateName) as HTMLTemplateElement).content, true) as
+      unknown as HTMLTableRowElement;
   const cells = row.querySelectorAll('td');
   cells[0].innerText = rule;
   cells[0].className = 'url';
   cells[1].innerText = rulesetName;
   cells[2].innerText = getRuleType(rule);
-  cells[3].innerText = /^!/.test(rule) ? 'yes' : 'no';
+  if (listType === 'sitelist') {
+    cells[3].innerText =
+        rule.startsWith('!') ? getBrowserName() : getAltBrowserName();
+  }
+
   return row;
 }
 
@@ -96,15 +104,19 @@ function createRowForRule(
  * Updates the content of all tables after receiving data from the backend.
  */
 function updateTables(rulesets: RuleSetList) {
-  const headerTemplate = $('header-row-template') as HTMLTemplateElement;
-  clearTable($('sitelist') as HTMLTableElement, headerTemplate);
-  clearTable($('greylist') as HTMLTableElement, headerTemplate);
+  const siteListHeaderTemplate =
+      $('header-row-template-sitelist') as HTMLTemplateElement;
+  const greyListHeaderTemplate =
+      $('header-row-template-greylist') as HTMLTemplateElement;
+  clearTable($('sitelist') as HTMLTableElement, siteListHeaderTemplate);
+  clearTable($('greylist') as HTMLTableElement, greyListHeaderTemplate);
 
   for (const [rulesetName, ruleset] of Object.entries(rulesets)) {
     for (const [listName, rules] of Object.entries(ruleset as RuleSet)) {
       const table = $(listName);
       for (const rule of rules) {
-        table.appendChild(createRowForRule(rule, rulesetName));
+        table.appendChild(
+            createRowForRule(rule, rulesetName, listName as ListName));
       }
     }
   }
@@ -114,6 +126,19 @@ function updateTables(rulesets: RuleSetList) {
  * Gets the English name of the alternate browser.
  */
 function getAltBrowserName(): string {
+  // TODO (crbug.com/1258133): if you change the AlternativeBrowserPath policy,
+  // then loadTimeData can contain stale data. It won't update until you refresh
+  // (despite the rest of the page auto-updating).
+  return loadTimeData.getString('altBrowserName');
+}
+
+/**
+ * Gets the English name of the browser.
+ */
+function getBrowserName(): string {
+  // TODO (crbug.com/1258133): if you change the AlternativeBrowserPath policy,
+  // then loadTimeData can contain stale data. It won't update until you refresh
+  // (despite the rest of the page auto-updating).
   return loadTimeData.getString('browserName');
 }
 
@@ -123,15 +148,15 @@ function getAltBrowserName(): string {
 function urlOutputText(decision: Decision): Array<string> {
   let opensIn = '';
   const altBrowserName = getAltBrowserName();
+  const browserName = getBrowserName();
 
   switch (decision.action) {
     case 'stay':
-      // TODO(crbug.com/1258133): Make it show the name of the browser.
-        opensIn = 'Opens in: This browser\n';
-        break;
+      opensIn = `Opens in: ${browserName}\n`;
+      break;
     case 'go':
-        opensIn = `Opens in: ${altBrowserName}\n`;
-        break;
+      opensIn = `Opens in: ${altBrowserName}\n`;
+      break;
   }
 
   let reason = '';
@@ -146,21 +171,21 @@ function urlOutputText(decision: Decision): Array<string> {
 
   switch (decision.reason) {
     case 'globally_disabled':
-        reason += 'Reason: The BrowserSwitcherEnabled policy is false.\n';
-        break;
+      reason += 'Reason: The BrowserSwitcherEnabled policy is false.\n';
+      break;
     case 'protocol':
-        reason += 'Reason: LBS only supports http://, https://, and file:// URLs.\n';
-        break;
+      reason +=
+          'Reason: LBS only supports http://, https://, and file:// URLs.\n';
+      break;
     case 'sitelist':
-        reason += 'the sitelist.\n';
-        break;
+      reason += 'the "Force open in" list.\n';
+      break;
     case 'greylist':
-        reason += 'the greylist.\n';
-        break;
-    case 'default' :
-      // TODO(crbug.com/1258133): Make it show the name of the browser.
-        reason += 'Reason: LBS stays in Google Chrome by default.\n';
-        break;
+      reason += 'the "Ignore" list.\n';
+      break;
+    case 'default':
+      reason += `Reason: LBS stays in ${browserName} by default.\n`;
+      break;
   }
 
   return [opensIn, reason];
@@ -256,6 +281,12 @@ function updateXmlTable({browser_switcher: sources}: RulesetSources) {
   $('xml-description-wrapper').style.display = enabled ? 'block' : 'none';
 }
 
+function generateStaticContent() {
+  $('greylist-description').innerText =
+      `URLs matching these rules won't trigger a browser switch and can be open in either ${
+          getBrowserName()} or ${getAltBrowserName()}.`;
+}
+
 /**
  * Called by C++ when we need to update everything on the page.
  */
@@ -276,5 +307,6 @@ $('refresh-xml-button').addEventListener('click', () => {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
+  generateStaticContent();
   addWebUIListener('data-changed', updateEverything);
 });

@@ -61,8 +61,8 @@ Polymer({
       value: false,
     },
 
-    /** @private {boolean} */
-    showNotificationAccessSetupDialog_: {
+    /** @private */
+    showPhonePermissionSetupDialog_: {
       type: Boolean,
       value: false,
     },
@@ -86,6 +86,12 @@ Polymer({
           settings.isFastInitiationHardwareSupported)`,
     },
 
+    /** @private */
+    isSettingsRetreived: {
+      type: Boolean,
+      value: false,
+    },
+
     /**
      * Used by DeepLinkingBehavior to focus this page's deep links.
      * @type {!Set<!chromeos.settings.mojom.Setting>}
@@ -98,6 +104,15 @@ Polymer({
         chromeos.settings.mojom.Setting.kMultiDeviceOnOff,
         chromeos.settings.mojom.Setting.kNearbyShareOnOff,
       ]),
+    },
+
+    /**
+     * Reflects the password sub-dialog property.
+     * @private
+     */
+    isPasswordDialogShowing_: {
+      type: Boolean,
+      value: false,
     },
   },
 
@@ -120,6 +135,13 @@ Polymer({
 
     this.browserProxy_.getPageContentData().then(
         (data) => this.onInitialPageContentDataFetched_(data));
+  },
+
+  /**
+   * Overridden from nearby_share.NearbyShareSettingsBehavior.
+   */
+  onSettingsRetrieved() {
+    this.isSettingsRetreived = true;
   },
 
   /**
@@ -352,7 +374,7 @@ Polymer({
           return;
         case settings.PhoneHubNotificationAccessStatus
             .AVAILABLE_BUT_NOT_GRANTED:
-          this.showNotificationAccessSetupDialog_ = true;
+          this.showPhonePermissionSetupDialog_ = true;
           return;
         default:
           // Fall through and attempt to toggle feature.
@@ -453,7 +475,7 @@ Polymer({
     // param.
     const urlParams = settings.Router.getInstance().getQueryParameters();
     if (urlParams.get('showNotificationAccessSetupDialog') !== null) {
-      this.showNotificationAccessSetupDialog_ = true;
+      this.showPhonePermissionSetupDialog_ = true;
     }
   },
 
@@ -575,9 +597,36 @@ Polymer({
         settings.routes.NEARBY_SHARE, params);
   },
 
+
+  /**
+   * @return {boolean}
+   * @private
+   */
+  showPermissionsSetupDialog_() {
+    if (!this.showPhonePermissionSetupDialog_) {
+      return false;
+    }
+    return !this.pageContentData.isPhoneHubPermissionsDialogSupported;
+  },
+
+  /**
+   * @return {boolean}
+   * @private
+   */
+  showNewPermissionsSetupDialog_() {
+    if (!this.showPhonePermissionSetupDialog_) {
+      return false;
+    }
+    return this.pageContentData.isPhoneHubPermissionsDialogSupported;
+  },
+
   /** @private */
-  onHideNotificationSetupAccessDialog_() {
-    this.showNotificationAccessSetupDialog_ = false;
+  onHidePhonePermissionsSetupDialog_() {
+    // Don't close the main dialog if the password sub-dialog is open.
+    if (this.isPasswordDialogShowing_) {
+      return;
+    }
+    this.showPhonePermissionSetupDialog_ = false;
   },
 
   /** @private */

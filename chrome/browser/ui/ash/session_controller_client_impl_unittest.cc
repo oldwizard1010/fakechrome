@@ -10,7 +10,6 @@
 
 #include "ash/constants/ash_pref_names.h"
 #include "base/bind.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
@@ -50,7 +49,7 @@ constexpr char kUserGaiaId[] = "0123456789";
 std::unique_ptr<KeyedService> CreateTestPolicyCertService(
     content::BrowserContext* context) {
   return policy::PolicyCertService::CreateForTesting(
-      Profile::FromBrowserContext(context), kUser);
+      Profile::FromBrowserContext(context));
 }
 
 // A user manager that does not set profiles as loaded and notifies observers

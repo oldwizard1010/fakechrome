@@ -2142,7 +2142,7 @@ class ComputedStyle : public ComputedStyleBase,
   CursorList* Cursors() const { return CursorDataInternal().Get(); }
   CORE_EXPORT void AddCursor(StyleImage*,
                              bool hot_spot_specified,
-                             const IntPoint& hot_spot = IntPoint());
+                             const gfx::Point& hot_spot = gfx::Point());
   void SetCursorList(CursorList*);
   void ClearCursorList();
 
@@ -2669,10 +2669,7 @@ class ComputedStyle : public ComputedStyleBase,
     return EBoxSizing::kContentBox;
   }
 
-  bool ForceDark() const {
-    return DarkColorScheme() && ColorSchemeForced() &&
-           !HasFilterInducingProperty();
-  }
+  bool ForceDark() const { return DarkColorScheme() && ColorSchemeForced(); }
 
  private:
   EClear Clear() const { return ClearInternal(); }

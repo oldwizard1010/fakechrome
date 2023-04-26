@@ -8,7 +8,7 @@
 #include "components/exo/wayland/clients/client_base.h"
 
 #include <aura-shell-client-protocol.h>
-#include <color-space-unstable-v1-client-protocol.h>
+#include <chrome-color-management-client-protocol.h>
 #include <fcntl.h>
 #include <fullscreen-shell-unstable-v1-client-protocol.h>
 #include <linux-dmabuf-unstable-v1-client-protocol.h>
@@ -159,6 +159,9 @@ void RegistryHandler(void* data,
   } else if (strcmp(interface, "wl_subcompositor") == 0) {
     globals->subcompositor.reset(static_cast<wl_subcompositor*>(
         wl_registry_bind(registry, id, &wl_subcompositor_interface, 1)));
+  } else if (strcmp(interface, "zcr_color_manager_v1") == 0) {
+    globals->color_manager.reset(static_cast<zcr_color_manager_v1*>(
+        wl_registry_bind(registry, id, &zcr_color_manager_v1_interface, 1)));
   } else if (strcmp(interface, "zwp_input_timestamps_manager_v1") == 0) {
     globals->input_timestamps_manager.reset(
         static_cast<zwp_input_timestamps_manager_v1*>(wl_registry_bind(
@@ -177,9 +180,6 @@ void RegistryHandler(void* data,
   } else if (strcmp(interface, "zcr_vsync_feedback_v1") == 0) {
     globals->vsync_feedback.reset(static_cast<zcr_vsync_feedback_v1*>(
         wl_registry_bind(registry, id, &zcr_vsync_feedback_v1_interface, 1)));
-  } else if (strcmp(interface, "zcr_color_space_v1") == 0) {
-    globals->color_space.reset(static_cast<zcr_color_space_v1*>(
-        wl_registry_bind(registry, id, &zcr_color_space_v1_interface, 1)));
   } else if (strcmp(interface, "zxdg_shell_v6") == 0) {
     globals->xdg_shell_v6.reset(static_cast<zxdg_shell_v6*>(
         wl_registry_bind(registry, id, &zxdg_shell_v6_interface, version)));
@@ -300,7 +300,8 @@ std::unique_ptr<ScopedVkRenderPass> CreateVkRenderPass(VkDevice vk_device) {
   };
   VkAttachmentReference attachment_reference[]{
       {
-          .attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+          .attachment = 0,
+          .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
       },
   };
   VkSubpassDescription subpass_description[]{
@@ -1052,11 +1053,11 @@ std::unique_ptr<ClientBase::Buffer> ClientBase::CreateDrmBuffer(
     for (size_t i = 0;
          i < static_cast<size_t>(gbm_bo_get_plane_count(buffer->bo.get()));
          ++i) {
-      base::ScopedFD fd(gbm_bo_get_plane_fd(buffer->bo.get(), i));
+      base::ScopedFD plane_i_fd(gbm_bo_get_plane_fd(buffer->bo.get(), i));
       uint32_t stride = gbm_bo_get_stride_for_plane(buffer->bo.get(), i);
       uint32_t offset = gbm_bo_get_offset(buffer->bo.get(), i);
-      zwp_linux_buffer_params_v1_add(buffer->params.get(), fd.get(), i, offset,
-                                     stride, modifier >> 32, modifier);
+      zwp_linux_buffer_params_v1_add(buffer->params.get(), plane_i_fd.get(), i,
+                                     offset, stride, modifier >> 32, modifier);
     }
     uint32_t flags = 0;
     if (y_invert)

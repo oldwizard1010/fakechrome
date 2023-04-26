@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_PERMISSION_BUBBLE_PERMISSION_PROMPT_IMPL_H_
 #define CHROME_BROWSER_UI_VIEWS_PERMISSION_BUBBLE_PERMISSION_PROMPT_IMPL_H_
 
-#include "base/macros.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/permission_bubble/permission_prompt_bubble_view.h"
@@ -13,10 +12,6 @@
 #include "components/permissions/permission_prompt.h"
 
 class Browser;
-
-namespace permissions {
-class PermissionRequestManager;
-}
 
 namespace content {
 class WebContents;
@@ -77,9 +72,6 @@ class PermissionPromptImpl : public permissions::PermissionPrompt,
   Browser* browser_;
 
   base::TimeTicks permission_requested_time_;
-
-  // PermissionRequestManager owns `this` and outlives `PermissionPromptImpl`.
-  permissions::PermissionRequestManager* manager_ = nullptr;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_PERMISSION_BUBBLE_PERMISSION_PROMPT_IMPL_H_

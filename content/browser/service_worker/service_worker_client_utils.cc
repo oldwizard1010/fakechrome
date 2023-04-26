@@ -12,7 +12,6 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/location.h"
-#include "base/macros.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "content/browser/renderer_host/frame_tree_node.h"
@@ -71,6 +70,9 @@ class OpenURLObserver : public WebContentsObserver {
         frame_tree_node_id_(frame_tree_node_id),
         callback_(std::move(callback)) {}
 
+  OpenURLObserver(const OpenURLObserver&) = delete;
+  OpenURLObserver& operator=(const OpenURLObserver&) = delete;
+
   void DidFinishNavigation(NavigationHandle* navigation_handle) override {
     if (navigation_handle->GetFrameTreeNodeId() != frame_tree_node_id_) {
       // This navigation is not for the frame this observer is interested in,
@@ -89,7 +91,8 @@ class OpenURLObserver : public WebContentsObserver {
     RunCallback(render_frame_host->GetGlobalId());
   }
 
-  void RenderProcessGone(base::TerminationStatus status) override {
+  void PrimaryMainFrameRenderProcessGone(
+      base::TerminationStatus status) override {
     RunCallback(GlobalRenderFrameHostId());
   }
 
@@ -116,8 +119,6 @@ class OpenURLObserver : public WebContentsObserver {
 
   int frame_tree_node_id_;
   OpenURLCallback callback_;
-
-  DISALLOW_COPY_AND_ASSIGN(OpenURLObserver);
 };
 
 blink::mojom::ServiceWorkerClientInfoPtr GetWindowClientInfo(

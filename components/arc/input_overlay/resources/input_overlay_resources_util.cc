@@ -7,15 +7,31 @@
 #include <map>
 
 #include "components/arc/grit/input_overlay_resources.h"
+#include "components/arc/input_overlay/actions/action_move_key.h"
 #include "components/arc/input_overlay/actions/action_tap_key.h"
+#include "components/arc/input_overlay/actions/dependent_position.h"
 #include "components/arc/input_overlay/actions/position.h"
 
 namespace arc {
+namespace {
+
+// Key strings in Json file about action.
+constexpr char kTapAction[] = "tap";
+constexpr char kKeyboard[] = "keyboard";
+constexpr char kMoveAction[] = "move";
+
+// Key strings in Json file about location.
+constexpr char kType[] = "type";
+constexpr char kPosition[] = "position";
+constexpr char kDependentPosition[] = "dependent_position";
+
+}  // namespace
 
 absl::optional<int> GetInputOverlayResourceId(const std::string& package_name) {
   static std::map<std::string, int> resource_id_map = {
       {"org.chromium.arc.testapp.inputoverlay",
        IDR_IO_ORG_CHROMIUM_ARC_TESTAPP_INPUTOVERLAY},
+      {"com.blackpanther.ninjaarashi2", IDR_IO_COM_BLACKPANTHER_NINJAARASHI2},
   };
 
   auto it = resource_id_map.find(package_name);
@@ -26,12 +42,12 @@ absl::optional<int> GetInputOverlayResourceId(const std::string& package_name) {
 
 absl::optional<std::vector<std::unique_ptr<input_overlay::Action>>>
 ParseJsonToActions(aura::Window* window, const base::Value& root) {
-  // Parse tap action if exists.
-  const base::Value* tap_act_val = root.FindKey(input_overlay::kTapAction);
   std::vector<std::unique_ptr<input_overlay::Action>> actions;
+
+  // Parse tap actions if they exist.
+  const base::Value* tap_act_val = root.FindKey(kTapAction);
   if (tap_act_val) {
-    const base::Value* keyboard_act_list =
-        tap_act_val->FindListKey(input_overlay::kKeyboard);
+    const base::Value* keyboard_act_list = tap_act_val->FindListKey(kKeyboard);
     if (keyboard_act_list && keyboard_act_list->is_list()) {
       for (const base::Value& val : keyboard_act_list->GetList()) {
         std::unique_ptr<input_overlay::Action> action =
@@ -42,6 +58,22 @@ ParseJsonToActions(aura::Window* window, const base::Value& root) {
       }
     }
   }
+
+  // Parse move actions if they exist.
+  const base::Value* move_act_val = root.FindKey(kMoveAction);
+  if (move_act_val) {
+    const base::Value* keyboard_act_list = move_act_val->FindListKey(kKeyboard);
+    if (keyboard_act_list && keyboard_act_list->is_list()) {
+      for (const base::Value& val : keyboard_act_list->GetList()) {
+        std::unique_ptr<input_overlay::Action> action =
+            std::make_unique<input_overlay::ActionMoveKey>(window);
+        bool succeed = action->ParseFromJson(val);
+        if (succeed)
+          actions.emplace_back(std::move(action));
+      }
+    }
+  }
+
   // TODO: parse more actions.
   if (actions.empty())
     return absl::nullopt;
@@ -50,23 +82,33 @@ ParseJsonToActions(aura::Window* window, const base::Value& root) {
 
 absl::optional<std::vector<std::unique_ptr<input_overlay::Position>>>
 ParseLocation(const base::Value& position) {
-  // Parse position if exists.
-  const base::Value* pos_list = position.FindListKey(input_overlay::kPositions);
   std::vector<std::unique_ptr<input_overlay::Position>> positions;
-  if (pos_list) {
-    for (const base::Value& val : pos_list->GetList()) {
-      std::unique_ptr<input_overlay::Position> pos =
-          std::make_unique<input_overlay::Position>();
-      bool succeed = pos->ParseFromJson(val);
-      if (succeed) {
-        positions.emplace_back(std::move(pos));
-      } else {
-        // The position order is important, so if one position failed
-        // to parse, drop the whole position.
-        return absl::nullopt;
-      }
+  for (const base::Value& val : position.GetList()) {
+    auto* type = val.FindStringKey(kType);
+    if (!type) {
+      LOG(ERROR) << "There must be position type for each location.";
+      return absl::nullopt;
+    }
+    size_t size = positions.size();
+    if (*type == kPosition) {
+      positions.emplace_back(std::make_unique<input_overlay::Position>());
+    } else if (*type == kDependentPosition) {
+      positions.emplace_back(
+          std::make_unique<input_overlay::DependentPosition>());
+    }
+
+    if (positions.size() == size) {
+      LOG(ERROR) << "There is position with unknown type: " << *type;
+      return absl::nullopt;
+    }
+
+    bool succeed = positions.back()->ParseFromJson(val);
+    if (!succeed) {
+      LOG(ERROR) << "Position is parsed incorrectly on type: " << *type;
+      return absl::nullopt;
     }
   }
+
   if (positions.empty())
     return absl::nullopt;
   return absl::make_optional(std::move(positions));

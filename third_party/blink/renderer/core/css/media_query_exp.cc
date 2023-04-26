@@ -506,7 +506,16 @@ String MediaQueryExp::Serialize() const {
 
   result.Append(')');
 
-  return result.ToString();
+  return result.ReleaseString();
+}
+
+unsigned MediaQueryExp::GetUnitFlags() const {
+  unsigned unit_flags = 0;
+  if (Bounds().left.IsValid())
+    unit_flags |= Bounds().left.value.GetUnitFlags();
+  if (Bounds().right.IsValid())
+    unit_flags |= Bounds().right.value.GetUnitFlags();
+  return unit_flags;
 }
 
 static inline String PrintNumber(double number) {
@@ -532,40 +541,90 @@ String MediaQueryExpValue::CssText() const {
       break;
   }
 
-  return output.ToString();
+  return output.ReleaseString();
+}
+
+MediaQueryExpValue::UnitFlags MediaQueryExpValue::GetUnitFlags() const {
+  if (!IsNumeric())
+    return UnitFlags::kNone;
+  switch (Unit()) {
+    case CSSPrimitiveValue::UnitType::kEms:
+    case CSSPrimitiveValue::UnitType::kExs:
+    case CSSPrimitiveValue::UnitType::kChs:
+      return UnitFlags::kFontRelative;
+    case CSSPrimitiveValue::UnitType::kRems:
+      return UnitFlags::kRootFontRelative;
+    default:
+      return UnitFlags::kNone;
+  }
 }
 
 String MediaQueryExpNode::Serialize() const {
   StringBuilder builder;
   SerializeTo(builder);
-  return builder.ToString();
+  return builder.ReleaseString();
+}
+
+PhysicalAxes MediaQueryFeatureExpNode::QueriedAxes() const {
+  PhysicalAxes axes(kPhysicalAxisNone);
+
+  if (exp_.IsWidthDependent())
+    axes |= PhysicalAxes(kPhysicalAxisHorizontal);
+  if (exp_.IsHeightDependent())
+    axes |= PhysicalAxes(kPhysicalAxisVertical);
+
+  return axes;
 }
 
 void MediaQueryFeatureExpNode::SerializeTo(StringBuilder& builder) const {
   builder.Append(exp_.Serialize());
 }
 
+void MediaQueryFeatureExpNode::CollectExpressions(
+    Vector<MediaQueryExp>& result) const {
+  result.push_back(exp_);
+}
+
 std::unique_ptr<MediaQueryExpNode> MediaQueryFeatureExpNode::Copy() const {
   return std::make_unique<MediaQueryFeatureExpNode>(exp_);
 }
 
+PhysicalAxes MediaQueryUnaryExpNode::QueriedAxes() const {
+  return operand_->QueriedAxes();
+}
+
+void MediaQueryUnaryExpNode::CollectExpressions(
+    Vector<MediaQueryExp>& result) const {
+  operand_->CollectExpressions(result);
+}
+
 void MediaQueryNestedExpNode::SerializeTo(StringBuilder& builder) const {
   builder.Append("(");
-  child_->SerializeTo(builder);
+  Operand().SerializeTo(builder);
   builder.Append(")");
 }
 
 std::unique_ptr<MediaQueryExpNode> MediaQueryNestedExpNode::Copy() const {
-  return std::make_unique<MediaQueryNestedExpNode>(child_->Copy());
+  return std::make_unique<MediaQueryNestedExpNode>(Operand().Copy());
 }
 
 void MediaQueryNotExpNode::SerializeTo(StringBuilder& builder) const {
   builder.Append("not ");
-  operand_->SerializeTo(builder);
+  Operand().SerializeTo(builder);
 }
 
 std::unique_ptr<MediaQueryExpNode> MediaQueryNotExpNode::Copy() const {
-  return std::make_unique<MediaQueryNestedExpNode>(operand_->Copy());
+  return std::make_unique<MediaQueryNotExpNode>(Operand().Copy());
+}
+
+PhysicalAxes MediaQueryCompoundExpNode::QueriedAxes() const {
+  return left_->QueriedAxes() | right_->QueriedAxes();
+}
+
+void MediaQueryCompoundExpNode::CollectExpressions(
+    Vector<MediaQueryExp>& result) const {
+  left_->CollectExpressions(result);
+  right_->CollectExpressions(result);
 }
 
 void MediaQueryAndExpNode::SerializeTo(StringBuilder& builder) const {

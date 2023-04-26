@@ -49,18 +49,6 @@
 #include "net/base/network_change_notifier.h"
 #endif
 
-#if defined(USE_OZONE) || defined(USE_X11)
-#include "ui/base/ui_base_features.h"
-#endif
-
-#if defined(USE_X11)
-#include "ui/base/x/x11_util.h"  // nogncheck
-#endif
-
-#if defined(USE_AURA) && defined(USE_X11)
-#include "ui/events/devices/x11/touch_factory_x11.h"  // nogncheck
-#endif
-
 #if defined(USE_AURA) && (defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
 #include "ui/base/ime/init/input_method_initializer.h"
 #endif
@@ -121,20 +109,10 @@ scoped_refptr<base::RefCountedMemory> PlatformResourceProvider(int key) {
 
 }  // namespace
 
-ShellBrowserMainParts::ShellBrowserMainParts(
-    const MainFunctionParams& parameters)
-    : parameters_(parameters), run_message_loop_(true) {}
+ShellBrowserMainParts::ShellBrowserMainParts(MainFunctionParams parameters)
+    : parameters_(std::move(parameters)) {}
 
 ShellBrowserMainParts::~ShellBrowserMainParts() = default;
-
-#if !defined(OS_MAC)
-void ShellBrowserMainParts::PreCreateMainMessageLoop() {
-#if defined(USE_AURA) && defined(USE_X11)
-  if (!features::IsUsingOzonePlatform())
-    ui::TouchFactory::SetTouchDeviceListFromCommandLine();
-#endif
-}
-#endif
 
 void ShellBrowserMainParts::PostCreateMainMessageLoop() {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -207,22 +185,12 @@ int ShellBrowserMainParts::PreMainMessageLoopRun() {
   net::NetModule::SetResourceProvider(PlatformResourceProvider);
   ShellDevToolsManagerDelegate::StartHttpHandler(browser_context_.get());
   InitializeMessageLoopContext();
-
-  if (parameters_.ui_task) {
-    std::move(*parameters_.ui_task).Run();
-    delete parameters_.ui_task;
-    run_message_loop_ = false;
-  }
-
   return 0;
 }
 
 void ShellBrowserMainParts::WillRunMainMessageLoop(
     std::unique_ptr<base::RunLoop>& run_loop) {
-  if (run_message_loop_)
-    Shell::SetMainMessageLoopQuitClosure(run_loop->QuitClosure());
-  else
-    run_loop.reset();
+  Shell::SetMainMessageLoopQuitClosure(run_loop->QuitClosure());
 }
 
 void ShellBrowserMainParts::PostMainMessageLoopRun() {

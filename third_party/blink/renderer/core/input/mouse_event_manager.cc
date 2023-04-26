@@ -26,6 +26,7 @@
 #include "third_party/blink/renderer/core/events/mouse_event.h"
 #include "third_party/blink/renderer/core/events/pointer_event_factory.h"
 #include "third_party/blink/renderer/core/events/web_input_event_conversion.h"
+#include "third_party/blink/renderer/core/fragment_directive/text_fragment_anchor.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
@@ -44,7 +45,6 @@
 #include "third_party/blink/renderer/core/page/focus_controller.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/core/page/pointer_lock_controller.h"
-#include "third_party/blink/renderer/core/page/scrolling/text_fragment_anchor.h"
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
 #include "third_party/blink/renderer/core/paint/paint_layer_scrollable_area.h"
 #include "third_party/blink/renderer/core/svg/svg_document_extensions.h"
@@ -162,7 +162,7 @@ void MouseEventManager::Clear() {
   click_count_ = 0;
   click_element_ = nullptr;
   mouse_down_element_ = nullptr;
-  mouse_down_pos_ = IntPoint();
+  mouse_down_pos_ = gfx::Point();
   mouse_down_timestamp_ = base::TimeTicks();
   mouse_down_ = WebMouseEvent();
   svg_pan_ = false;
@@ -1137,20 +1137,19 @@ void MouseEventManager::ResetDragSource() {
 }
 
 bool MouseEventManager::DragThresholdExceeded(
-    const IntPoint& drag_location_in_root_frame) const {
+    const gfx::Point& drag_location_in_root_frame) const {
   LocalFrameView* view = frame_->View();
   if (!view)
     return false;
-  IntPoint drag_location =
+  gfx::Point drag_location =
       view->ConvertFromRootFrame(drag_location_in_root_frame);
-  IntSize delta = drag_location - mouse_down_pos_;
+  gfx::Vector2d delta = drag_location - mouse_down_pos_;
 
   // WebKit's drag thresholds depend on the type of object being dragged. If we
   // want to revive that behavior, we can multiply the threshold constants with
   // a number based on dragState().m_dragType.
 
-  return abs(delta.width()) >= kDragThresholdX ||
-         abs(delta.height()) >= kDragThresholdY;
+  return abs(delta.x()) >= kDragThresholdX || abs(delta.y()) >= kDragThresholdY;
 }
 
 void MouseEventManager::ClearDragHeuristicState() {

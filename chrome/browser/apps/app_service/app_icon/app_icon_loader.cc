@@ -186,10 +186,10 @@ absl::optional<IconPurpose> GetIconPurpose(
 }
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
-apps::mojom::IconValuePtr ApplyEffects(apps::IconEffects icon_effects,
-                                       int size_hint_in_dip,
-                                       apps::mojom::IconValuePtr iv,
-                                       gfx::ImageSkia mask_image) {
+apps::IconValuePtr ApplyEffects(apps::IconEffects icon_effects,
+                                int size_hint_in_dip,
+                                apps::IconValuePtr iv,
+                                gfx::ImageSkia mask_image) {
   base::AssertLongCPUWorkAllowed();
 
   extensions::ChromeAppIcon::ResizeFunction resize_function;
@@ -222,8 +222,9 @@ apps::mojom::IconValuePtr ApplyEffects(apps::IconEffects icon_effects,
                         &iv->uncompressed);
   }
 
-  if (!iv->uncompressed.isNull())
+  if (!iv->uncompressed.isNull()) {
     iv->uncompressed.MakeThreadSafe();
+  }
 
   return iv;
 }
@@ -238,15 +239,14 @@ AppIconLoader::AppIconLoader(IconType icon_type,
                              bool is_placeholder_icon,
                              apps::IconEffects icon_effects,
                              int fallback_icon_resource,
-                             apps::mojom::Publisher::LoadIconCallback callback)
-    : AppIconLoader(
-          icon_type,
-          size_hint_in_dip,
-          is_placeholder_icon,
-          icon_effects,
-          fallback_icon_resource,
-          base::OnceCallback<void(apps::mojom::Publisher::LoadIconCallback)>(),
-          std::move(callback)) {}
+                             LoadIconCallback callback)
+    : AppIconLoader(icon_type,
+                    size_hint_in_dip,
+                    is_placeholder_icon,
+                    icon_effects,
+                    fallback_icon_resource,
+                    base::OnceCallback<void(LoadIconCallback)>(),
+                    std::move(callback)) {}
 
 AppIconLoader::AppIconLoader(
     IconType icon_type,
@@ -254,8 +254,8 @@ AppIconLoader::AppIconLoader(
     bool is_placeholder_icon,
     apps::IconEffects icon_effects,
     int fallback_icon_resource,
-    base::OnceCallback<void(apps::mojom::Publisher::LoadIconCallback)> fallback,
-    apps::mojom::Publisher::LoadIconCallback callback)
+    base::OnceCallback<void(LoadIconCallback)> fallback,
+    LoadIconCallback callback)
     : icon_type_(icon_type),
       size_hint_in_dip_(size_hint_in_dip),
       is_placeholder_icon_(is_placeholder_icon),
@@ -279,13 +279,12 @@ AppIconLoader::AppIconLoader(
     base::OnceCallback<void(const std::vector<gfx::ImageSkia>& icons)> callback)
     : arc_activity_icons_callback_(std::move(callback)) {}
 
-AppIconLoader::AppIconLoader(int size_hint_in_dip,
-                             apps::mojom::Publisher::LoadIconCallback callback)
+AppIconLoader::AppIconLoader(int size_hint_in_dip, LoadIconCallback callback)
     : size_hint_in_dip_(size_hint_in_dip), callback_(std::move(callback)) {}
 
 AppIconLoader::~AppIconLoader() {
   if (!callback_.is_null()) {
-    std::move(callback_).Run(apps::mojom::IconValue::New());
+    std::move(callback_).Run(std::make_unique<IconValue>());
   }
   if (!image_skia_callback_.is_null()) {
     std::move(image_skia_callback_).Run(gfx::ImageSkia());
@@ -295,8 +294,8 @@ AppIconLoader::~AppIconLoader() {
   }
 }
 
-void AppIconLoader::ApplyIconEffects(apps::IconEffects icon_effects,
-                                     apps::mojom::IconValuePtr iv) {
+void AppIconLoader::ApplyIconEffects(IconEffects icon_effects,
+                                     IconValuePtr iv) {
   if (!iv || iv->uncompressed.isNull())
     return;
 
@@ -326,8 +325,7 @@ void AppIconLoader::ApplyIconEffects(apps::IconEffects icon_effects,
 #endif
 }
 
-void AppIconLoader::ApplyBadges(apps::IconEffects icon_effects,
-                                apps::mojom::IconValuePtr iv) {
+void AppIconLoader::ApplyBadges(IconEffects icon_effects, IconValuePtr iv) {
   const bool from_bookmark = icon_effects & apps::IconEffects::kRoundCorners;
 
   bool app_launchable = true;
@@ -723,8 +721,8 @@ void AppIconLoader::MaybeApplyEffectsAndComplete(const gfx::ImageSkia image) {
     return;
   }
 
-  apps::mojom::IconValuePtr iv = apps::mojom::IconValue::New();
-  iv->icon_type = ConvertIconTypeToMojomIconType(icon_type_);
+  auto iv = std::make_unique<IconValue>();
+  iv->icon_type = icon_type_;
   iv->uncompressed = image;
   iv->is_placeholder_icon = is_placeholder_icon_;
 
@@ -747,14 +745,14 @@ void AppIconLoader::CompleteWithCompressed(std::vector<uint8_t> data) {
     MaybeLoadFallbackOrCompleteEmpty();
     return;
   }
-  apps::mojom::IconValuePtr iv = apps::mojom::IconValue::New();
-  iv->icon_type = apps::mojom::IconType::kCompressed;
+  auto iv = std::make_unique<IconValue>();
+  iv->icon_type = IconType::kCompressed;
   iv->compressed = std::move(data);
   iv->is_placeholder_icon = is_placeholder_icon_;
   std::move(callback_).Run(std::move(iv));
 }
 
-void AppIconLoader::CompleteWithUncompressed(apps::mojom::IconValuePtr iv) {
+void AppIconLoader::CompleteWithUncompressed(IconValuePtr iv) {
   DCHECK_NE(icon_type_, IconType::kCompressed);
   DCHECK_NE(icon_type_, IconType::kUnknown);
   if (iv->uncompressed.isNull()) {
@@ -764,7 +762,7 @@ void AppIconLoader::CompleteWithUncompressed(apps::mojom::IconValuePtr iv) {
   std::move(callback_).Run(std::move(iv));
 }
 
-void AppIconLoader::CompleteWithIconValue(apps::mojom::IconValuePtr iv) {
+void AppIconLoader::CompleteWithIconValue(IconValuePtr iv) {
   if (icon_type_ == IconType::kUncompressed ||
       icon_type_ == IconType::kStandard) {
     CompleteWithUncompressed(std::move(iv));
@@ -857,11 +855,10 @@ void AppIconLoader::MaybeLoadFallbackOrCompleteEmpty() {
     // Wrap the result of |fallback_callback_| in another callback instead of
     // passing it to |callback_| directly so we can catch failures and try other
     // things.
-    apps::mojom::Publisher::LoadIconCallback fallback_adaptor = base::BindOnce(
-        [](scoped_refptr<AppIconLoader> icon_loader,
-           apps::mojom::IconValuePtr ptr) {
-          if (!ptr.is_null()) {
-            std::move(icon_loader->callback_).Run(std::move(ptr));
+    LoadIconCallback fallback_adaptor = base::BindOnce(
+        [](scoped_refptr<AppIconLoader> icon_loader, IconValuePtr iv) {
+          if (iv) {
+            std::move(icon_loader->callback_).Run(std::move(iv));
           } else {
             icon_loader->MaybeLoadFallbackOrCompleteEmpty();
           }
@@ -887,7 +884,7 @@ void AppIconLoader::MaybeLoadFallbackOrCompleteEmpty() {
     return;
   }
 
-  std::move(callback_).Run(apps::mojom::IconValue::New());
+  std::move(callback_).Run(std::make_unique<IconValue>());
 }
 
 }  // namespace apps

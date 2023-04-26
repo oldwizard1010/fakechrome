@@ -6,15 +6,24 @@ package org.chromium.chrome.browser.page_info;
 
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.TextView;
 
+import androidx.annotation.Nullable;
+
+import org.chromium.base.Log;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tab.TabLaunchType;
+import org.chromium.chrome.browser.tabmodel.document.TabDelegate;
 import org.chromium.components.page_info.PageInfoControllerDelegate;
 import org.chromium.components.page_info.PageInfoMainController;
 import org.chromium.components.page_info.PageInfoRowView;
 import org.chromium.components.page_info.PageInfoSubpageController;
+import org.chromium.components.page_info.proto.AboutThisSiteMetadataProto.SiteInfo;
+import org.chromium.components.security_state.ConnectionSecurityLevel;
 import org.chromium.content_public.browser.BrowserContextHandle;
+import org.chromium.content_public.browser.LoadUrlParams;
+import org.chromium.content_public.browser.WebContents;
 import org.chromium.url.GURL;
 
 /**
@@ -22,18 +31,20 @@ import org.chromium.url.GURL;
  */
 public class PageInfoAboutThisSiteController implements PageInfoSubpageController {
     public static final int ROW_ID = View.generateViewId();
+    private static final String TAG = "PageInfo";
 
     private final PageInfoMainController mMainController;
     private final PageInfoRowView mRowView;
     private final PageInfoControllerDelegate mDelegate;
-    private final String mSiteDescription;
+    private final Tab mTab;
+    private @Nullable SiteInfo mSiteInfo;
 
     public PageInfoAboutThisSiteController(PageInfoMainController mainController,
-            PageInfoRowView rowView, PageInfoControllerDelegate delegate) {
+            PageInfoRowView rowView, PageInfoControllerDelegate delegate, Tab tab) {
         mMainController = mainController;
         mRowView = rowView;
         mDelegate = delegate;
-        mSiteDescription = getSiteDescription();
+        mTab = tab;
         setupRow();
     }
 
@@ -43,14 +54,24 @@ public class PageInfoAboutThisSiteController implements PageInfoSubpageControlle
 
     @Override
     public String getSubpageTitle() {
-        // TODO(crbug.com/1250653): Add translated string.
-        return "About this site";
+        return mRowView.getContext().getResources().getString(
+                R.string.page_info_about_this_site_title);
     }
 
     @Override
     public View createViewForSubpage(ViewGroup parent) {
-        TextView view = new TextView(parent.getContext());
-        view.setText(mSiteDescription);
+        // The subpage can only be created if there is a row and the row is only visible if siteInfo
+        // is populated.
+        assert mSiteInfo != null;
+        assert mSiteInfo.hasDescription();
+        assert !mDelegate.isIncognito();
+        AboutThisSiteView view = new AboutThisSiteView(parent.getContext(), null);
+        view.setSiteInfo(mSiteInfo, () -> {
+            new TabDelegate(/*incognito=*/false)
+                    .createNewTab(
+                            new LoadUrlParams(mSiteInfo.getDescription().getSource().getUrl()),
+                            TabLaunchType.FROM_CHROME_UI, mTab);
+        });
         return view;
     }
 
@@ -58,29 +79,49 @@ public class PageInfoAboutThisSiteController implements PageInfoSubpageControlle
     public void onSubpageRemoved() {}
 
     private void setupRow() {
-        PageInfoRowView.ViewParams rowParams = new PageInfoRowView.ViewParams();
-        String subtitle = null;
-        if (mSiteDescription != null && !mSiteDescription.isEmpty()) {
-            subtitle = mSiteDescription;
+        if (!mDelegate.isSiteSettingsAvailable() || mDelegate.isIncognito()) {
+            return;
         }
 
-        // TODO(crbug.com/1250653): Add translated string.
-        rowParams.title = "Site info";
+        if (mMainController.getSecurityLevel() != ConnectionSecurityLevel.SECURE) {
+            return;
+        }
+
+        mSiteInfo = getSiteInfo();
+        if (mSiteInfo == null) {
+            return;
+        }
+
+        assert mSiteInfo.hasDescription();
+        String subtitle = mSiteInfo.getDescription().getDescription();
+
+        PageInfoRowView.ViewParams rowParams = new PageInfoRowView.ViewParams();
+        rowParams.title = mRowView.getContext().getResources().getString(
+                R.string.page_info_about_this_site_title);
         rowParams.subtitle = subtitle;
-        rowParams.visible =
-                subtitle != null && mDelegate.isSiteSettingsAvailable() && !mDelegate.isIncognito();
+        rowParams.singleLineSubTitle = true;
+        rowParams.visible = true;
         rowParams.iconResId = R.drawable.ic_info_outline_grey_24dp;
         rowParams.decreaseIconSize = true;
         rowParams.clickCallback = this::launchSubpage;
-
         mRowView.setParams(rowParams);
+        mMainController.setAboutThisSiteShown(true);
     }
 
-    private String getSiteDescription() {
-        return PageInfoAboutThisSiteControllerJni.get().getSiteDescription(
-                mMainController.getBrowserContext(), mMainController.getURL());
+    private @Nullable SiteInfo getSiteInfo() {
+        byte[] result = PageInfoAboutThisSiteControllerJni.get().getSiteInfo(
+                mMainController.getBrowserContext(), mMainController.getURL(),
+                mTab.getWebContents());
+        if (result == null) return null;
+        SiteInfo info = null;
+        try {
+            info = SiteInfo.parseFrom(result);
+        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+            Log.e(TAG, "Could not parse proto: %s", e);
+            assert false;
+        }
+        return info;
     }
-
     @Override
     public void clearData() {}
 
@@ -89,7 +130,6 @@ public class PageInfoAboutThisSiteController implements PageInfoSubpageControlle
 
     @NativeMethods
     interface Natives {
-        // TODO(crbug.com/1250653): Pass protobuf instead.
-        String getSiteDescription(BrowserContextHandle browserContext, GURL url);
+        byte[] getSiteInfo(BrowserContextHandle browserContext, GURL url, WebContents webContents);
     }
 }

@@ -144,6 +144,14 @@ void SetupIDLObservableArrayBackingListTemplate(
 
   instance_template->SetInternalFieldCount(kV8DefaultWrapperInternalFieldCount);
 
+  // https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-getownproperty-p
+  // "length" property must be
+  //   {configurable: false, enumerable: false, writable: true},
+  // so the target object must have a property of {configurable: false}.
+  instance_template->Set(
+      V8AtomicString(isolate, "length"), v8::Undefined(isolate),
+      static_cast<v8::PropertyAttribute>(v8::DontEnum | v8::DontDelete));
+
   // The target object of an observable array exotic object (= JS Proxy) must
   // be a JS Array object.  Hence, make the object look like a JS Array.
   // https://webidl.spec.whatwg.org/#creating-an-observable-array-exotic-object
@@ -212,7 +220,7 @@ void ReportInvalidEnumSetToAttribute(v8::Isolate* isolate,
 bool IsEsIterableObject(v8::Isolate* isolate,
                         v8::Local<v8::Value> value,
                         ExceptionState& exception_state) {
-  // https://heycam.github.io/webidl/#es-overloads
+  // https://webidl.spec.whatwg.org/#es-overloads
   // step 9. Otherwise: if Type(V) is Object and ...
   if (!value->IsObject())
     return false;
@@ -312,7 +320,7 @@ void InstallUnscopablePropertyNames(
     v8::Local<v8::Object> prototype_object,
     base::span<const char* const> property_name_table) {
   // 3.6.3. Interface prototype object
-  // https://heycam.github.io/webidl/#interface-prototype-object
+  // https://webidl.spec.whatwg.org/#interface-prototype-object
   // step 8. If interface has any member declared with the [Unscopable]
   //   extended attribute, then:
   // step 8.1. Let unscopableObject be the result of performing

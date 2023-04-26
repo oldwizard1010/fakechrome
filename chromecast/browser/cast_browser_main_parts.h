@@ -71,11 +71,11 @@ class CastBrowserMainParts : public content::BrowserMainParts {
   // Creates an implementation of CastBrowserMainParts. Platform should
   // link in an implementation as needed.
   static std::unique_ptr<CastBrowserMainParts> Create(
-      const content::MainFunctionParams& parameters,
+      content::MainFunctionParams parameters,
       CastContentBrowserClient* cast_content_browser_client);
 
   // This class does not take ownership of |url_request_content_factory|.
-  CastBrowserMainParts(const content::MainFunctionParams& parameters,
+  CastBrowserMainParts(content::MainFunctionParams parameters,
                        CastContentBrowserClient* cast_content_browser_client);
 
   CastBrowserMainParts(const CastBrowserMainParts&) = delete;
@@ -102,7 +102,7 @@ class CastBrowserMainParts : public content::BrowserMainParts {
 
  private:
   std::unique_ptr<CastBrowserProcess> cast_browser_process_;
-  const content::MainFunctionParams parameters_;  // For running browser tests.
+  content::MainFunctionParams parameters_;  // For running browser tests.
   // Caches a pointer of the CastContentBrowserClient.
   CastContentBrowserClient* const cast_content_browser_client_ = nullptr;
   std::unique_ptr<ServiceManagerContext> service_manager_context_;
@@ -154,8 +154,6 @@ class CastBrowserMainParts : public content::BrowserMainParts {
   // Only used when running with --enable-ui-devtools.
   std::unique_ptr<CastUIDevTools> ui_devtools_;
 #endif  // defined(USE_AURA) && !defined(OS_FUCHSIA)
-
-  bool run_message_loop_ = true;
 };
 
 }  // namespace shell

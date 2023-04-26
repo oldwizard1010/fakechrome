@@ -45,8 +45,8 @@ const char kReportUrl[] =
 // are all the same.
 AttributionReport GetReport(int64_t conversion_id) {
   return AttributionReport(
-      SourceBuilder(base::Time()).SetData(conversion_id).Build(),
-      /*conversion_data=*/conversion_id,
+      SourceBuilder(base::Time()).SetSourceEventId(conversion_id).Build(),
+      /*trigger_data=*/conversion_id,
       /*conversion_time=*/base::Time(),
       /*report_time=*/base::Time(), /*priority=*/0,
       AttributionReport::Id(conversion_id));
@@ -140,18 +140,18 @@ TEST_F(AttributionNetworkSenderTest, ReportSent_ReportBodySetCorrectly) {
     const char* expected_report;
   } kTestCases[] = {
       {StorableSource::SourceType::kNavigation,
-       R"({"source_event_id":"100","source_type":"navigation","trigger_data":"5"})"},
+       R"({"attribution_destination":"https://conversion.test","source_event_id":"100","source_type":"navigation","trigger_data":"5"})"},
       {StorableSource::SourceType::kEvent,
-       R"({"source_event_id":"100","source_type":"event","trigger_data":"5"})"},
+       R"({"attribution_destination":"https://conversion.test","source_event_id":"100","source_type":"event","trigger_data":"5"})"},
   };
 
   for (const auto& test_case : kTestCases) {
     auto impression = SourceBuilder(base::Time())
-                          .SetData(100)
+                          .SetSourceEventId(100)
                           .SetSourceType(test_case.source_type)
                           .Build();
     AttributionReport report(impression,
-                             /*conversion_data=*/5,
+                             /*trigger_data=*/5,
                              /*conversion_time=*/base::Time(),
                              /*report_time=*/base::Time(),
                              /*priority=*/0, AttributionReport::Id(1));
@@ -170,12 +170,12 @@ TEST_F(AttributionNetworkSenderTest, ReportSent_ReportBodySetCorrectly) {
 TEST_F(AttributionNetworkSenderTest, ReportSent_RequestAttributesSet) {
   auto impression =
       SourceBuilder(base::Time())
-          .SetData(1)
+          .SetSourceEventId(1)
           .SetReportingOrigin(url::Origin::Create(GURL("https://a.com")))
           .SetConversionOrigin(url::Origin::Create(GURL("https://sub.b.com")))
           .Build();
   AttributionReport report(impression,
-                           /*conversion_data=*/1,
+                           /*trigger_data=*/1,
                            /*conversion_time=*/base::Time(),
                            /*report_time=*/base::Time(),
                            /*priority=*/0, AttributionReport::Id(1));
@@ -192,8 +192,7 @@ TEST_F(AttributionNetworkSenderTest, ReportSent_RequestAttributesSet) {
             pending_request->credentials_mode);
   EXPECT_EQ("POST", pending_request->method);
 
-  // Make sure the domain is used as the referrer.
-  EXPECT_EQ(GURL("https://b.com"), pending_request->referrer);
+  EXPECT_EQ(GURL(), pending_request->referrer);
 }
 
 TEST_F(AttributionNetworkSenderTest, ReportSent_CallbackFired) {

@@ -31,6 +31,9 @@ ERRORPRONE_CHECKS_TO_APPLY = []
 
 # Full list of checks: https://errorprone.info/bugpatterns
 ERRORPRONE_WARNINGS_TO_DISABLE = [
+    # Temporarily disabling to roll doubledown.
+    # TODO(wnwen): Re-enable this upstream.
+    'InlineMeInliner',
     # The following are super useful, but existing issues need to be fixed first
     # before they can start failing the build on new errors.
     'InvalidParam',
@@ -44,6 +47,7 @@ ERRORPRONE_WARNINGS_TO_DISABLE = [
     'UnescapedEntity',
     'NonCanonicalType',
     'AlmostJavadoc',
+    'ReturnValueIgnored',
     # The following are added for errorprone update: https://crbug.com/1216032
     'InlineMeSuggester',
     'DoNotClaimAnnotations',
@@ -56,6 +60,8 @@ ERRORPRONE_WARNINGS_TO_DISABLE = [
     'StaticMockMember',
     'MissingSuperCall',
     'ToStringReturnsNull',
+    # If possible, this should be automatically fixed if turned on:
+    'MalformedInlineTag',
     # TODO(crbug.com/834807): Follow steps in bug
     'DoubleBraceInitialization',
     # TODO(crbug.com/834790): Follow steps in bug.
@@ -178,6 +184,9 @@ ERRORPRONE_WARNINGS_TO_DISABLE = [
     'RemoveUnusedImports',
     # We do not care about unnecessary parenthesis enough to check for them.
     'UnnecessaryParentheses',
+    # The only time we trigger this is when it is better to be explicit in a
+    # list of unicode characters, e.g. FindAddress.java
+    'UnicodeEscape',
 ]
 
 # Full list of checks: https://errorprone.info/bugpatterns

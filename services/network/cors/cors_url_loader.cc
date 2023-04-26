@@ -23,9 +23,11 @@
 #include "services/network/public/cpp/timing_allow_origin_parser.h"
 #include "services/network/public/mojom/devtools_observer.mojom.h"
 #include "services/network/public/mojom/early_hints.mojom.h"
+#include "services/network/public/mojom/ip_address_space.mojom.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "services/network/trust_tokens/trust_token_operation_metrics_recorder.h"
 #include "services/network/url_loader.h"
+#include "services/network/url_loader_factory.h"
 #include "url/url_util.h"
 
 namespace network {
@@ -35,7 +37,9 @@ namespace cors {
 namespace {
 
 enum class PreflightRequiredReason {
+  // TODO(https://crbug.com/1263483): Remove this.
   kExternalRequest,
+  kPrivateNetworkAccess,
   kCorsWithForcedPreflightMode,
   kDisallowedMethod,
   kDisallowedHeader
@@ -45,9 +49,18 @@ enum class PreflightRequiredReason {
 // returns the reason why a preflight is needed.
 absl::optional<PreflightRequiredReason> NeedsPreflight(
     const ResourceRequest& request) {
+  if (request.target_ip_address_space != mojom::IPAddressSpace::kUnknown) {
+    // Force a preflight after a private network request was detected. See the
+    // HTTP-no-service-worker fetch algorithm defined in the Private Network
+    // Access spec:
+    // https://wicg.github.io/private-network-access/#http-no-service-worker-fetch
+    return PreflightRequiredReason::kPrivateNetworkAccess;
+  }
+
   if (!IsCorsEnabledRequestMode(request.mode))
     return absl::nullopt;
 
+  // TODO(https://crbug.com/1263483): Remove this.
   if (request.is_external_request)
     return PreflightRequiredReason::kExternalRequest;
 
@@ -98,8 +111,12 @@ base::Value NetLogPreflightRequiredParams(
   if (preflight_required_reason) {
     std::string preflight_required_reason_param;
     switch (preflight_required_reason.value()) {
+      // TODO(https://crbug.com/1263483): Remove this.
       case PreflightRequiredReason::kExternalRequest:
         preflight_required_reason_param = "external_request";
+        break;
+      case PreflightRequiredReason::kPrivateNetworkAccess:
+        preflight_required_reason_param = "private_network_access";
         break;
       case PreflightRequiredReason::kCorsWithForcedPreflightMode:
         preflight_required_reason_param = "cors_with_forced_preflight_mode";
@@ -208,7 +225,6 @@ absl::optional<CorsErrorStatus> CheckRedirectLocation(
 }
 
 constexpr const char kTimingAllowOrigin[] = "Timing-Allow-Origin";
-
 }  // namespace
 
 CorsURLLoader::CorsURLLoader(
@@ -223,10 +239,12 @@ CorsURLLoader::CorsURLLoader(
     mojo::PendingRemote<mojom::URLLoaderClient> client,
     const net::MutableNetworkTrafficAnnotationTag& traffic_annotation,
     mojom::URLLoaderFactory* network_loader_factory,
+    URLLoaderFactory* sync_network_loader_factory,
     const OriginAccessList* origin_access_list,
     PreflightController* preflight_controller,
     const base::flat_set<std::string>* allowed_exempt_headers,
     bool allow_any_cors_exempt_header,
+    NonWildcardRequestHeadersSupport non_wildcard_request_headers_support,
     const net::IsolationInfo& isolation_info,
     mojo::PendingRemote<mojom::DevToolsObserver> devtools_observer)
     : receiver_(this, std::move(loader_receiver)),
@@ -235,6 +253,7 @@ CorsURLLoader::CorsURLLoader(
       options_(options),
       delete_callback_(std::move(delete_callback)),
       network_loader_factory_(network_loader_factory),
+      sync_network_loader_factory_(sync_network_loader_factory),
       request_(resource_request),
       forwarding_client_(std::move(client)),
       traffic_annotation_(traffic_annotation),
@@ -243,6 +262,8 @@ CorsURLLoader::CorsURLLoader(
       allowed_exempt_headers_(allowed_exempt_headers),
       skip_cors_enabled_scheme_check_(skip_cors_enabled_scheme_check),
       allow_any_cors_exempt_header_(allow_any_cors_exempt_header),
+      non_wildcard_request_headers_support_(
+          non_wildcard_request_headers_support),
       isolation_info_(isolation_info),
       devtools_observer_(std::move(devtools_observer)),
       // CORS preflight related events are logged in a series of URL_REQUEST
@@ -289,6 +310,18 @@ void CorsURLLoader::FollowRedirect(
     const net::HttpRequestHeaders& modified_headers,
     const net::HttpRequestHeaders& modified_cors_exempt_headers,
     const absl::optional<GURL>& new_url) {
+  // If this is a navigation from a renderer, then its a service worker
+  // passthrough of a navigation request.  Since this case uses manual
+  // redirect mode FollowRedirect() should never be called.
+  if (process_id_ != mojom::kBrowserProcessId &&
+      request_.mode == mojom::RequestMode::kNavigate) {
+    mojo::ReportBadMessage(
+        "CorsURLLoader: navigate from non-browser-process should not call "
+        "FollowRedirect");
+    HandleComplete(URLLoaderCompletionStatus(net::ERR_FAILED));
+    return;
+  }
+
   if (!network_loader_ || !deferred_redirect_url_) {
     HandleComplete(URLLoaderCompletionStatus(net::ERR_FAILED));
     return;
@@ -386,6 +419,7 @@ void CorsURLLoader::FollowRedirect(
       (fetch_cors_flag_ && original_method != request_.method)) {
     DCHECK_NE(request_.mode, mojom::RequestMode::kNoCors);
     network_client_receiver_.reset();
+    sync_client_receiver_factory_.InvalidateWeakPtrs();
     StartRequest();
     return;
   }
@@ -641,17 +675,28 @@ void CorsURLLoader::StartRequest() {
       request_.isolated_world_origin, fetch_cors_flag_, tainted_,
       *origin_access_list_);
 
-  // Note that even when |NeedsPreflight(request_)| holds we don't make a
-  // preflight request when |fetch_cors_flag_| is false (e.g., when the origin
-  // of the url is equal to the origin of the request.
+  // Note that even when `needs_preflight` holds we might not make a preflight
+  // request. This happens when `fetch_cors_flag_` is false, e.g. when the
+  // origin of the url is equal to the origin of the request, and the preflight
+  // reason is not `kPrivateNetworkAccess`. In the case of a private network
+  // access we always send a preflight, even for CORS-disabled requests.
+  //
+  // See the first step of the HTTP-no-service-worker fetch algorithm defined in
+  // the Private Network Access spec:
+  // https://wicg.github.io/private-network-access/#http-no-service-worker-fetch
   absl::optional<PreflightRequiredReason> needs_preflight =
       NeedsPreflight(request_);
-  bool preflight_required = fetch_cors_flag_ && needs_preflight;
+  bool preflight_required =
+      needs_preflight.has_value() &&
+      (fetch_cors_flag_ ||
+       *needs_preflight == PreflightRequiredReason::kPrivateNetworkAccess);
   net_log_.AddEvent(net::NetLogEventType::CHECK_CORS_PREFLIGHT_REQUIRED, [&] {
     return NetLogPreflightRequiredParams(needs_preflight);
   });
+
+  has_authorization_covered_by_wildcard_ = false;
   if (!preflight_required) {
-    StartNetworkRequest(net::OK, absl::nullopt, false);
+    StartNetworkRequest();
     return;
   }
 
@@ -667,32 +712,36 @@ void CorsURLLoader::StartRequest() {
   // it now to free up the socket.
   network_loader_.reset();
 
-  has_authorization_covered_by_wildcard_ = false;
   preflight_controller_->PerformPreflightCheck(
-      base::BindOnce(&CorsURLLoader::StartNetworkRequest,
+      base::BindOnce(&CorsURLLoader::OnPreflightRequestComplete,
                      weak_factory_.GetWeakPtr()),
       request_,
       PreflightController::WithTrustedHeaderClient(
           options_ & mojom::kURLLoadOptionUseHeaderClient),
-      PreflightController::WithNonWildcardRequestHeadersSupport(false),
-      tainted_, net::NetworkTrafficAnnotationTag(traffic_annotation_),
+      non_wildcard_request_headers_support_, tainted_,
+      net::NetworkTrafficAnnotationTag(traffic_annotation_),
       network_loader_factory_, isolation_info_, std::move(devtools_observer),
       net_log_);
 }
 
-void CorsURLLoader::StartNetworkRequest(
-    int error_code,
+void CorsURLLoader::OnPreflightRequestComplete(
+    int net_error,
     absl::optional<CorsErrorStatus> status,
     bool has_authorization_covered_by_wildcard) {
   has_authorization_covered_by_wildcard_ =
       has_authorization_covered_by_wildcard;
-  if (error_code != net::OK) {
-    HandleComplete(status ? URLLoaderCompletionStatus(*status)
-                          : URLLoaderCompletionStatus(error_code));
+
+  if (net_error != net::OK) {
+    HandleComplete(status.has_value() ? URLLoaderCompletionStatus(*status)
+                                      : URLLoaderCompletionStatus(net_error));
     return;
   }
-  DCHECK(!status);
+  DCHECK(!status) << *status;
 
+  StartNetworkRequest();
+}
+
+void CorsURLLoader::StartNetworkRequest() {
   // Here we overwrite the credentials mode sent to URLLoader because
   // network::URLLoader doesn't understand |kSameOrigin|.
   // TODO(crbug.com/943939): Fix this.
@@ -707,10 +756,18 @@ void CorsURLLoader::StartNetworkRequest(
   // Binding |this| as an unretained pointer is safe because
   // |network_client_receiver_| shares this object's lifetime.
   network_loader_.reset();
-  network_loader_factory_->CreateLoaderAndStart(
-      network_loader_.BindNewPipeAndPassReceiver(), request_id_, options_,
-      request_, network_client_receiver_.BindNewPipeAndPassRemote(),
-      traffic_annotation_);
+  if (sync_network_loader_factory_ &&
+      base::FeatureList::IsEnabled(features::kURLLoaderSyncClient)) {
+    sync_network_loader_factory_->CreateLoaderAndStartWithSyncClient(
+        network_loader_.BindNewPipeAndPassReceiver(), request_id_, options_,
+        request_, network_client_receiver_.BindNewPipeAndPassRemote(),
+        sync_client_receiver_factory_.GetWeakPtr(), traffic_annotation_);
+  } else {
+    network_loader_factory_->CreateLoaderAndStart(
+        network_loader_.BindNewPipeAndPassReceiver(), request_id_, options_,
+        request_, network_client_receiver_.BindNewPipeAndPassRemote(),
+        traffic_annotation_);
+  }
   network_client_receiver_.set_disconnect_handler(
       base::BindOnce(&CorsURLLoader::OnMojoDisconnect, base::Unretained(this)));
 
@@ -728,6 +785,23 @@ void CorsURLLoader::HandleComplete(const URLLoaderCompletionStatus& status) {
     devtools_observer_->OnCorsError(request_.devtools_request_id,
                                     request_.request_initiator, request_.url,
                                     *status.cors_error_status);
+  }
+
+  // If we detect a private network access when we were not expecting one, we
+  // restart the request and force a preflight request. This preflight and the
+  // following request expect the resource to be in the same IP address space
+  // as was originally observed. Spec:
+  // https://wicg.github.io/private-network-access/#http-no-service-worker-fetch
+  if (status.cors_error_status &&
+      status.cors_error_status->cors_error ==
+          mojom::CorsError::kUnexpectedPrivateNetworkAccess) {
+    DCHECK(status.cors_error_status->resource_address_space !=
+           mojom::IPAddressSpace::kUnknown);
+    network_client_receiver_.reset();
+    request_.target_ip_address_space =
+        status.cors_error_status->resource_address_space;
+    StartRequest();
+    return;
   }
 
   net_log_.EndEvent(net::NetLogEventType::CORS_REQUEST);

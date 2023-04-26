@@ -9,6 +9,7 @@
 
 import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
 import './bluetooth_pairing_device_selection_page.js';
+import './bluetooth_pairing_enter_code_page.js';
 import './bluetooth_pairing_request_code_page.js';
 import './bluetooth_pairing_confirm_code_page.js';
 import './bluetooth_spinner_page.js';
@@ -18,10 +19,38 @@ import {assert, assertNotReached} from '../../../js/assert.m.js';
 import {PairingAuthType} from './bluetooth_types.js';
 import {getBluetoothConfig} from './cros_bluetooth_config.js';
 
+/** @implements {chromeos.bluetoothConfig.mojom.KeyEnteredHandlerInterface} */
+class KeyEnteredHandler {
+  /**
+   * @param {!SettingsBluetoothPairingUiElement} page
+   * @param {!chromeos.bluetoothConfig.mojom.KeyEnteredHandlerPendingReceiver}
+   *     keyEnteredHandlerReceiver
+   */
+  constructor(page, keyEnteredHandlerReceiver) {
+    /** @private {!SettingsBluetoothPairingUiElement} */
+    this.page_ = page;
+
+    /** @private {!chromeos.bluetoothConfig.mojom.KeyEnteredHandlerReceiver} */
+    this.keyEnteredHandlerReceiver_ =
+        new chromeos.bluetoothConfig.mojom.KeyEnteredHandlerReceiver(this);
+    this.keyEnteredHandlerReceiver_.$.bindHandle(
+        keyEnteredHandlerReceiver.handle);
+  }
+
+  /** @override */
+  handleKeyEntered(numKeysEntered) {
+    this.page_.handleKeyEntered(numKeysEntered);
+  }
+
+  close() {
+    this.keyEnteredHandlerReceiver_.$.close();
+  }
+}
+
 /** @enum {string} */
 const BluetoothPairingSubpageId = {
-  // TODO(crbug.com/1010321): Add missing bluetooth pairing subpages.
   DEVICE_SELECTION_PAGE: 'deviceSelectionPage',
+  DEVICE_ENTER_CODE_PAGE: 'deviceEnterCodePage',
   DEVICE_REQUEST_CODE_PAGE: 'deviceRequestCodePage',
   DEVICE_CONFIRM_CODE_PAGE: 'deviceConfirmCodePage',
   SPINNER_PAGE: 'spinnerPage',
@@ -46,6 +75,7 @@ let ConfirmCodeCallback;
 /**
  * @implements {chromeos.bluetoothConfig.mojom.BluetoothDiscoveryDelegateInterface}
  * @implements {chromeos.bluetoothConfig.mojom.DevicePairingDelegateInterface}
+ * @implements {chromeos.bluetoothConfig.mojom.KeyEnteredHandlerInterface}
  * @polymer
  */
 export class SettingsBluetoothPairingUiElement extends PolymerElement {
@@ -96,6 +126,21 @@ export class SettingsBluetoothPairingUiElement extends PolymerElement {
         value: '',
       },
 
+      /** @private {number} */
+      numKeysEntered_: {
+        type: Number,
+        value: 0,
+      },
+
+      /**
+       * Id of a device who's pairing attempt failed.
+       * @private {string}
+       */
+      lastFailedPairingDeviceId_: {
+        type: String,
+        value: '',
+      },
+
       /**
        * Used to access |BluetoothPairingSubpageId| type in HTML.
        * @private {!BluetoothPairingSubpageId}
@@ -128,6 +173,9 @@ export class SettingsBluetoothPairingUiElement extends PolymerElement {
 
     /** @private {?RequestCodeCallback} */
     this.requestCodeCallback_ = null;
+
+    /** @private {?KeyEnteredHandler} */
+    this.keyEnteredReceiver_ = null;
 
     /** @private {?ConfirmCodeCallback} */
     this.confirmCodeCallback_ = null;
@@ -172,6 +220,8 @@ export class SettingsBluetoothPairingUiElement extends PolymerElement {
     this.devicePendingPairing_ = event.detail.device;
     assert(this.devicePendingPairing_);
 
+    this.lastFailedPairingDeviceId_ = '';
+
     this.devicePairingHandler_
         .pairDevice(
             this.devicePendingPairing_.id,
@@ -186,9 +236,14 @@ export class SettingsBluetoothPairingUiElement extends PolymerElement {
    * @private
    */
   handlePairDeviceResult_(result) {
-    this.devicePendingPairing_ = null;
     this.pairingDelegateReceiver_.$.close();
     this.pairingDelegateReceiver_ = null;
+
+    if (this.keyEnteredReceiver_) {
+      this.keyEnteredReceiver_.close();
+      this.keyEnteredReceiver_ = null;
+    }
+
     this.pairingAuthType_ = null;
 
     if (result === chromeos.bluetoothConfig.mojom.PairingResult.kSuccess) {
@@ -200,7 +255,8 @@ export class SettingsBluetoothPairingUiElement extends PolymerElement {
     }
 
     this.selectedPageId_ = BluetoothPairingSubpageId.DEVICE_SELECTION_PAGE;
-    // TODO(crbug.com/1010321): Pass pairing result to subpages.
+    this.lastFailedPairingDeviceId_ = this.devicePendingPairing_.id;
+    this.devicePendingPairing_ = null;
   }
 
   /** @override */
@@ -260,14 +316,31 @@ export class SettingsBluetoothPairingUiElement extends PolymerElement {
 
   /** @override */
   displayPinCode(pinCode, handler) {
-    // TODO(crbug.com/1010321): Create keyEnterHandler and implement this
-    // function.
+    this.displayCode_(handler, pinCode);
   }
 
   /** @override */
   displayPasskey(passkey, handler) {
-    // TODO(crbug.com/1010321): Create keyEnterHandler and implement this
-    // function.
+    this.displayCode_(handler, passkey);
+  }
+
+  /**s
+   * @param {!chromeos.bluetoothConfig.mojom.KeyEnteredHandlerPendingReceiver}
+   *     handler
+   * @param {string} code
+   * @private
+   */
+  displayCode_(handler, code) {
+    this.pairingCode_ = code;
+    this.selectedPageId_ = BluetoothPairingSubpageId.DEVICE_ENTER_CODE_PAGE;
+    this.keyEnteredReceiver_ = new KeyEnteredHandler(this, handler);
+  }
+
+  /**
+   * @param {number} numKeysEntered
+   */
+  handleKeyEntered(numKeysEntered) {
+    this.numKeysEntered_ = numKeysEntered;
   }
 
   /** @override */

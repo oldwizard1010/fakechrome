@@ -28,8 +28,6 @@ source_set("browser_sources") {
   sources = [
     "allow_service_worker_result.cc",
     "allow_service_worker_result.h",
-    "appcache_service.cc",
-    "appcache_service.h",
     "audio_service.h",
     "audio_service_info.cc",
     "audio_service_info.h",
@@ -283,6 +281,7 @@ source_set("browser_sources") {
     "picture_in_picture_window_controller.h",
     "platform_notification_context.h",
     "platform_notification_service.h",
+    "prerender_handle.h",
     "presentation_receiver_flags.h",
     "presentation_request.cc",
     "presentation_request.h",
@@ -321,10 +320,6 @@ source_set("browser_sources") {
     "save_page_type.h",
     "screen_orientation_delegate.h",
     "screenlock_observer.h",
-    "security_style_explanation.cc",
-    "security_style_explanation.h",
-    "security_style_explanations.cc",
-    "security_style_explanations.h",
     "serial_chooser.cc",
     "serial_chooser.h",
     "serial_delegate.h",
@@ -366,7 +361,6 @@ source_set("browser_sources") {
     "ssl_host_state_delegate.h",
     "ssl_status.cc",
     "ssl_status.h",
-    "startup_data.h",
     "storage_notification_service.h",
     "storage_partition.h",
     "storage_partition_config.cc",
@@ -446,6 +440,7 @@ source_set("browser_sources") {
   }
 
   public_deps = [
+    "//base",
     "//build:chromecast_buildflags",
     "//components/download/public/common:public",
     "//components/services/storage/public/mojom",
@@ -555,6 +550,10 @@ source_set("browser_sources") {
       "native_event_processor_observer_mac.mm",
       "remote_cocoa.h",
     ]
+  }
+
+  if (is_fuchsia) {
+    sources += [ "ax_inspect_factory_fuchsia.cc" ]
   }
 
   if (is_win) {

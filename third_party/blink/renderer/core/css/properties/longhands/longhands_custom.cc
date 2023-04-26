@@ -1619,7 +1619,8 @@ const CSSValue* ColorScheme::ParseSingleValue(
         css_parsing_utils::ConsumeIdent<CSSValueID::kDark, CSSValueID::kLight,
                                         CSSValueID::kOnly>(range);
     if (id == CSSValueID::kOnly &&
-        RuntimeEnabledFeatures::CSSColorSchemeOnlyEnabled()) {
+        RuntimeEnabledFeatures::CSSColorSchemeOnlyEnabled(
+            context.GetExecutionContext())) {
       if (only)
         return nullptr;
       if (values->length()) {
@@ -1703,8 +1704,10 @@ void ColorScheme::ApplyValue(StyleResolverState& state,
             has_light = true;
             break;
           case CSSValueID::kOnly:
-            if (RuntimeEnabledFeatures::CSSColorSchemeOnlyEnabled())
+            if (RuntimeEnabledFeatures::CSSColorSchemeOnlyEnabled(
+                    state.GetDocument().GetExecutionContext())) {
               has_only = true;
+            }
             break;
           default:
             break;
@@ -2334,7 +2337,7 @@ const CSSValue* Cursor::ParseSingleValue(CSSParserTokenRange& range,
              range, context,
              css_parsing_utils::ConsumeGeneratedImagePolicy::kForbid)) {
     double num;
-    IntPoint hot_spot(-1, -1);
+    gfx::Point hot_spot(-1, -1);
     bool hot_spot_specified = false;
     if (css_parsing_utils::ConsumeNumberRaw(range, context, num)) {
       hot_spot.set_x(ClampTo<int>(num));

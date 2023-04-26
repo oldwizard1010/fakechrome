@@ -15,7 +15,7 @@
 #include "ash/public/cpp/app_list/internal_app_id_constants.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
-#include "chrome/browser/apps/app_service/app_service_proxy_chromeos.h"
+#include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/apps/app_service/publishers/extension_apps_util.h"
 #include "chrome/browser/ash/crosapi/browser_util.h"
@@ -238,7 +238,8 @@ std::vector<std::string> ChromeShelfPrefs::GetAppsPinnedByPolicy(
     }
 
     if (ash::DemoSession::Get() &&
-        ash::DemoSession::Get()->ShouldIgnorePinPolicy(*policy_entry)) {
+        !ash::DemoSession::Get()->ShouldShowAndroidOrChromeAppInShelf(
+            *policy_entry)) {
       continue;
     }
 
@@ -389,7 +390,6 @@ std::vector<ash::ShelfID> ChromeShelfPrefs::GetPinnedAppsFromSync(
 
   if (ShouldPerformConsistencyMigrations()) {
     needs_consistency_migrations_ = false;
-    MigrateLegacyCameraApp(syncable_service);
     EnsureChromePinned(syncable_service);
   }
 
@@ -531,35 +531,6 @@ void ChromeShelfPrefs::SetPinPosition(
 
 void ChromeShelfPrefs::SkipPinnedAppsFromSyncForTest() {
   skip_pinned_apps_from_sync_for_test = true;
-}
-
-void ChromeShelfPrefs::MigrateLegacyCameraApp(
-    app_list::AppListSyncableService* syncable_service) {
-  syncer::StringOrdinal legacy_camera_pinned_position;
-
-  for (const auto& sync_peer : syncable_service->sync_items()) {
-    if (IsLegacyCameraAppId(sync_peer.first) &&
-        !legacy_camera_pinned_position.IsValid()) {
-      legacy_camera_pinned_position = sync_peer.second->item_pin_ordinal;
-
-      // Wipe the position for legacy camera app.
-      syncable_service->SetPinPosition(sync_peer.first,
-                                       syncer::StringOrdinal());
-    }
-  }
-
-  bool has_camera_app =
-      syncable_service->GetSyncItem(extension_misc::kCameraAppId) != nullptr;
-  syncer::StringOrdinal camera_app_position =
-      syncable_service->GetPinPosition(extension_misc::kCameraAppId);
-  // If the camera app is in the sync list with no valid position and there is a
-  // legacy camera app which has valid position, use this position for the
-  // camera app.
-  if (has_camera_app && !camera_app_position.IsValid() &&
-      legacy_camera_pinned_position.IsValid()) {
-    syncable_service->SetPinPosition(extension_misc::kCameraAppId,
-                                     legacy_camera_pinned_position);
-  }
 }
 
 void ChromeShelfPrefs::EnsureChromePinned(

@@ -5,7 +5,6 @@
 #include "ui/aura/window_occlusion_tracker.h"
 
 #include "base/callback_helpers.h"
-#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/gtest_util.h"
@@ -2295,11 +2294,11 @@ TEST_F(WindowOcclusionTrackerTest, NativeWindowOcclusion) {
 
   delegate_a->set_expectation(Window::OcclusionState::OCCLUDED, SkRegion());
   // Make the host call OnOcclusionStateChanged on the root window.
-  host()->SetNativeWindowOcclusionState(Window::OcclusionState::OCCLUDED);
+  host()->SetNativeWindowOcclusionState(Window::OcclusionState::OCCLUDED, {});
   EXPECT_FALSE(delegate_a->is_expecting_call());
 
   delegate_a->set_expectation(Window::OcclusionState::VISIBLE, SkRegion());
-  host()->SetNativeWindowOcclusionState(Window::OcclusionState::VISIBLE);
+  host()->SetNativeWindowOcclusionState(Window::OcclusionState::VISIBLE, {});
   EXPECT_FALSE(delegate_a->is_expecting_call());
 }
 

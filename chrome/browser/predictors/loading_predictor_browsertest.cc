@@ -13,7 +13,6 @@
 #include "base/command_line.h"
 #include "base/containers/contains.h"
 #include "base/files/file_path.h"
-#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/post_task.h"
@@ -671,7 +670,7 @@ IN_PROC_BROWSER_TEST_F(LoadingPredictorBrowserTest,
           browser()->profile());
 
   std::unique_ptr<prerender::NoStatePrefetchHandle> handle =
-      no_state_prefetch_manager->AddPrerenderFromNavigationPredictor(
+      no_state_prefetch_manager->StartPrefetchingFromNavigationPredictor(
           url,
           browser()
               ->tab_strip_model()

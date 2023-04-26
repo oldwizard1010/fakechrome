@@ -13,7 +13,6 @@
 #include "base/android/jni_weak_ref.h"
 #include "base/compiler_specific.h"
 #include "base/guid.h"
-#include "base/macros.h"
 #include "base/scoped_observation.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/android/bookmarks/partner_bookmarks_shim.h"
@@ -50,7 +49,7 @@ class BookmarkBridge : public bookmarks::BaseBookmarkModelObserver,
 
   void Destroy(JNIEnv*, const base::android::JavaParamRef<jobject>&);
 
-  jlong GetBookmarkIdForWebContents(
+  base::android::ScopedJavaLocalRef<jobject> GetBookmarkIdForWebContents(
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jobject>& jweb_contents,
@@ -89,6 +88,10 @@ class BookmarkBridge : public bookmarks::BaseBookmarkModelObserver,
       jboolean get_normal,
       const base::android::JavaParamRef<jobject>& j_result_obj);
 
+  base::android::ScopedJavaLocalRef<jobject> GetReadingListFolder(
+      JNIEnv* env,
+      const base::android::JavaParamRef<jobject>& obj);
+
   void GetAllFoldersWithDepths(
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& obj,
@@ -114,6 +117,12 @@ class BookmarkBridge : public bookmarks::BaseBookmarkModelObserver,
   base::android::ScopedJavaLocalRef<jobject> GetPartnerFolderId(
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& obj);
+
+  base::android::ScopedJavaLocalRef<jstring> GetBookmarkGuidByIdForTesting(
+      JNIEnv* env,
+      const base::android::JavaParamRef<jobject>& obj,
+      jlong id,
+      jint type);
 
   void GetChildIDs(JNIEnv* env,
                    const base::android::JavaParamRef<jobject>& obj,

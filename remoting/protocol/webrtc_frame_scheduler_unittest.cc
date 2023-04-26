@@ -45,14 +45,12 @@ class WebrtcFrameSchedulerTest : public ::testing::Test {
 
     if (simulate_capture_) {
       // Simulate a completed capture and encode.
-      WebrtcVideoEncoder::FrameParams out_params;
-      scheduler_->OnFrameCaptured(&frame_, &out_params);
+      scheduler_->OnFrameCaptured(&frame_);
       WebrtcVideoEncoder::EncodedFrame encoded;
-      encoded.key_frame = out_params.key_frame;
+      encoded.key_frame = false;
       encoded.data = 'X';
       scheduler_->OnFrameEncoded(WebrtcVideoEncoder::EncodeResult::SUCCEEDED,
                                  &encoded);
-      scheduler_->GetSchedulerStats(frame_stats_);
     }
   }
 
@@ -64,7 +62,6 @@ class WebrtcFrameSchedulerTest : public ::testing::Test {
   int capture_callback_count_ = 0;
   bool simulate_capture_ = false;
   BasicDesktopFrame frame_;
-  HostFrameStats frame_stats_;
 };
 
 TEST_F(WebrtcFrameSchedulerTest, UpdateBitrateWhenPending) {
@@ -100,19 +97,6 @@ TEST_F(WebrtcFrameSchedulerTest, Capturer_RunsAt30Fps) {
   // There should be approximately 30 captures in 1 second.
   EXPECT_LE(29, capture_callback_count_);
   EXPECT_LE(capture_callback_count_, 31);
-}
-
-TEST_F(WebrtcFrameSchedulerTest, RttReportedInFrameStats) {
-  simulate_capture_ = true;
-  scheduler_->OnKeyFrameRequested();
-  scheduler_->OnTargetBitrateChanged(100);
-  frame_.mutable_updated_region()->SetRect(DesktopRect::MakeWH(1, 1));
-  auto rtt = base::Milliseconds(123);
-  scheduler_->OnRttUpdate(rtt);
-
-  task_environment_.FastForwardBy(base::Seconds(1));
-
-  EXPECT_EQ(rtt, frame_stats_.rtt_estimate);
 }
 
 }  // namespace protocol

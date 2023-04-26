@@ -108,7 +108,8 @@ const AtomicString& FileInputType::FormControlType() const {
 }
 
 FormControlState FileInputType::SaveFormControlState() const {
-  if (file_list_->IsEmpty())
+  if (file_list_->IsEmpty() ||
+      GetElement().GetDocument().GetFormController().DropReferencedFilePaths())
     return FormControlState();
   FormControlState state;
   unsigned num_files = file_list_->length();
@@ -176,6 +177,14 @@ void FileInputType::HandleDOMActivateEvent(Event& event) {
     return;
   }
 
+  OpenPopupView();
+  event.SetDefaultHandled();
+}
+
+void FileInputType::OpenPopupView() {
+  HTMLInputElement& input = GetElement();
+  Document& document = input.GetDocument();
+
   if (ChromeClient* chrome_client = GetChromeClient()) {
     FileChooserParams params;
     bool is_directory =
@@ -200,7 +209,6 @@ void FileInputType::HandleDOMActivateEvent(Event& event) {
                       : WebFeature::kInputTypeFileInsecureOriginOpenChooser);
     chrome_client->OpenFileChooser(document.GetFrame(), NewFileChooser(params));
   }
-  event.SetDefaultHandled();
 }
 
 void FileInputType::CustomStyleForLayoutObject(ComputedStyle& style) {

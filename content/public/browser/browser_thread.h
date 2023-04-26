@@ -12,7 +12,6 @@
 #include "base/callback.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/task_runner_util.h"
@@ -79,6 +78,9 @@ class CONTENT_EXPORT BrowserThread {
     // identifier.
     ID_COUNT
   };
+
+  BrowserThread(const BrowserThread&) = delete;
+  BrowserThread& operator=(const BrowserThread&) = delete;
 
   // Delete/ReleaseSoon() helpers allow future deletion of an owned object on
   // its associated thread. If you already have a task runner bound to a
@@ -209,8 +211,6 @@ class CONTENT_EXPORT BrowserThread {
  private:
   friend class BrowserThreadImpl;
   BrowserThread() = default;
-
-  DISALLOW_COPY_AND_ASSIGN(BrowserThread);
 };
 
 }  // namespace content

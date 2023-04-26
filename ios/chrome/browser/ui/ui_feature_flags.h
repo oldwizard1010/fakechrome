@@ -8,6 +8,11 @@
 #include "Availability.h"
 #include "base/feature_list.h"
 
+// Allows the user to track product prices through Chrome.
+// Use IsPriceAlertsEnabled in price_alert_util rather than depending
+// on this directly.
+extern const base::Feature kCommercePriceTracking;
+
 // Feature to open tab switcher after sliding down the toolbar.
 extern const base::Feature kExpandedTabStrip;
 
@@ -70,6 +75,9 @@ extern const base::Feature kUseLensToSearchForImage;
 // Feature flag to enable promotional view for Passwords In Other Apps in
 // Settings.
 extern const base::Feature kCredentialProviderExtensionPromo;
+
+// Feature flag to enable duplicate NTP cleanup.
+extern const base::Feature kRemoveExcessNTPs;
 
 // Whether the ContextMenuActionsRefresh flag is enabled.
 bool IsContextMenuActionsRefreshEnabled();

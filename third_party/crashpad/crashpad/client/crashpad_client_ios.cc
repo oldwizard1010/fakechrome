@@ -68,12 +68,14 @@ class CrashHandler : public Thread,
                   const std::string& url,
                   const std::map<std::string, std::string>& annotations) {
     INITIALIZATION_STATE_SET_INITIALIZING(initialized_);
-    if (!in_process_handler_.Initialize(database, url, annotations) ||
+    if (!in_process_handler_.Initialize(
+            database, url, annotations, system_data_) ||
         !InstallMachExceptionHandler() ||
         !Signals::InstallHandler(SIGABRT, CatchSignal, 0, &old_action_)) {
       LOG(ERROR) << "Unable to initialize Crashpad.";
       return false;
     }
+    InstallObjcExceptionPreprocessor(this);
     INITIALIZATION_STATE_SET_VALID(initialized_);
     return true;
   }
@@ -311,7 +313,6 @@ bool CrashpadClient::StartCrashpadInProcessHandler(
     const std::map<std::string, std::string>& annotations) {
   CrashHandler* crash_handler = CrashHandler::Get();
   DCHECK(crash_handler);
-  InstallObjcExceptionPreprocessor(crash_handler);
   return crash_handler->Initialize(database, url, annotations);
 }
 

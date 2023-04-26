@@ -16,7 +16,6 @@
 #include "base/feature_list.h"
 #include "base/i18n/rtl.h"
 #include "base/json/values_util.h"
-#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
@@ -96,6 +95,10 @@ const char TranslatePrefs::kPrefTranslateIgnoredCount[] =
 const char TranslatePrefs::kPrefTranslateAcceptedCount[] =
     "translate_accepted_count";
 
+// Deprecated 10/2021.
+const char TranslatePrefs::kPrefAlwaysTranslateListDeprecated[] =
+    "translate_whitelists";
+
 #if defined(OS_ANDROID) || defined(OS_IOS)
 const char TranslatePrefs::kPrefTranslateAutoAlwaysCount[] =
     "translate_auto_always_count";
@@ -142,9 +145,7 @@ TranslatePrefs::~TranslatePrefs() = default;
 
 // static
 std::string TranslatePrefs::MapPreferenceName(const std::string& pref_name) {
-  if (pref_name == prefs::kPrefAlwaysTranslateList) {
-    return "translate_allowlists";
-  } else if (pref_name == kPrefNeverPromptSitesDeprecated) {
+  if (pref_name == kPrefNeverPromptSitesDeprecated) {
     return "translate_site_blocklist";
   }
   return pref_name;
@@ -939,6 +940,15 @@ void TranslatePrefs::RegisterProfilePrefs(
       kPrefExplicitLanguageAskShown, false,
       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
 #endif
+
+  RegisterProfilePrefsForMigration(registry);
+}
+
+// static
+void TranslatePrefs::RegisterProfilePrefsForMigration(
+    user_prefs::PrefRegistrySyncable* registry) {
+  // Deprecated 10/2021.
+  registry->RegisterDictionaryPref(kPrefAlwaysTranslateListDeprecated);
 }
 
 void TranslatePrefs::MigrateNeverPromptSites() {
@@ -961,6 +971,22 @@ void TranslatePrefs::MigrateNeverPromptSites() {
     }
     deprecated_list->ClearList();
   }
+}
+
+// static
+void TranslatePrefs::MigrateObsoleteProfilePrefs(PrefService* profile_prefs) {
+  const base::Value* deprecated_always_translate_list =
+      profile_prefs->GetUserPrefValue(kPrefAlwaysTranslateListDeprecated);
+  if (deprecated_always_translate_list &&
+      !profile_prefs->GetUserPrefValue(prefs::kPrefAlwaysTranslateList)) {
+    profile_prefs->Set(prefs::kPrefAlwaysTranslateList,
+                       *deprecated_always_translate_list);
+  }
+}
+
+// static
+void TranslatePrefs::ClearObsoleteProfilePrefs(PrefService* profile_prefs) {
+  profile_prefs->ClearPref(kPrefAlwaysTranslateListDeprecated);
 }
 
 bool TranslatePrefs::IsValueOnNeverPromptList(const char* pref_id,

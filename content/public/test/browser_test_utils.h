@@ -16,7 +16,6 @@
 #include "base/containers/queue.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/json/json_writer.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/process/process.h"
@@ -68,22 +67,23 @@
 
 namespace gfx {
 class Point;
-}
+}  // namespace gfx
 
 namespace net {
 class CanonicalCookie;
 namespace test_server {
 class EmbeddedTestServer;
-}
+}  // namespace test_server
+
 // TODO(svaldez): Remove typedef once EmbeddedTestServer has been migrated
 // out of net::test_server.
 using test_server::EmbeddedTestServer;
-}
+}  // namespace net
 
 namespace ui {
 class AXPlatformNodeDelegate;
 class AXTreeID;
-}
+}  // namespace ui
 
 #if defined(OS_WIN)
 namespace Microsoft {
@@ -104,11 +104,13 @@ typedef int PROPERTYID;
 // content\test\content_browser_test_utils.h.
 
 namespace blink {
+class StorageKey;
 struct FrameVisualProperties;
-}
+}  // namespace blink
 
 namespace content {
 
+class BoundingBoxUpdateWaiterImpl;
 class BrowserContext;
 class FileSystemAccessPermissionContext;
 class FrameTreeNode;
@@ -344,6 +346,19 @@ void SimulateTouchEventAt(WebContents* web_contents,
                           const gfx::Point& point);
 
 void SimulateLongTapAt(WebContents* web_contents, const gfx::Point& point);
+
+class BoundingBoxUpdateWaiter {
+ public:
+  explicit BoundingBoxUpdateWaiter(WebContents* web_contents);
+  BoundingBoxUpdateWaiter(const BoundingBoxUpdateWaiter&) = delete;
+  BoundingBoxUpdateWaiter& operator=(const BoundingBoxUpdateWaiter&) = delete;
+  ~BoundingBoxUpdateWaiter();
+
+  void Wait();
+
+ private:
+  std::unique_ptr<BoundingBoxUpdateWaiterImpl> impl_;
+};
 
 // Waits for the update in the bounding box (i.e. the rectangle enclosing the
 // selection region) associated with `web_contents`.
@@ -1245,7 +1260,8 @@ class DOMMessageQueue : public NotificationObserver,
                const NotificationDetails& details) override;
 
   // Overridden WebContentsObserver methods.
-  void RenderProcessGone(base::TerminationStatus status) override;
+  void PrimaryMainFrameRenderProcessGone(
+      base::TerminationStatus status) override;
   void RenderFrameDeleted(RenderFrameHost* render_frame_host) override;
 
  private:
@@ -1768,28 +1784,31 @@ class WebContentsConsoleObserver : public WebContentsObserver {
 // renderer. Used to simulate a compromised renderer.
 class PwnMessageHelper {
  public:
+  PwnMessageHelper(const PwnMessageHelper&) = delete;
+  PwnMessageHelper& operator=(const PwnMessageHelper&) = delete;
+
   // Calls Create method in FileSystemHost Mojo interface.
   static void FileSystemCreate(RenderProcessHost* process,
                                int request_id,
                                GURL path,
                                bool exclusive,
                                bool is_directory,
-                               bool recursive);
+                               bool recursive,
+                               const blink::StorageKey& storage_key);
 
   // Calls Write method in FileSystemHost Mojo interface.
   static void FileSystemWrite(RenderProcessHost* process,
                               int request_id,
                               GURL file_path,
                               std::string blob_uuid,
-                              int64_t position);
+                              int64_t position,
+                              const blink::StorageKey& storage_key);
 
   // Calls OpenURL method in FrameHost Mojo interface.
   static void OpenURL(RenderFrameHost* render_frame_host, const GURL& url);
 
  private:
   PwnMessageHelper();  // Not instantiable.
-
-  DISALLOW_COPY_AND_ASSIGN(PwnMessageHelper);
 };
 
 #if defined(USE_AURA)

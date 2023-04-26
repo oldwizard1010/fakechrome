@@ -26,6 +26,7 @@
 #include "components/viz/common/switches.h"
 #include "content/public/browser/browser_main_runner.h"
 #include "content/public/common/content_switches.h"
+#include "content/public/common/main_function_params.h"
 #include "content/public/common/profiling.h"
 #include "gpu/config/gpu_switches.h"
 #include "headless/lib/browser/headless_browser_impl.h"
@@ -97,15 +98,15 @@ void InitializeResourceBundle(const base::CommandLine& command_line) {
       ui::kScaleFactorNone);
 
 #else
-  base::FilePath dir_module;
-  bool result = base::PathService::Get(base::DIR_ASSETS, &dir_module);
+  base::FilePath resource_dir;
+  bool result = base::PathService::Get(base::DIR_ASSETS, &resource_dir);
   DCHECK(result);
 
   // Try loading the headless library pak file first. If it doesn't exist (i.e.,
   // when we're running with the --headless switch), fall back to the browser's
   // resource pak.
   base::FilePath headless_pak =
-      dir_module.Append(FILE_PATH_LITERAL("headless_lib.pak"));
+      resource_dir.Append(FILE_PATH_LITERAL("headless_lib.pak"));
   if (base::PathExists(headless_pak)) {
     ui::ResourceBundle::GetSharedInstance().AddDataPackFromPath(
         headless_pak, ui::kScaleFactorNone);
@@ -114,21 +115,21 @@ void InitializeResourceBundle(const base::CommandLine& command_line) {
 
   // Otherwise, load resources.pak, chrome_100 and chrome_200.
   base::FilePath resources_pak =
-      dir_module.Append(FILE_PATH_LITERAL("resources.pak"));
+      resource_dir.Append(FILE_PATH_LITERAL("resources.pak"));
   base::FilePath chrome_100_pak =
-      dir_module.Append(FILE_PATH_LITERAL("chrome_100_percent.pak"));
+      resource_dir.Append(FILE_PATH_LITERAL("chrome_100_percent.pak"));
   base::FilePath chrome_200_pak =
-      dir_module.Append(FILE_PATH_LITERAL("chrome_200_percent.pak"));
+      resource_dir.Append(FILE_PATH_LITERAL("chrome_200_percent.pak"));
 
 #if defined(OS_MAC) && !defined(COMPONENT_BUILD)
   // In non component builds, check if fall back in Resources/ folder is
   // available.
   if (!base::PathExists(resources_pak)) {
     resources_pak =
-        dir_module.Append(FILE_PATH_LITERAL("Resources/resources.pak"));
-    chrome_100_pak = dir_module.Append(
+        resource_dir.Append(FILE_PATH_LITERAL("Resources/resources.pak"));
+    chrome_100_pak = resource_dir.Append(
         FILE_PATH_LITERAL("Resources/chrome_100_percent.pak"));
-    chrome_200_pak = dir_module.Append(
+    chrome_200_pak = resource_dir.Append(
         FILE_PATH_LITERAL("Resources/chrome_200_percent.pak"));
   }
 #endif
@@ -378,12 +379,12 @@ void HeadlessContentMainDelegate::PreSandboxStartup() {
   InitApplicationLocale(command_line);
 }
 
-int HeadlessContentMainDelegate::RunProcess(
+absl::variant<int, content::MainFunctionParams>
+HeadlessContentMainDelegate::RunProcess(
     const std::string& process_type,
-    const content::MainFunctionParams& main_function_params) {
-
+    content::MainFunctionParams main_function_params) {
   if (!process_type.empty())
-    return -1;
+    return std::move(main_function_params);
 
   base::trace_event::TraceLog::GetInstance()->set_process_name(
       "HeadlessBrowser");
@@ -393,7 +394,7 @@ int HeadlessContentMainDelegate::RunProcess(
   std::unique_ptr<content::BrowserMainRunner> browser_runner =
       content::BrowserMainRunner::Create();
 
-  int exit_code = browser_runner->Initialize(main_function_params);
+  int exit_code = browser_runner->Initialize(std::move(main_function_params));
   DCHECK_LT(exit_code, 0) << "content::BrowserMainRunner::Initialize failed in "
                              "HeadlessContentMainDelegate::RunProcess";
 
@@ -401,7 +402,7 @@ int HeadlessContentMainDelegate::RunProcess(
   browser_runner->Shutdown();
   browser_.reset();
 
-  // Return value >=0 here to disable calling content::BrowserMain.
+  // Return an int here to disable calling content::BrowserMain.
   return 0;
 }
 

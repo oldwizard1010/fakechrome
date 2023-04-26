@@ -9,7 +9,6 @@
 
 #include <memory>
 
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "components/browsing_data/content/cookie_helper.h"
 #include "storage/common/file_system/file_system_types.h"
@@ -34,6 +33,7 @@ class LocalSharedObjectsContainer {
  public:
   explicit LocalSharedObjectsContainer(
       content::BrowserContext* browser_context,
+      bool ignore_empty_localstorage,
       const std::vector<storage::FileSystemType>& additional_file_system_types,
       browsing_data::CookieHelper::IsDeletionDisabledCallback callback);
 
@@ -51,6 +51,13 @@ class LocalSharedObjectsContainer {
 
   // Get number of unique registrable domains in the container.
   size_t GetDomainCount() const;
+
+  // Updates the ignored empty storage keys, which won't be included in the
+  // object and domain counts.
+  // Note: If `ignore_empty_localstorage` is true, the ignored empty storage
+  //       keys are also updated automatically when the storage helper's
+  //       `StartFetching` method is called.
+  void UpdateIgnoredEmptyStorageKeys(base::OnceClosure done) const;
 
   // Empties the container.
   void Reset();

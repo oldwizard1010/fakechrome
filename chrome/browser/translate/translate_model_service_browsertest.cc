@@ -77,7 +77,10 @@ int RetryForHistogramUntilCountReached(
 
 class TranslateModelServiceDisabledBrowserTest : public InProcessBrowserTest {
  public:
-  TranslateModelServiceDisabledBrowserTest() = default;
+  TranslateModelServiceDisabledBrowserTest() {
+    scoped_feature_list_.InitAndDisableFeature(
+        translate::kTFLiteLanguageDetectionEnabled);
+  }
 
   void SetUp() override {
     origin_server_ = std::make_unique<net::EmbeddedTestServer>(
@@ -97,6 +100,7 @@ class TranslateModelServiceDisabledBrowserTest : public InProcessBrowserTest {
  private:
   GURL english_url_;
   std::unique_ptr<net::EmbeddedTestServer> origin_server_;
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(TranslateModelServiceDisabledBrowserTest,
@@ -237,15 +241,9 @@ IN_PROC_BROWSER_TEST_F(TranslateModelServiceBrowserTest,
   histogram_tester.ExpectUniqueSample(
       "TranslateModelService.LanguageDetectionModel.WasLoaded", true, 1);
 
-  std::unique_ptr<base::RunLoop> run_loop = std::make_unique<base::RunLoop>();
-  translate_model_service()->GetLanguageDetectionModelFile(base::BindOnce(
-      [](base::RunLoop* run_loop, base::File model_file) {
-        EXPECT_TRUE(model_file.IsValid());
-        run_loop->Quit();
-      },
-      run_loop.get()));
-
-  run_loop->Run();
+  base::File model_file =
+      translate_model_service()->GetLanguageDetectionModelFile();
+  EXPECT_TRUE(model_file.IsValid());
 }
 
 IN_PROC_BROWSER_TEST_F(TranslateModelServiceBrowserTest,
@@ -253,13 +251,17 @@ IN_PROC_BROWSER_TEST_F(TranslateModelServiceBrowserTest,
   base::ScopedAllowBlockingForTesting allow_io_for_test_setup;
   base::HistogramTester histogram_tester;
   ASSERT_TRUE(translate_model_service());
+  EXPECT_FALSE(translate_model_service()->IsModelAvailable());
+
   std::unique_ptr<base::RunLoop> run_loop = std::make_unique<base::RunLoop>();
-  translate_model_service()->GetLanguageDetectionModelFile(base::BindOnce(
-      [](base::RunLoop* run_loop, base::File model_file) {
-        EXPECT_TRUE(model_file.IsValid());
+  translate_model_service()->NotifyOnModelFileAvailable(base::BindOnce(
+      [](base::RunLoop* run_loop,
+         TranslateModelService* translate_model_service, bool is_available) {
+        EXPECT_TRUE(translate_model_service->IsModelAvailable());
+        EXPECT_TRUE(is_available);
         run_loop->Quit();
       },
-      run_loop.get()));
+      run_loop.get(), translate_model_service()));
 
   OptimizationGuideKeyedServiceFactory::GetForProfile(browser()->profile())
       ->OverrideTargetModelForTesting(
@@ -274,6 +276,10 @@ IN_PROC_BROWSER_TEST_F(TranslateModelServiceBrowserTest,
   histogram_tester.ExpectUniqueSample(
       "TranslateModelService.LanguageDetectionModel.WasLoaded", true, 1);
   run_loop->Run();
+
+  base::File model_file =
+      translate_model_service()->GetLanguageDetectionModelFile();
+  EXPECT_TRUE(model_file.IsValid());
 }
 
 IN_PROC_BROWSER_TEST_F(TranslateModelServiceBrowserTest,
@@ -389,16 +395,6 @@ IN_PROC_BROWSER_TEST_F(TranslateModelServiceBrowserTest,
   histogram_tester.ExpectUniqueSample(
       "TranslateModelService.LanguageDetectionModel.WasLoaded", true, 1);
 
-  std::unique_ptr<base::RunLoop> run_loop = std::make_unique<base::RunLoop>();
-  translate_model_service()->GetLanguageDetectionModelFile(base::BindOnce(
-      [](base::RunLoop* run_loop, base::File model_file) {
-        EXPECT_TRUE(model_file.IsValid());
-        run_loop->Quit();
-      },
-      run_loop.get()));
-
-  run_loop->Run();
-
   OptimizationGuideKeyedServiceFactory::GetForProfile(browser()->profile())
       ->OverrideTargetModelForTesting(
           optimization_guide::proto::OPTIMIZATION_TARGET_LANGUAGE_DETECTION,
@@ -412,15 +408,9 @@ IN_PROC_BROWSER_TEST_F(TranslateModelServiceBrowserTest,
   histogram_tester.ExpectUniqueSample(
       "TranslateModelService.LanguageDetectionModel.WasLoaded", true, 2);
 
-  run_loop = std::make_unique<base::RunLoop>();
-  translate_model_service()->GetLanguageDetectionModelFile(base::BindOnce(
-      [](base::RunLoop* run_loop, base::File model_file) {
-        EXPECT_TRUE(model_file.IsValid());
-        run_loop->Quit();
-      },
-      run_loop.get()));
-
-  run_loop->Run();
+  base::File model_file =
+      translate_model_service()->GetLanguageDetectionModelFile();
+  EXPECT_TRUE(model_file.IsValid());
 }
 
 }  // namespace

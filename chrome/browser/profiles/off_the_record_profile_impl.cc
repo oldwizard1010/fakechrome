@@ -598,14 +598,14 @@ class GuestSessionProfile : public OffTheRecordProfileImpl {
   }
 
   void InitChromeOSPreferences() override {
-    chromeos_preferences_ = std::make_unique<chromeos::Preferences>();
+    chromeos_preferences_ = std::make_unique<ash::Preferences>();
     chromeos_preferences_->Init(
         this, user_manager::UserManager::Get()->GetActiveUser());
   }
 
  private:
   // The guest user should be able to customize Chrome OS preferences.
-  std::unique_ptr<chromeos::Preferences> chromeos_preferences_;
+  std::unique_ptr<ash::Preferences> chromeos_preferences_;
 };
 #endif
 
@@ -641,8 +641,6 @@ void OffTheRecordProfileImpl::OnParentZoomLevelChanged(
       host_zoom_map->SetZoomLevelForHostAndScheme(change.scheme,
           change.host,
           change.zoom_level);
-      return;
-    case HostZoomMap::PAGE_SCALE_IS_ONE_CHANGED:
       return;
   }
 }

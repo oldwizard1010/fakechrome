@@ -18,7 +18,7 @@ namespace features {
 // All features in alphabetical order.
 
 // Enables the allowActivationDelegation attribute on iframes.
-// https://www.chromestatus.com/features/6025124331388928
+// https://www.chromestatus.com/feature/6025124331388928
 //
 // TODO(mustaq): Deprecated, see kUserActivationPostMessageTransfer.
 const base::Feature kAllowActivationDelegationAttr{
@@ -69,6 +69,11 @@ const base::Feature kAudioServiceSandbox {
 #endif
 };
 
+// When enabled, the browser process will only ask the renderer process to run
+// beforeunload handlers if it knows such handlers are registered.
+const base::Feature kAvoidUnnecessaryBeforeUnloadCheck{
+    "AvoidUnnecessaryBeforeUnloadCheck", base::FEATURE_DISABLED_BY_DEFAULT};
+
 // Kill switch for Background Fetch.
 const base::Feature kBackgroundFetch{"BackgroundFetch",
                                      base::FEATURE_ENABLED_BY_DEFAULT};
@@ -76,10 +81,6 @@ const base::Feature kBackgroundFetch{"BackgroundFetch",
 // Enable using the BackForwardCache.
 const base::Feature kBackForwardCache{"BackForwardCache",
                                       base::FEATURE_ENABLED_BY_DEFAULT};
-
-// Allows pages with a media play to stay eligible the back/forward cache.
-const base::Feature kBackForwardCacheMediaPlay{
-    "BackForwardCacheMediaPlay", base::FEATURE_DISABLED_BY_DEFAULT};
 
 // Allows pages that created a MediaSession service to stay eligible for the
 // back/forward cache.
@@ -283,6 +284,10 @@ const base::Feature kEmbeddingRequiresOptIn{"EmbeddingRequiresOptIn",
 // Enables canvas 2d methods BeginLayer and EndLayer.
 const base::Feature kEnableCanvas2DLayers{"EnableCanvas2DLayers",
                                           base::FEATURE_DISABLED_BY_DEFAULT};
+
+// Enables canvas context to clear context when it's running in background.
+const base::Feature kEnableCanvasContextLostInBackground{
+    "EnableCanvasContextLostInBackground", base::FEATURE_DISABLED_BY_DEFAULT};
 
 // Enables new canvas 2d api features. Enabled either with either
 // enable-experimental-canvas-features or new-canvas-2d-api runtime flags
@@ -571,12 +576,6 @@ const base::Feature kProcessSharingWithStrictSiteInstances{
 const base::Feature kHighPriorityBeforeUnload{
     "HighPriorityBeforeUnload", base::FEATURE_DISABLED_BY_DEFAULT};
 
-// Under this flag bootstrap (aka startup) tasks will be prioritized. This flag
-// is used by various modules to determine whether special scheduling
-// arrangements need to be made to prioritize certain tasks.
-const base::Feature kPrioritizeBootstrapTasks = {
-    "PrioritizeBootstrapTasks", base::FEATURE_ENABLED_BY_DEFAULT};
-
 // Requires that CORS preflight requests succeed before sending private network
 // requests. This flag implies `kPrivateNetworkAccessSendPreflights`.
 // See: https://wicg.github.io/private-network-access/#cors-preflight
@@ -715,17 +714,17 @@ const base::Feature kSharedArrayBufferOnDesktop{
     "SharedArrayBufferOnDesktop", base::FEATURE_DISABLED_BY_DEFAULT};
 
 // Signed Exchange Reporting for distributors
-// https://www.chromestatus.com/features/5687904902840320
+// https://www.chromestatus.com/feature/5687904902840320
 const base::Feature kSignedExchangeReportingForDistributors{
     "SignedExchangeReportingForDistributors", base::FEATURE_ENABLED_BY_DEFAULT};
 
 // Subresource prefetching+loading via Signed HTTP Exchange
-// https://www.chromestatus.com/features/5126805474246656
+// https://www.chromestatus.com/feature/5126805474246656
 const base::Feature kSignedExchangeSubresourcePrefetch{
     "SignedExchangeSubresourcePrefetch", base::FEATURE_ENABLED_BY_DEFAULT};
 
 // Origin-Signed HTTP Exchanges (for WebPackage Loading)
-// https://www.chromestatus.com/features/5745285984681984
+// https://www.chromestatus.com/feature/5745285984681984
 const base::Feature kSignedHTTPExchange{"SignedHTTPExchange",
                                         base::FEATURE_ENABLED_BY_DEFAULT};
 
@@ -810,7 +809,9 @@ const base::Feature kDisableProcessReuse{"DisableProcessReuse",
 
 #if defined(OS_ANDROID)
 // Controls whether Android tries to always have a warm spare renderer process
-// around for the most recently requested BrowserContext.
+// around for the most recently requested BrowserContext. Unlike desktop which
+// creates a spare renderer as soon as the previous one is used, Android creates
+// it after a page stops loading.
 const base::Feature kSpareRenderer{"SpareRenderer",
                                    base::FEATURE_DISABLED_BY_DEFAULT};
 #endif
@@ -860,8 +861,7 @@ const base::Feature kTouchpadAsyncPinchEvents{"TouchpadAsyncPinchEvents",
 // only enabled by default on CrOS, LaCrOS and Windows.
 const base::Feature kTouchpadOverscrollHistoryNavigation {
   "TouchpadOverscrollHistoryNavigation",
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS) || \
-    defined(OS_WIN)
+#if defined(OS_CHROMEOS) || defined(OS_WIN)
       base::FEATURE_ENABLED_BY_DEFAULT
 #else
       base::FEATURE_DISABLED_BY_DEFAULT
@@ -949,9 +949,10 @@ const base::Feature kWebAssemblyTiering{"WebAssemblyTiering",
 // Enable WebAssembly trap handler.
 const base::Feature kWebAssemblyTrapHandler {
   "WebAssemblyTrapHandler",
-#if (defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_WIN) || \
-     defined(OS_MAC)) &&                                             \
-    defined(ARCH_CPU_X86_64)
+#if ((defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_WIN) || \
+      defined(OS_MAC)) &&                                             \
+     defined(ARCH_CPU_X86_64)) ||                                     \
+    (defined(OS_MAC) && defined(ARCH_CPU_ARM64))
       base::FEATURE_ENABLED_BY_DEFAULT
 #else
       base::FEATURE_DISABLED_BY_DEFAULT
@@ -962,11 +963,6 @@ const base::Feature kWebAssemblyTrapHandler {
 // https://w3c.github.io/webauthn
 const base::Feature kWebAuth{"WebAuthentication",
                              base::FEATURE_ENABLED_BY_DEFAULT};
-
-// Controls whether WebAuthn assertion transport is enabled.
-const base::Feature kWebAuthAuthenticatorAttachment{
-    "WebAuthenticationAuthenticatorAttachment",
-    base::FEATURE_DISABLED_BY_DEFAULT};
 
 // Controls whether CTAP2 devices can communicate via the WebAuthentication API
 // using pairingless BLE protocol.
@@ -1055,6 +1051,12 @@ const base::Feature kWebXr{"WebXR", base::FEATURE_ENABLED_BY_DEFAULT};
 const base::Feature kWebXrArModule{"WebXRARModule",
                                    base::FEATURE_ENABLED_BY_DEFAULT};
 
+// Controls whether service worker process priority is affected by client
+// process fore/background state change.
+const base::Feature kChangeServiceWorkerPriorityForClientForegroundStateChange{
+    "ChangeServiceWorkerPriorityForClientForegroundStateChange",
+    base::FEATURE_DISABLED_BY_DEFAULT};
+
 #if defined(OS_ANDROID)
 // Allows the use of page zoom in place of accessibility text autosizing, and
 // updated UI to replace existing Chrome Accessibility Settings.
@@ -1140,7 +1142,7 @@ const base::Feature kRetryGetVideoCaptureDeviceInfos{
 // exception), report that error back the crash reporting infrastructure, same
 // as we do for program crashes.
 const base::Feature kSendWebUIJavaScriptErrorReports{
-    "SendWebUIJavaScriptErrorReports", base::FEATURE_DISABLED_BY_DEFAULT};
+    "SendWebUIJavaScriptErrorReports", base::FEATURE_ENABLED_BY_DEFAULT};
 // Parameter: Should we send the error reports to the production server? If
 // false, we send to the staging server, which is useful for developers (doesn't
 // pollute the report database).
@@ -1150,16 +1152,6 @@ const base::FeatureParam<bool>
     kWebUIJavaScriptErrorReportsSendToProductionParam{
         &kSendWebUIJavaScriptErrorReports,
         kSendWebUIJavaScriptErrorReportsSendToProductionVariation, true};
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-// Controls whether the new subtree capture path is used for window capturing on
-// ChromeOS Ash, instead of the legacy SlowWindowCapturerChromeOS
-// implementation.
-// TODO(crbug.com/1210549): remove once we have determined the new path is
-// stable.
-const base::Feature kAuraWindowSubtreeCapture{"AuraWindowSubtreeCapture",
-                                              base::FEATURE_ENABLED_BY_DEFAULT};
 #endif
 
 #if defined(WEBRTC_USE_PIPEWIRE)

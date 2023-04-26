@@ -15,7 +15,6 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
@@ -104,6 +103,10 @@ class WrappedDeviceFactory final : public media::FakeVideoCaptureDeviceFactory {
       media::VideoFacingMode::MEDIA_VIDEO_FACING_USER;
 
   WrappedDeviceFactory() = default;
+
+  WrappedDeviceFactory(const WrappedDeviceFactory&) = delete;
+  WrappedDeviceFactory& operator=(const WrappedDeviceFactory&) = delete;
+
   ~WrappedDeviceFactory() override = default;
 
   std::unique_ptr<media::VideoCaptureDevice> CreateDevice(
@@ -145,8 +148,6 @@ class WrappedDeviceFactory final : public media::FakeVideoCaptureDeviceFactory {
   }
 
   std::vector<WrappedDevice*> devices_;
-
-  DISALLOW_COPY_AND_ASSIGN(WrappedDeviceFactory);
 };
 
 // Listener class used to track progress of VideoCaptureManager test.

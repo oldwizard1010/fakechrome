@@ -5,12 +5,10 @@
 #ifndef CHROME_BROWSER_ANDROID_AUTOFILL_ASSISTANT_CLIENT_ANDROID_H_
 #define CHROME_BROWSER_ANDROID_AUTOFILL_ASSISTANT_CLIENT_ANDROID_H_
 
-#include <map>
 #include <memory>
 #include <string>
 
 #include "base/android/scoped_java_ref.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/android/autofill_assistant/ui_controller_android.h"
 #include "components/autofill_assistant/browser/client.h"

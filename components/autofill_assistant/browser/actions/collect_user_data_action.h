@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "base/macros.h"
+#include "base/containers/flat_map.h"
 #include "base/memory/weak_ptr.h"
 #include "components/autofill/core/browser/data_model/autofill_profile.h"
 #include "components/autofill/core/browser/personal_data_manager.h"
@@ -96,7 +96,8 @@ class CollectUserDataAction : public Action,
   bool CreateOptionsFromProto();
 
   bool CheckInitialAutofillDataComplete(
-      const std::vector<std::unique_ptr<autofill::AutofillProfile>>& profiles,
+      const std::vector<std::unique_ptr<Contact>>& contacts,
+      const std::vector<std::unique_ptr<Address>>& addresses,
       const std::vector<std::unique_ptr<PaymentInstrument>>&
           payment_instruments);
 
@@ -113,7 +114,8 @@ class CollectUserDataAction : public Action,
   void UpdatePersonalDataManagerCards(
       UserData* user_data,
       UserData::FieldChange* field_change = nullptr);
-  void UpdateSelectedProfiles(UserData* user_data);
+  void UpdateSelectedContact(UserData* user_data);
+  void UpdateSelectedShippingAddress(UserData* user_data);
   void UpdateSelectedCreditCard(UserData* user_data);
   void UpdateDateTimeRangeStart(UserData* user_data,
                                 UserData::FieldChange* field_change = nullptr);
@@ -128,7 +130,7 @@ class CollectUserDataAction : public Action,
   ProcessActionCallback callback_;
 
   // Maps login choice identifiers to the corresponding login details.
-  std::map<std::string, std::unique_ptr<LoginDetails>> login_details_map_;
+  base::flat_map<std::string, std::unique_ptr<LoginDetails>> login_details_map_;
 
   base::WeakPtrFactory<CollectUserDataAction> weak_ptr_factory_{this};
 };

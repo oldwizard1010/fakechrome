@@ -7,7 +7,6 @@
 
 #include <string>
 
-#include "base/macros.h"
 #include "content/public/browser/tts_controller.h"
 #include "content/public/browser/tts_platform.h"
 
@@ -17,6 +16,9 @@ namespace content {
 class TtsPlatformImpl : public TtsPlatform {
  public:
   static TtsPlatformImpl* GetInstance();
+
+  TtsPlatformImpl(const TtsPlatformImpl&) = delete;
+  TtsPlatformImpl& operator=(const TtsPlatformImpl&) = delete;
 
   // TtsPlatform overrides.
   void LoadBuiltInTtsEngine(BrowserContext* browser_context) override;
@@ -40,8 +42,6 @@ class TtsPlatformImpl : public TtsPlatform {
   virtual ~TtsPlatformImpl() {}
 
   std::string error_;
-
-  DISALLOW_COPY_AND_ASSIGN(TtsPlatformImpl);
 };
 
 }  // namespace content

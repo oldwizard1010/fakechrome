@@ -9,6 +9,8 @@
 #include <memory>
 #include <utility>
 
+#include "ash/components/settings/cros_settings_names.h"
+#include "ash/constants/ash_features.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/constants/ash_switches.h"
 #include "ash/public/cpp/login_types.h"
@@ -51,7 +53,6 @@
 #include "chromeos/dbus/tpm_manager/tpm_manager.pb.h"
 #include "chromeos/dbus/tpm_manager/tpm_manager_client.h"
 #include "chromeos/dbus/userdataauth/userdataauth_client.h"
-#include "chromeos/settings/cros_settings_names.h"
 #include "components/account_id/account_id.h"
 #include "components/arc/arc_util.h"
 #include "components/prefs/pref_service.h"
@@ -170,8 +171,7 @@ bool IsUserAllowedForARC(const AccountId& account_id) {
 
 AccountId GetOwnerAccountId() {
   std::string owner_email;
-  chromeos::CrosSettings::Get()->GetString(chromeos::kDeviceOwner,
-                                           &owner_email);
+  CrosSettings::Get()->GetString(kDeviceOwner, &owner_email);
   const AccountId owner = user_manager::known_user::GetAccountId(
       owner_email, std::string() /* id */, AccountType::UNKNOWN);
   return owner;
@@ -771,11 +771,31 @@ void UserSelectionScreen::ShowBannerMessage(const std::u16string& message,
 void UserSelectionScreen::ShowUserPodCustomIcon(
     const AccountId& account_id,
     const proximity_auth::ScreenlockBridge::UserPodCustomIconInfo& icon_info) {
+  if (base::FeatureList::IsEnabled(ash::features::kSmartLockUIRevamp))
+    return;
+
   view_->ShowUserPodCustomIcon(account_id, icon_info);
 }
 
 void UserSelectionScreen::HideUserPodCustomIcon(const AccountId& account_id) {
+  if (base::FeatureList::IsEnabled(ash::features::kSmartLockUIRevamp))
+    return;
+
   view_->HideUserPodCustomIcon(account_id);
+}
+
+void UserSelectionScreen::SetSmartLockState(const AccountId& account_id,
+                                            SmartLockState state) {
+  if (base::FeatureList::IsEnabled(ash::features::kSmartLockUIRevamp)) {
+    view_->SetSmartLockState(account_id, state);
+  }
+}
+
+void UserSelectionScreen::NotifySmartLockAuthResult(const AccountId& account_id,
+                                                    bool success) {
+  if (base::FeatureList::IsEnabled(ash::features::kSmartLockUIRevamp)) {
+    view_->NotifySmartLockAuthResult(account_id, success);
+  }
 }
 
 void UserSelectionScreen::EnableInput() {
@@ -911,9 +931,8 @@ UserSelectionScreen::UpdateAndReturnUserListForAsh() {
             gaia::ExtractDomainName(user->display_email());
       }
     }
-    chromeos::CrosSettings::Get()->GetBoolean(
-        chromeos::kDeviceShowNumericKeyboardForPassword,
-        &user_info.show_pin_pad_for_password);
+    CrosSettings::Get()->GetBoolean(kDeviceShowNumericKeyboardForPassword,
+                                    &user_info.show_pin_pad_for_password);
     user_manager::known_user::GetBooleanPref(
         user->GetAccountId(), prefs::kLoginDisplayPasswordButtonEnabled,
         &user_info.show_display_password_button);

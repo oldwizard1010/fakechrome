@@ -13,7 +13,6 @@
 #include "base/callback.h"
 #include "base/i18n/rtl.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/trace_event/trace_event.h"
 #include "base/values.h"
@@ -340,7 +339,7 @@ void WebUILoginView::OnKeyboardVisibilityChanged(bool visible) {
 // WebUILoginView private: -----------------------------------------------------
 
 bool WebUILoginView::HandleContextMenu(
-    content::RenderFrameHost* render_frame_host,
+    content::RenderFrameHost& render_frame_host,
     const content::ContextMenuParams& params) {
 #ifndef NDEBUG
   // Do not show the context menu.

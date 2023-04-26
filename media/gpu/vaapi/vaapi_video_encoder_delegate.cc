@@ -25,7 +25,6 @@ VaapiVideoEncoderDelegate::EncodeJob::EncodeJob(
     scoped_refptr<CodecPicture> picture,
     std::unique_ptr<ScopedVABuffer> coded_buffer)
     : input_frame_(input_frame),
-      timestamp_(input_frame->timestamp()),
       keyframe_(keyframe),
       input_surface_(input_surface),
       picture_(std::move(picture)),
@@ -38,29 +37,19 @@ VaapiVideoEncoderDelegate::EncodeJob::EncodeJob(
 VaapiVideoEncoderDelegate::EncodeJob::EncodeJob(
     scoped_refptr<VideoFrame> input_frame,
     bool keyframe)
-    : input_frame_(input_frame),
-      timestamp_(input_frame->timestamp()),
-      keyframe_(keyframe) {}
+    : input_frame_(input_frame), keyframe_(keyframe) {}
 
 VaapiVideoEncoderDelegate::EncodeJob::~EncodeJob() = default;
 
-void VaapiVideoEncoderDelegate::EncodeJob::AddSetupCallback(
-    base::OnceClosure cb) {
-  DCHECK(!cb.is_null());
-  setup_callbacks_.push(std::move(cb));
+std::unique_ptr<VaapiVideoEncoderDelegate::EncodeResult>
+VaapiVideoEncoderDelegate::EncodeJob::CreateEncodeResult(
+    const BitstreamBufferMetadata& metadata) && {
+  return std::make_unique<EncodeResult>(input_surface_,
+                                        std::move(coded_buffer_), metadata);
 }
 
-void VaapiVideoEncoderDelegate::EncodeJob::AddReferencePicture(
-    scoped_refptr<CodecPicture> ref_pic) {
-  DCHECK(ref_pic);
-  reference_pictures_.push_back(ref_pic);
-}
-
-void VaapiVideoEncoderDelegate::EncodeJob::ExecuteSetupCallbacks() {
-  while (!setup_callbacks_.empty()) {
-    std::move(setup_callbacks_.front()).Run();
-    setup_callbacks_.pop();
-  }
+base::TimeDelta VaapiVideoEncoderDelegate::EncodeJob::timestamp() const {
+  return input_frame_->timestamp();
 }
 
 const scoped_refptr<VideoFrame>&
@@ -83,18 +72,21 @@ VaapiVideoEncoderDelegate::EncodeJob::picture() const {
 }
 
 VaapiVideoEncoderDelegate::EncodeResult::EncodeResult(
-    std::unique_ptr<EncodeJob> encode_job,
+    scoped_refptr<VASurface> surface,
+    std::unique_ptr<ScopedVABuffer> coded_buffer,
     const BitstreamBufferMetadata& metadata)
-    : encode_job_(std::move(encode_job)), metadata_(metadata) {}
+    : surface_(std::move(surface)),
+      coded_buffer_(std::move(coded_buffer)),
+      metadata_(metadata) {}
 
 VaapiVideoEncoderDelegate::EncodeResult::~EncodeResult() = default;
 
 VASurfaceID VaapiVideoEncoderDelegate::EncodeResult::input_surface_id() const {
-  return encode_job_->input_surface()->id();
+  return surface_->id();
 }
 
 VABufferID VaapiVideoEncoderDelegate::EncodeResult::coded_buffer_id() const {
-  return encode_job_->coded_buffer_id();
+  return coded_buffer_->id();
 }
 
 const BitstreamBufferMetadata&
@@ -146,8 +138,6 @@ VaapiVideoEncoderDelegate::Encode(std::unique_ptr<EncodeJob> encode_job) {
     return nullptr;
   }
 
-  encode_job->ExecuteSetupCallbacks();
-
   if (!vaapi_wrapper_->ExecuteAndDestroyPendingBuffers(va_surface_id)) {
     VLOGF(1) << "Failed to execute encode";
     return nullptr;
@@ -163,35 +153,7 @@ VaapiVideoEncoderDelegate::Encode(std::unique_ptr<EncodeJob> encode_job) {
   BitrateControlUpdate(encoded_chunk_size);
 
   auto metadata = GetMetadata(*encode_job, encoded_chunk_size);
-  return std::make_unique<EncodeResult>(std::move(encode_job), metadata);
-}
-
-void VaapiVideoEncoderDelegate::SubmitBuffer(
-    VABufferType type,
-    scoped_refptr<base::RefCountedBytes> buffer) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  if (!vaapi_wrapper_->SubmitBuffer(type, buffer->size(), buffer->front()))
-    error_cb_.Run();
-}
-
-void VaapiVideoEncoderDelegate::SubmitVAEncMiscParamBuffer(
-    VAEncMiscParameterType type,
-    scoped_refptr<base::RefCountedBytes> buffer) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  const size_t temp_size = sizeof(VAEncMiscParameterBuffer) + buffer->size();
-  std::vector<uint8_t> temp(temp_size);
-
-  auto* const va_buffer =
-      reinterpret_cast<VAEncMiscParameterBuffer*>(temp.data());
-  va_buffer->type = type;
-  memcpy(va_buffer->data, buffer->front(), buffer->size());
-
-  if (!vaapi_wrapper_->SubmitBuffer(VAEncMiscParameterBufferType, temp_size,
-                                    temp.data())) {
-    error_cb_.Run();
-  }
+  return std::move(*encode_job).CreateEncodeResult(metadata);
 }
 
 }  // namespace media

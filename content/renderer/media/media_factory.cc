@@ -108,6 +108,7 @@
 #if BUILDFLAG(ENABLE_CAST_STREAMING_RENDERER)
 // Enable libcast streaming receiver.
 #include "components/cast_streaming/public/cast_streaming_url.h"  // nogncheck
+#include "media/cast/receiver/cast_streaming_renderer_controller_proxy.h"  // nogncheck
 #include "media/cast/receiver/cast_streaming_renderer_factory.h"  // nogncheck
 #endif
 
@@ -124,6 +125,7 @@
 
 #if BUILDFLAG(IS_WIN)
 #include "content/renderer/media/win/dcomp_texture_wrapper_impl.h"
+#include "media/base/win/mf_feature_checks.h"
 #include "media/cdm/win/media_foundation_cdm.h"
 #include "media/mojo/clients/win/media_foundation_renderer_client_factory.h"
 #endif  // BUILDFLAG(IS_WIN)
@@ -701,15 +703,6 @@ MediaFactory::CreateRendererFactorySelector(
           render_frame_->GetBrowserInterfaceBroker()));
 #endif  // BUILDFLAG(ENABLE_CAST_AUDIO_RENDERER)
 
-  if (!is_base_renderer_factory_set) {
-    DCHECK(!use_media_player_renderer);
-    is_base_renderer_factory_set = true;
-    auto default_factory = CreateDefaultRendererFactory(
-        media_log, decoder_factory, render_thread, render_frame_);
-    factory_selector->AddBaseFactory(RendererType::kDefault,
-                                     std::move(default_factory));
-  }
-
 #if BUILDFLAG(ENABLE_MEDIA_REMOTING)
   mojo::PendingRemote<media::mojom::RemotingSource> remoting_source;
   auto remoting_source_receiver =
@@ -736,8 +729,10 @@ MediaFactory::CreateRendererFactorySelector(
 #endif
 
 #if BUILDFLAG(IS_WIN)
-  // Only use MediaFoundationRenderer when MediaFoundationCdm is available.
-  if (media::MediaFoundationCdm::IsAvailable()) {
+  bool use_mf_for_clear = media::SupportMediaFoundationClearPlayback();
+  // Only use MediaFoundationRenderer when MediaFoundationCdm is available or
+  // MediaFoundation for Clear is supported.
+  if (media::MediaFoundationCdm::IsAvailable() || use_mf_for_clear) {
     auto dcomp_texture_creation_cb =
         base::BindRepeating(&DCOMPTextureWrapperImpl::Create,
                             render_thread->GetDCOMPTextureFactory(),
@@ -748,6 +743,17 @@ MediaFactory::CreateRendererFactorySelector(
         std::make_unique<media::MediaFoundationRendererClientFactory>(
             media_log, std::move(dcomp_texture_creation_cb),
             CreateMojoRendererFactory()));
+
+    if (use_mf_for_clear) {
+      // We want to use Media Foundation even for non-explicit Media Foundation
+      // clients, register Media Foundation as the base renderer type.
+      // We don't use AddBaseFactory here because if ENABLE_MOJO_RENDERER
+      // is set then we may have already called it previously and it is
+      // expected that AddBaseFactory will only be called when there is not
+      // already a base factory type set. Instead manually set the new base
+      // factory type with SetBaseRendererType.
+      factory_selector->SetBaseRendererType(RendererType::kMediaFoundation);
+    }
   }
 #endif  // BUILDFLAG(IS_WIN)
 
@@ -778,6 +784,9 @@ MediaFactory::CreateRendererFactorySelector(
 
 #if BUILDFLAG(ENABLE_CAST_STREAMING_RENDERER)
   if (cast_streaming::IsCastStreamingMediaSourceUrl(url)) {
+    DCHECK(!is_base_renderer_factory_set);
+    DCHECK(!use_media_player_renderer);
+    is_base_renderer_factory_set = true;
 #if BUILDFLAG(ENABLE_CAST_RENDERER)
     auto default_factory_cast_streaming =
         std::make_unique<CastRendererClientFactory>(
@@ -791,15 +800,31 @@ MediaFactory::CreateRendererFactorySelector(
         media_log, decoder_factory, render_thread, render_frame_);
 #endif  // BUILDFLAG(ENABLE_CAST_RENDERER)
 
+    auto* renderer_controller_proxy =
+        media::cast::CastStreamingRendererControllerProxy::GetInstance();
+    DCHECK(renderer_controller_proxy);
     auto cast_streaming_renderer_factory =
         std::make_unique<media::cast::CastStreamingRendererFactory>(
-            std::move(default_factory_cast_streaming));
+            std::move(default_factory_cast_streaming),
+            renderer_controller_proxy->GetReceiver(render_frame_));
     factory_selector->AddBaseFactory(
         RendererType::kCastStreaming,
         std::move(cast_streaming_renderer_factory));
   }
 #endif  // BUILDFLAG(ENABLE_CAST_STREAMING_RENDERER)
 #endif  // BUILDFLAG(IS_CHROMECAST)
+
+  if (!is_base_renderer_factory_set) {
+    // TODO(crbug.com/1265448): These sorts of checks shouldn't be necessary if
+    // this method were significantly refactored to split things up by
+    // Android/non-Android/Cast/etc...
+    DCHECK(!use_media_player_renderer);
+    is_base_renderer_factory_set = true;
+    auto default_factory = CreateDefaultRendererFactory(
+        media_log, decoder_factory, render_thread, render_frame_);
+    factory_selector->AddBaseFactory(RendererType::kDefault,
+                                     std::move(default_factory));
+  }
 
   return factory_selector;
 }

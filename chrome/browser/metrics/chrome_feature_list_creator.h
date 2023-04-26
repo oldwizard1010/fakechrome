@@ -8,7 +8,6 @@
 #include <memory>
 #include <string>
 
-#include "base/macros.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/chrome_browser_field_trials.h"
@@ -77,7 +76,7 @@ class ChromeFeatureListCreator {
  private:
   void CreatePrefService();
   void ConvertFlagsToSwitches();
-  void SetupFieldTrials();
+  void SetUpFieldTrials();
   void CreateMetricsServices();
 
   // Imports variations initial preference any preferences (to local state)

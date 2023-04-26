@@ -33,8 +33,8 @@ type AccountInfo = {
 const SettingsDownloadsPageElementBase =
     WebUIListenerMixin(PrefsMixin(PolymerElement));
 
-/** @polymer */
-class SettingsDownloadsPageElement extends SettingsDownloadsPageElementBase {
+export class SettingsDownloadsPageElement extends
+    SettingsDownloadsPageElementBase {
   static get is() {
     return 'settings-downloads-page';
   }
@@ -175,6 +175,12 @@ class SettingsDownloadsPageElement extends SettingsDownloadsPageElementBase {
 
   private onClearAutoOpenFileTypesTap_() {
     this.browserProxy_.resetAutoOpenFileTypes();
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'settings-downloads-page': SettingsDownloadsPageElement;
   }
 }
 

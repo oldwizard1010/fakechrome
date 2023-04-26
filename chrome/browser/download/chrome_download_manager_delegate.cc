@@ -13,7 +13,6 @@
 #include "base/callback.h"
 #include "base/callback_helpers.h"
 #include "base/files/file_util.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/field_trial_params.h"
@@ -1575,7 +1574,7 @@ void ChromeDownloadManagerDelegate::OnDownloadTargetDetermined(
           web_contents ? web_contents->GetTopLevelNativeWindow() : nullptr;
       if (native_window && item) {
         MixedContentDownloadDialogBridge::GetInstance()->CreateDialog(
-            item, target_path.BaseName(), mcs, native_window,
+            item, target_path.BaseName(), native_window,
             base::BindOnce(HandleMixedDownloadInfoBarResult, item,
                            std::move(target_info), std::move(callback)));
         return;

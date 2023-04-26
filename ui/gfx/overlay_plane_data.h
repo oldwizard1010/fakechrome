@@ -5,10 +5,14 @@
 #ifndef UI_GFX_OVERLAY_PLANE_DATA_H_
 #define UI_GFX_OVERLAY_PLANE_DATA_H_
 
+#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "third_party/skia/include/core/SkColor.h"
+#include "ui/gfx/color_space.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/rrect_f.h"
 #include "ui/gfx/gfx_export.h"
+#include "ui/gfx/hdr_metadata.h"
 #include "ui/gfx/overlay_priority_hint.h"
 #include "ui/gfx/overlay_transform.h"
 
@@ -24,8 +28,13 @@ struct GFX_EXPORT OverlayPlaneData {
                    const Rect& damage_rect,
                    float opacity,
                    OverlayPriorityHint priority_hint,
-                   const gfx::RRectF& rounded_corners);
+                   const gfx::RRectF& rounded_corners,
+                   const gfx::ColorSpace& color_space,
+                   const absl::optional<HDRMetadata>& hdr_metadata,
+                   absl::optional<SkColor> solid_color = absl::nullopt);
   ~OverlayPlaneData();
+
+  OverlayPlaneData(const OverlayPlaneData& other);
 
   // Specifies the stacking order of the plane relative to the main framebuffer
   // located at index 0.
@@ -55,6 +64,15 @@ struct GFX_EXPORT OverlayPlaneData {
 
   // Specifies the rounded corners of overlay plane.
   RRectF rounded_corners;
+
+  // ColorSpace for this overlay.
+  gfx::ColorSpace color_space;
+
+  // Optional HDR meta data required to display this overlay.
+  absl::optional<HDRMetadata> hdr_metadata;
+
+  // Set if this is a solid color quad.
+  absl::optional<SkColor> solid_color;
 };
 
 }  // namespace gfx

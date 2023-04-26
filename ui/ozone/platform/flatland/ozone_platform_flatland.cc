@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "base/check.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/no_destructor.h"
@@ -97,11 +96,9 @@ class OzonePlatformFlatland : public OzonePlatform,
     BindInMainProcessIfNecessary();
 
     // TODO(crbug.com/1230150): Add a hook for the RootPresenter equivalent of
-    // Flatland here to create a window.
-    if (!properties.view_token) {
-      CHECK(properties.allow_null_view_token_for_test);
-      ui::fuchsia::InitializeViewTokenAndPresentView(&properties);
-    }
+    // Flatland to ui::fuchsia::InitializeViewTokenAndPresentView() create a
+    // window.
+    CHECK(properties.view_creation_token.value.is_valid());
     return std::make_unique<FlatlandWindow>(window_manager_.get(), delegate,
                                             std::move(properties));
   }

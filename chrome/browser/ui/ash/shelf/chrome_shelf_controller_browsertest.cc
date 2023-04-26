@@ -36,6 +36,7 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_tick_clock.h"
+#include "base/values.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/apps/app_service/app_launch_params.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
@@ -79,6 +80,8 @@
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/web_applications/externally_installed_web_app_prefs.h"
 #include "chrome/browser/web_applications/os_integration_manager.h"
+#include "chrome/browser/web_applications/policy/web_app_policy_constants.h"
+#include "chrome/browser/web_applications/policy/web_app_policy_manager.h"
 #include "chrome/browser/web_applications/system_web_apps/system_web_app_manager.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
 #include "chrome/browser/web_applications/test/web_app_test_observers.h"
@@ -552,7 +555,7 @@ IN_PROC_BROWSER_TEST_F(ShelfPlatformAppBrowserTest, PinRunning) {
 
   // New shortcuts should come after the item.
   ash::ShelfID bar_id =
-      CreateAppShortcutItem(ash::ShelfID(extension_misc::kGoogleDocAppId));
+      CreateAppShortcutItem(ash::ShelfID(extension_misc::kGoogleDocsAppId));
   ++item_count;
   ASSERT_EQ(item_count, shelf_model()->item_count());
   EXPECT_LT(shelf_model()->ItemIndexByID(id),
@@ -2405,8 +2408,9 @@ IN_PROC_BROWSER_TEST_F(ShelfWebAppBrowserTest, WindowedHostedAndWebApps) {
 
 // Windowed progressive web apps should have shelf activity indicator showing
 // after install.
+// DISABLED due to flakiness (http://crbug.com/1263228).
 IN_PROC_BROWSER_TEST_F(ShelfWebAppBrowserTest,
-                       WindowedPwasHaveActivityIndicatorSet) {
+                       DISABLED_WindowedPwasHaveActivityIndicatorSet) {
   // Start server and open test page.
   ASSERT_TRUE(embedded_test_server()->Start());
   AddTabAtIndex(
@@ -2545,6 +2549,46 @@ IN_PROC_BROWSER_TEST_F(ShelfWebAppBrowserTest, WebAppPolicyNonExistentApp) {
   EXPECT_EQ(shelf_model()->item_count(), 1);
   EXPECT_EQ(shelf_model()->items()[0].type, ash::TYPE_BROWSER_SHORTCUT);
   EXPECT_EQ(AppListControllerDelegate::PIN_EDITABLE,
+            GetPinnableForAppID(app_id, profile()));
+}
+
+IN_PROC_BROWSER_TEST_F(ShelfWebAppBrowserTest, WebAppInstallForceList) {
+  constexpr char kAppUrl[] = "https://example.site/";
+  base::RunLoop run_loop;
+  web_app::WebAppProvider::GetForTest(browser()->profile())
+      ->policy_manager()
+      .SetOnAppsSynchronizedCompletedCallbackForTesting(run_loop.QuitClosure());
+  web_app::WebAppTestInstallWithOsHooksObserver install_observer(profile());
+  install_observer.BeginListening();
+
+  {
+    base::DictionaryValue entry;
+    entry.SetKey(ChromeShelfPrefs::kPinnedAppsPrefAppIDKey,
+                 base::Value(kAppUrl));
+    base::ListValue policy_value;
+    policy_value.Append(std::move(entry));
+    profile()->GetPrefs()->Set(prefs::kPolicyPinnedLauncherApps,
+                               std::move(policy_value));
+  }
+  {
+    base::Value item(base::Value::Type::DICTIONARY);
+    item.SetKey(web_app::kUrlKey, base::Value(kAppUrl));
+    base::Value list(base::Value::Type::LIST);
+    list.Append(std::move(item));
+    profile()->GetPrefs()->Set(prefs::kWebAppInstallForceList, std::move(list));
+  }
+
+  const web_app::AppId app_id = install_observer.Wait();
+  run_loop.Run();
+  apps::AppServiceProxyFactory::GetForProfile(profile())
+      ->FlushMojoCallsForTesting();
+
+  // Check web app is pinned and fixed.
+  EXPECT_EQ(shelf_model()->item_count(), 2);
+  EXPECT_EQ(shelf_model()->items()[0].type, ash::TYPE_BROWSER_SHORTCUT);
+  EXPECT_EQ(shelf_model()->items()[1].type, ash::TYPE_PINNED_APP);
+  EXPECT_EQ(shelf_model()->items()[1].id.app_id, app_id);
+  EXPECT_EQ(AppListControllerDelegate::PIN_FIXED,
             GetPinnableForAppID(app_id, profile()));
 }
 

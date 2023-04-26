@@ -329,22 +329,31 @@ Try tapping the mic to ask me anything.
       <message name="IDS_HELP_APP_PERKS" desc="Name of a tab in the Help app that offers users additional perks like apps or drive storage space.">
         Perks
       </message>
-      <message name="IDS_HELP_APP_DISCOVER_TAB_SUGGESTION_CHIP" desc="Text for the suggestion chip to view a magazine showing the user tools they can use for art and design on a Chromebook. [CHAR_LIMIT=24]">
-        Discover design tools
+      <message name="IDS_HELP_APP_DISCOVER_TAB_SUGGESTION_CHIP" desc="Text for the suggestion chip to view a magazine showing the user tools they can use for creating movies on a Chromebook. [CHAR_LIMIT=24]">
+        Create your own movie
       </message>
       <message name="IDS_HELP_APP_WHATS_NEW_SUGGESTION_CHIP" desc="Text for the suggestion chip to view updated patch notes are available. [CHAR_LIMIT=24]">
         What's new with Chrome OS
       </message>
-      <message name="IDS_HELP_APP_DISCOVER_TAB_NOTIFICATION_TITLE" desc="Title for a notification that points to the Help app's Discover tab, which features a magazine to teach users how they can use their Chromebooks for art and design.">
-        Discover drawing and design tools
+      <message name="IDS_HELP_APP_DISCOVER_TAB_NOTIFICATION_TITLE" desc="Title for a notification that points to the Help app's Discover tab, which features a magazine to teach users how they can use their Chromebooks for creating movies and animations.">
+        Create your own movie
       </message>
-      <message name="IDS_HELP_APP_DISCOVER_TAB_NOTIFICATION_MESSAGE" desc="Message on a notification that points to the Help app's Discover tab, which features a magazine to teach users how they can use their Chromebooks for art and design.">
+      <message name="IDS_HELP_APP_DISCOVER_TAB_NOTIFICATION_MESSAGE" desc="Message on a notification that points to the Help app's Discover tab, which features a magazine to teach users how they can create content using their Chromebooks.">
         Check out Chromebook's new digital magazine for creators
       </message>
 
       <!-- Media App -->
       <message name="IDS_MEDIA_APP_APP_NAME" desc="Name of the Media App in the app shelf. This app is the default installed app to open and edit images, video, pdf and audio files." meaning="App name.">
         Gallery
+      </message>
+      <message name="IDS_MEDIA_APP_FILE_FILTER_AUDIO" desc="Name of the dropdown select item describing audio files. Used to filter files shown in a file picker.">
+        Audio Files
+      </message>
+      <message name="IDS_MEDIA_APP_FILE_FILTER_IMAGE" desc="Name of the dropdown select item describing image files. Used to filter files shown in a file picker.">
+        Image Files
+      </message>
+      <message name="IDS_MEDIA_APP_FILE_FILTER_VIDEO" desc="Name of the dropdown select item describing video files. Used to filter files shown in a file picker.">
+        Video Files
       </message>
 
       <!-- Pin dialog error messages -->
@@ -458,6 +467,9 @@ Try tapping the mic to ask me anything.
       </message>
       <message name="IDS_PRINT_MANAGEMENT_FILTERED_FAILED_ERROR_STATUS" desc="The error status displayed next to a print job to indicate to users that their print job failed because their printer's filter has failed.">
         Failed - Filter failed
+      </message>
+      <message name="IDS_PRINT_MANAGEMENT_CLIENT_UNAUTHORIZED_ERROR_STATUS" desc="The error status displayed next to a print job to indicate to users that their print job failed because their authorization with printer has failed.">
+        Failed - Authorization Failed
       </message>
       <message name="IDS_PRINT_MANAGEMENT_UNKNOWN_ERROR_STATUS" desc="The error status displayed next to a print job to indicate to users that their print job failed due to an unknown error.">
         Failed - Unknown error
@@ -1871,6 +1883,15 @@ Try tapping the mic to ask me anything.
       <message name="IDS_PERSONALIZATION_APP_CURRENTLY_SET" desc="Label for the currently set user wallpaper section.">
         Currently set
       </message>
+      <message name="IDS_PERSONALIZATION_APP_GOOGLE_PHOTOS" desc="Label for the Google Photos page in the wallpaper app.">
+        Google Photos
+      </message>
+      <message name="IDS_PERSONALIZATION_APP_GOOGLE_PHOTOS_ALBUMS_TAB" desc="Label for the Albums tab in the Google Photos page in the wallpaper app.">
+        Albums
+      </message>
+      <message name="IDS_PERSONALIZATION_APP_GOOGLE_PHOTOS_PHOTOS_TAB" desc="Label for the Photos tab in the Google Photos page in the wallpaper app.">
+        Photos
+      </message>
       <message name="IDS_PERSONALIZATION_APP_MY_IMAGES" desc="Label for the local images page in wallpaper app.">
         My Images
       </message>
@@ -1927,7 +1948,10 @@ Try tapping the mic to ask me anything.
         View Full Screen
       </message>
       <message name="IDS_PERSONALIZATION_APP_EXIT_FULL_SCREEN" desc="Label for the button to exit full screen wallpaper viewing mode">
-        Exit full screen
+        Back
+      </message>
+      <message name="IDS_PERSONALIZATION_APP_ARIA_LABEL_EXIT_FULL_SCREEN" desc="Aria label for the button to exit full screen wallpaper viewing mode">
+        Exit wallpaper preview
       </message>
       <message name="IDS_PERSONALIZATION_APP_SET_AS_WALLPAPER" desc="Label for the button to confirm preview wallpaper">
         Set as wallpaper
@@ -1986,6 +2010,204 @@ Try tapping the mic to ask me anything.
       </message>
       <message name="IDS_BLUETOOTH_DEVICE_LIST_PREVIOUSLY_CONNECTED" desc="Title for list displaying paired Bluetooth devices that have previously been connected.">
         Previously connected
+      </message>
+
+      <!-- Shimless RMA -->
+      <!-- Component names. Used by select components and calibration pages-->
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_AUDIO" translateable="false" desc="Name of device audio processing component.">
+        Audio
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_BATTERY" translateable="false" desc="Name of device battery component.">
+        Battery
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_STORAGE" translateable="false" desc="Name of device SSD storage component.">
+        Storage
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_VPD_CACHE" translateable="false" desc="Name of device Vital Product Data SPI flash storage component.">
+        Vpd Cached
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_NETWORK" translateable="false" desc="Name of device network component. TODO(gavindodd) clarify this.">
+        Network
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_CAMERA" translateable="false" desc="Name of device camera component.">
+        Camera
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_STYLUS" translateable="false" desc="Name of device stylus component. TODO(gavindodd) clarify this.">
+        Stylus
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_TOUCHPAD" translateable="false" desc="Name of device touchpad component.">
+        Touchpad
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_TOUCHSCREEN" translateable="false" desc="Name of device touchscreen component.">
+        Touchscreen
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_MEMORY" translateable="false" desc="Name of device memory components.">
+        Memory
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_DISPLAY_PANEL" translateable="false" desc="Name of device display panel component. TODO(gavindodd) clarify this.">
+        Display
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_CELLULAR" translateable="false" desc="Name of device cellular network component. Used for wireless internet service through a service provider such as Google Fi.">
+        Cellular
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_ETHERNET" translateable="false" desc="Name of device ethernet component. Used for wired internet connection.">
+        Ethernet
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_WIRELESS" translateable="false" desc="Name of device Wi-Fi network component.">
+        Wireless
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_BASE_ACCELEROMETER" translateable="false" desc="Name of device accelerometer component in the base (e.g. mainboard and keyboard) part of the device.">
+        Base Accelerometer
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_LID_ACCELEROMETER" translateable="false" desc="Name of device accelerometer component in the lid (e.g. screen) of the component.">
+        Lid Accelerometer
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_BASE_GYROSCOPE" translateable="false" desc="Name of device gyroscope component in the base (e.g. mainboard and keyboard) part of the device.">
+        Base Gyroscope
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_LID_GYROSCOPE" translateable="false" desc="Name of device component in the lid (e.g. screen) of the component.">
+        Lid Gyroscope
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_SCREEN" translateable="false" desc="Name of device screen component. TODO(gavindodd) clarify this.">
+        Screen
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_KEYBOARD" translateable="false" desc="Name of device keyboard component.">
+        Keyboard
+      </message>
+      <message name="IDS_SHIMLESS_RMA_COMPONENT_POWER_BUTTON" translateable="false" desc="Name of device power button component.">
+        Power Button
+      </message>
+      <!-- Splash screen -->
+      <message name="IDS_SHIMLESS_RMA_SPLASH_MESSAGE" translateable="false" desc="Message to display while waiting for RMA to initialize at boot.">
+        Entering RMA
+      </message>
+      <!-- Landing page -->
+      <message name="IDS_SHIMLESS_RMA_LANDING_PAGE_TITLE" translateable="false" desc="Title for the landing page at the start of RMA.">
+        Chromebook repair
+      </message>
+      <message name="IDS_SHIMLESS_RMA_AUTHORIZED_TECH_ONLY_WARNING" translateable="false" desc="Warning that RMA is only for qualified technicians.">
+        This repair process is intended for a trained repair technicians.
+        Start only after replacing the malfunctioning components.
+      </message>
+      <message name="IDS_SHIMLESS_RMA_VALIDATING_COMPONENTS" translateable="false" desc="Checking that device components are approved for this device.">
+        Validating components...
+      </message>
+      <message name="IDS_SHIMLESS_RMA_VALIDATED_COMPONENTS_SUCCESS" translateable="false" desc="Successfully checked that device components are approved for this device.">
+        Components are installed correctly.
+      </message>
+      <message name="IDS_SHIMLESS_RMA_VALIDATED_COMPONENTS_FAIL" translateable="false" desc="Validation check found that device components are NOT approved for this device.">
+        Components could not be validated. If you are certain you are using
+        qualified components updating Chrome OS may resolve this issue.
+      </message>
+      <!-- Network connect page -->
+      <message name="IDS_SHIMLESS_RMA_CONNECT_PAGE_TITLE" desc="Title for the connect to wifi page.">
+        Get connected
+      </message>
+      <message name="IDS_SHIMLESS_RMA_CONNECT_PAGE_DESCRIPTION" desc="Description for the connect to wifi page.">
+        Connecting to Wi-Fi is recommended to make the repair process easier.
+        Your network will be saved.
+      </message>
+      <message name="IDS_SHIMLESS_RMA_CONNECT_DIALOG_CONFIG_NAME" desc="Title for the network configuration dialog for an existing network.">
+        Configure <ph name="NAME">$1<ex>My WiFi network</ex></ph>
+      </message>
+      <message name="IDS_SHIMLESS_RMA_CONNECT_DIALOG_JOIN_TYPE" desc="Title for the network configuration dialog for a new network.">
+        Join <ph name="TYPE">$1<ex>WiFi</ex></ph> network
+      </message>
+      <message name="IDS_SHIMLESS_RMA_CONNECT_DIALOG_CONNECT" desc="Text for connect to wifi button.">
+        Connect
+      </message>
+      <message name="IDS_SHIMLESS_RMA_CONNECT_DIALOG_CANCEL" desc="Text for cancel connect to wifi button.">
+        Cancel
+      </message>
+      <!-- Select components page -->
+      <message name="IDS_SHIMLESS_RMA_SELECT_COMPONENTS_PAGE_TITLE" translateable="false" desc="The title for the select replaced components page.">
+        Select which components were replaced
+      </message>
+      <message name="IDS_SHIMLESS_RMA_REWORK_FLOW_LINK" translateable="false" desc="The text with a link that will redirect the user to the reworking flow. The reworking flow is only used when the user wants to repurpose the mainboard for another device.">
+        If you are reworking a mainboard to use in another device, go to the <ph name="LINK_BEGIN">&lt;a id="reworkFlowLink"&gt;</ph>rework flow<ph name="LINK_END">&lt;/a&gt;</ph>.
+      </message>
+      <!-- Choose destination page -->
+      <message name="IDS_SHIMLESS_RMA_CHOOSE_DESTINATION" desc="Title for the page shown when choosing the return destination of the device after repair.">
+        After repair, who will be using the device?
+      </message>
+      <message name="IDS_SHIMLESS_RMA_SAME_OWNER" desc="Text shown next to the return to original owner radio button.">
+        Device will go to the same owner
+      </message>
+      <message name="IDS_SHIMLESS_RMA_SAME_OWNER_DESCRIPTION" desc="Detailed description of when to choose return to same owner.">
+        Select this option if the ownership of the device isn't changing.
+        For example, the device is being transferred to a different person
+        within an organization.
+      </message>
+      <message name="IDS_SHIMLESS_RMA_NEW_OWNER" desc="Text shown next to the return to a new owner radio button.">
+        Device will go to a different owner
+      </message>
+      <message name="IDS_SHIMLESS_RMA_NEW_OWNER_DESCRIPTION" desc="Detailed description of when to choose return to a new owner.">
+        Select this option if the device is being restocked or refurbished for
+        distribution to a new customer.
+      </message>
+      <!-- Enter RSU code page -->
+      <message name="IDS_SHIMLESS_RMA_RSU_CODE_PAGE_TITLE" desc="Title for the RSU challenge page.">
+        Perform RMA Server Unlock
+      </message>
+      <message name="IDS_SHIMLESS_RMA_RSU_CODE_INSTRUCTIONS" translateable="false" desc="Instructions for the RSU challenge page.">
+        Get your unlock code by scanning the QR code or going to the RSU web site and entering the challenge key.
+      </message>
+      <message name="IDS_SHIMLESS_RMA_RSU_CHALLENGE_LABEL" translateable="false" desc="Label for the formatted RSU challenge key.">
+        Challenge:
+      </message>
+      <message name="IDS_SHIMLESS_RMA_RSU_HWID" translateable="false" desc="Label that shows to display the device hardware ID.">
+        HWID:  <ph name="HARDWARE_ID">$1<ex>SAMUSTEST_2082</ex></ph>
+      </message>
+      <message name="IDS_SHIMLESS_RMA_RSU_CODE_LABEL" desc="Label for the RSU code input box.">
+        Enter the unlock code:
+      </message>
+      <message name="IDS_SHIMLESS_RMA_RSU_CODE_PLACEHOLDER" translateable="false" desc="Placeholder text for empty RSU code input box.">
+        Enter RSU Code
+      </message>
+      <!-- Repair complete page -->
+      <message name="IDS_SHIMLESS_RMA_REPAIR_COMPLETED" desc="Title for the page shown when the RMA process repair process is completed.">
+        Repair completed
+      </message>
+      <!-- OS update page -->
+      <message name="IDS_SHIMLESS_RMA_UPDATE_OS_PAGE_TITLE" translateable="false" desc="Title of Chrome OS update page.">
+        Make sure Chrome OS is up to date
+      </message>
+      <message name="IDS_SHIMLESS_RMA_UPDATE_OS_INVALID_COMPONENTS" translateable="false" desc="Description when components could not be validated.">
+        An unrecognized component has been found. Unrecognized devices will not
+        be configured correctly and may be unusable. Updating to the latest
+        version of Chrome OS may resolve this issue.
+      </message>
+      <message name="IDS_SHIMLESS_RMA_UPDATE_OS_VERY_OUT_OF_DATE" translateable="false" desc="Description when the installed OS is too many versions behind the update.">
+        If Chrome OS is out of date, Shimless RMA process may have been updated
+        since this version was installed.
+      </message>
+      <message name="IDS_SHIMLESS_RMA_UPDATE_OS_OUT_OF_DATE" translateable="false" desc="Description when the installed OS is not the most recent available.">
+        Chrome OS needs an additional update to get fully up to date.
+      </message>
+      <message name="IDS_SHIMLESS_RMA_UPDATE_OS_NETWORK_UNAVAILABLE" translateable="false" desc="Notice that no network is available when attempting to update Chrome OS.">
+        To check if OS is up to date, connect to the internet in previous screen
+      </message>
+      <message name="IDS_SHIMLESS_RMA_UPDATE_OS_FAILED_TO_START" translateable="false" desc="Notice when the call to update Chrome OS fails unexpectedly.">
+        Failed to start Chrome OS update.
+      </message>
+      <message name="IDS_SHIMLESS_RMA_CURRENT_VERSION" translateable="false" desc="Label that shows the current installed version of Chrome OS.">
+        Current version <ph name="VERSION_NUMBER">$1<ex>90.0.1234.56</ex></ph>
+      </message>
+      <message name="IDS_SHIMLESS_RMA_CURRENT_VERSION_OUT_OF_DATE" translateable="false" desc="Label that shows the when the currently installed version of Chrome OS is out of date.">
+        Current version <ph name="VERSION_NUMBER">$1<ex>90.0.1234.56</ex></ph> is out of date
+      </message>
+      <message name="IDS_SHIMLESS_RMA_CURRENT_VERSION_UP_TO_DATE" translateable="false" desc="Label that shows the when the currently installed version of Chrome OS is up to date.">
+        Current version <ph name="VERSION_NUMBER">$1<ex>90.0.1234.56</ex></ph> is up to date
+      </message>
+      <message name="IDS_SHIMLESS_RMA_UPDATE_VERSION_AND_RESTART" desc="Label for the button that updates the device to the latest version of Chrome OS then restarts the device.">
+        Update version &#38; restart
+      </message>
+      <!-- Manually disable wp page -->
+      <message name="IDS_SHIMLESS_RMA_MANUALLY_DISABLE_WP_INSTRUCTIONS" translateable="false" desc="The text instructions for how to manually disable write-protect on the device.">
+        Disable write-protect to continue to the next screen. Learn how to disable write-proect for this device by viewing the instructions at <ph name="HELP_LINK">$1<ex>g.co/help</ex></ph> or scanning the QR code. Once you disable write-protect, you will need to leave it disabled until the repair process is finished.
+      </message>
+      <message name="IDS_SHIMLESS_RMA_MANUALLY_DISABLE_WP_TITLE" translateable="false" desc="The title for the page to manually disable write-protect on the device.">
+        Manually disable write-protect
       </message>
     </messages>
   </release>

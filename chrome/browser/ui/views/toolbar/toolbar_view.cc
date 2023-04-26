@@ -22,6 +22,7 @@
 #include "chrome/browser/command_updater.h"
 #include "chrome/browser/media/router/media_router_feature.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profiles_state.h"
 #include "chrome/browser/share/share_features.h"
 #include "chrome/browser/themes/theme_properties.h"
 #include "chrome/browser/ui/browser.h"
@@ -46,6 +47,7 @@
 #include "chrome/browser/ui/views/frame/browser_non_client_frame_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/top_container_background.h"
+#include "chrome/browser/ui/views/global_media_controls/media_toolbar_button_contextual_menu.h"
 #include "chrome/browser/ui/views/global_media_controls/media_toolbar_button_view.h"
 #include "chrome/browser/ui/views/location_bar/star_view.h"
 #include "chrome/browser/ui/views/media_router/cast_toolbar_button.h"
@@ -258,7 +260,8 @@ void ToolbarView::Init() {
 
   std::unique_ptr<MediaToolbarButtonView> media_button;
   if (base::FeatureList::IsEnabled(media::kGlobalMediaControls)) {
-    media_button = std::make_unique<MediaToolbarButtonView>(browser_view_);
+    media_button = std::make_unique<MediaToolbarButtonView>(
+        browser_view_, MediaToolbarButtonContextualMenu::Create(browser_));
   }
 
   std::unique_ptr<send_tab_to_self::SendTabToSelfToolbarIconView>
@@ -278,6 +281,8 @@ void ToolbarView::Init() {
   // ChromeOS only badges Incognito and Guest icons in the browser window.
   show_avatar_toolbar_button = browser_->profile()->IsOffTheRecord() ||
                                browser_->profile()->IsGuestSession();
+#elif BUILDFLAG(IS_CHROMEOS_LACROS)
+  show_avatar_toolbar_button = !profiles::IsPublicSession();
 #endif
   if (base::FeatureList::IsEnabled(
           autofill::features::kAutofillEnableToolbarStatusChip)) {
@@ -576,7 +581,8 @@ void ToolbarView::OnCriticalUpgradeInstalled() {
 ////////////////////////////////////////////////////////////////////////////////
 // ToolbarView, ui::AcceleratorProvider implementation:
 
-bool ToolbarView::GetAcceleratorForCommandId(int command_id,
+bool ToolbarView::GetAcceleratorForCommandId(
+    int command_id,
     ui::Accelerator* accelerator) const {
   return GetWidget()->GetAccelerator(command_id, accelerator);
 }
@@ -933,7 +939,8 @@ void ToolbarView::LoadImages() {
 void ToolbarView::ShowCriticalNotification() {
 #if defined(OS_WIN)
   views::BubbleDialogDelegateView::CreateBubble(
-      new CriticalNotificationBubbleView(app_menu_button_))->Show();
+      new CriticalNotificationBubbleView(app_menu_button_))
+      ->Show();
 #endif
 }
 

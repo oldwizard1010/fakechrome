@@ -38,6 +38,7 @@
 #include "components/download/public/common/download_utils.h"
 #include "components/download/public/common/input_stream.h"
 #include "components/download/public/common/url_download_handler_factory.h"
+#include "content/browser/bad_message.h"
 #include "content/browser/blob_storage/chrome_blob_storage_context.h"
 #include "content/browser/child_process_security_policy_impl.h"
 #include "content/browser/data_url_loader_factory.h"
@@ -46,6 +47,7 @@
 #include "content/browser/file_system/file_system_url_loader_factory.h"
 #include "content/browser/loader/file_url_loader_factory.h"
 #include "content/browser/renderer_host/render_view_host_impl.h"
+#include "content/browser/site_info.h"
 #include "content/browser/storage_partition_impl.h"
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/public/browser/browser_context.h"
@@ -82,6 +84,8 @@
 #include "third_party/blink/public/common/loader/previews_state.h"
 #include "third_party/blink/public/common/loader/referrer_utils.h"
 #include "third_party/blink/public/common/loader/throttling_url_loader.h"
+#include "third_party/blink/public/common/storage_key/storage_key.h"
+#include "url/origin.h"
 
 #if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "base/nix/xdg_util.h"
@@ -544,6 +548,20 @@ bool DownloadManagerImpl::InterceptDownload(
       params.from_download_cross_origin_redirect = true;
       params.initiator_origin = info.request_initiator;
       params.is_renderer_initiated = info.is_content_initiated;
+
+      // Ensure the method is called from an active document.
+      // If inactive documents start download, it can be a security risk.
+      // Call ReceiveBadMessage to terminate such a renderer.
+      // TODO(https://crbug.com/1259521): confirm if fenced frames or portals
+      // are allowed to start downloads.
+      if (!RenderFrameHost::FromID(info.render_process_id, info.render_frame_id)
+               ->IsActive()) {
+        bad_message::ReceivedBadMessage(
+            info.render_process_id,
+            bad_message::RFH_INTERECEPT_DOWNLOAD_WHILE_INACTIVE);
+        return false;
+      }
+
       web_contents->GetController().LoadURLWithParams(params);
     }
     return true;
@@ -1315,13 +1333,16 @@ void DownloadManagerImpl::BeginResourceDownloadOnChecksComplete(
   } else if (rfh && params->url().SchemeIsFileSystem()) {
     StoragePartitionImpl* storage_partition =
         GetStoragePartitionForSiteUrl(browser_context_, site_url);
-
+    // TODO(https://crbug.com/1267272): Replace the in-line conversion to
+    // StorageKey below to use the correct third-party StorageKey value. May
+    // require fixing bugs in the browser tests covering this code path.
     pending_url_loader_factory =
         std::make_unique<network::WrapperPendingSharedURLLoaderFactory>(
             CreateFileSystemURLLoaderFactory(
                 rfh->GetProcess()->GetID(), rfh->GetFrameTreeNodeId(),
                 storage_partition->GetFileSystemContext(),
-                storage_partition->GetPartitionDomain()));
+                storage_partition->GetPartitionDomain(),
+                blink::StorageKey(url::Origin::Create(params->url()))));
   } else if (params->url().SchemeIs(url::kDataScheme)) {
     pending_url_loader_factory =
         std::make_unique<network::WrapperPendingSharedURLLoaderFactory>(

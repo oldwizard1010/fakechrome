@@ -15,7 +15,6 @@
 #include "ash/app_list/model/app_list_model_export.h"
 #include "ash/public/cpp/app_list/app_list_types.h"
 #include "ash/public/cpp/shelf_types.h"
-#include "base/macros.h"
 #include "base/observer_list.h"
 #include "components/sync/model/string_ordinal.h"
 #include "ui/gfx/image/image_skia.h"
@@ -164,7 +163,7 @@ class APP_LIST_MODEL_EXPORT AppListItem {
   // Contains icons for AppListConfigTypes different than kShared. For kShared
   // config type, the item will always use the icon provided by |metadata_|.
   // This is currently used for folder icons only (which are all generated in
-  // ash), when app_list_features::kScalableAppList feature is enabled.
+  // ash).
   std::map<AppListConfigType, gfx::ImageSkia> per_config_icons_;
 
   // A shortened name for the item, used for display.

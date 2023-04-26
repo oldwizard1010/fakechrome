@@ -273,6 +273,9 @@ const char kAuraLegacyPowerButton[] = "aura-legacy-power-button";
 //    data connections.
 const char kCellularFirst[] = "cellular-first";
 
+// Indicates that CloudReady UI in OOBE should be shown.
+const char kCloudReadyOobe[] = "cloud-ready-oobe";
+
 // Default large wallpaper to use for kids accounts (as path to trusted,
 // non-user-writable JPEG file).
 const char kChildWallpaperLarge[] = "child-wallpaper-large";
@@ -283,15 +286,6 @@ const char kChildWallpaperSmall[] = "child-wallpaper-small";
 
 // Forces CrOS region value.
 const char kCrosRegion[] = "cros-region";
-
-// Control regions data load ("" is default).
-const char kCrosRegionsMode[] = "cros-regions-mode";
-
-// "Hide" value for kCrosRegionsMode (VPD values are hidden).
-const char kCrosRegionsModeHide[] = "hide";
-
-// "Override" value for kCrosRegionsMode (region's data is read first).
-const char kCrosRegionsModeOverride[] = "override";
 
 // Controls if AuthSession API should be used when interacting with cryptohomed.
 const char kCryptohomeUseAuthSession[] = "cryptohome-use-authsession";
@@ -847,6 +841,10 @@ bool IsGaiaIdMigrationStarted() {
 
 bool IsCellularFirstDevice() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch(kCellularFirst);
+}
+
+bool IsCloudReadyOobe() {
+  return base::CommandLine::ForCurrentProcess()->HasSwitch(kCloudReadyOobe);
 }
 
 bool IsSigninFrameClientCertsEnabled() {

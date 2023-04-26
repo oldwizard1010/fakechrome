@@ -9,7 +9,6 @@
 
 #include "ash/app_list/model/app_list_item_observer.h"
 #include "ash/ash_export.h"
-#include "base/macros.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/textfield/textfield_controller.h"
 #include "ui/views/view.h"
@@ -69,8 +68,11 @@ class ASH_EXPORT FolderHeaderView : public views::View,
   // Returns true if folder name is enabled, only for testing use.
   bool IsFolderNameEnabledForTest() const;
 
-  // Returns elided folder name from |folder_name|.
-  std::u16string GetElidedFolderName(const std::u16string& folder_name) const;
+  // Returns the folder name.
+  std::u16string GetFolderName() const;
+
+  // Returns elided folder name.
+  std::u16string GetElidedFolderName() const;
 
   // Returns whether |folder_name_view_| should clear focus based on
   // |key_event_|.

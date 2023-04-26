@@ -55,6 +55,7 @@
 #include "third_party/blink/renderer/platform/graphics/static_bitmap_image.h"
 #include "third_party/blink/renderer/platform/graphics/surface_layer_bridge.h"
 #include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/prefinalizer.h"
 
 #define CanvasDefaultInterpolationQuality kInterpolationLow
 
@@ -73,6 +74,7 @@ class GraphicsContext;
 class HTMLCanvasElement;
 class ImageBitmapOptions;
 class IntSize;
+class StaticBitmapImageToVideoFrameCopier;
 
 class
     CanvasRenderingContext2DOrWebGLRenderingContextOrWebGL2RenderingContextOrImageBitmapRenderingContextOrGPUCanvasContext;
@@ -411,6 +413,8 @@ class CORE_EXPORT HTMLCanvasElement final
   // Used for low latency mode.
   // TODO: rename to CanvasFrameDispatcher.
   std::unique_ptr<CanvasResourceDispatcher> frame_dispatcher_;
+
+  std::unique_ptr<StaticBitmapImageToVideoFrameCopier> copier_;
 
   bool did_notify_listeners_for_current_frame_ = false;
 

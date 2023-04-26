@@ -51,6 +51,7 @@
 #include "url/gurl.h"
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
+#include "ash/constants/ash_features.h"
 #include "chrome/common/chrome_features.h"
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
@@ -154,7 +155,8 @@ class WebAppInstallManagerTest
 #if BUILDFLAG(IS_CHROMEOS_ASH)
     if (GetParam() == SyncParam::kWithSync) {
       // Disable WebAppsCrosapi, so that Web Apps get synced in the Ash browser.
-      scoped_feature_list_.InitAndDisableFeature(features::kWebAppsCrosapi);
+      scoped_feature_list_.InitWithFeatures(
+          {}, {features::kWebAppsCrosapi, chromeos::features::kLacrosPrimary});
     } else {
       // Enable WebAppsCrosapi, so that Web Apps don't get synced in the Ash
       // browser.
@@ -167,6 +169,10 @@ class WebAppInstallManagerTest
 
   void SetUp() override {
     WebAppTest::SetUp();
+
+#if BUILDFLAG(IS_CHROMEOS_LACROS)
+    profile()->SetIsMainProfile(true);
+#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
     externally_installed_app_prefs_ =
         std::make_unique<ExternallyInstalledWebAppPrefs>(profile()->GetPrefs());
@@ -818,10 +824,10 @@ TEST_P(WebAppInstallManagerTest_SyncOnly,
   file_utils().SetNextDeleteFileRecursivelyResult(true);
 
   enum Event {
-    kUninstallFromSyncBeforeRegistryUpdate,
+    kUninstallWithoutRegistryUpdateFromSync,
     kObserver_OnWebAppWillBeUninstalled,
     kObserver_OnWebAppUninstalled,
-    kUninstallFromSyncAfterRegistryUpdate_Callback
+    kUninstallWithoutRegistryUpdateFromSync_Callback
   };
   std::vector<Event> event_order;
 
@@ -837,29 +843,26 @@ TEST_P(WebAppInstallManagerTest_SyncOnly,
         event_order.push_back(Event::kObserver_OnWebAppUninstalled);
       }));
 
-  controller().SetUninstallFromSyncBeforeRegistryUpdateDelegate(
-      base::BindLambdaForTesting([&](std::vector<AppId> apps_to_uninstall) {
-        ASSERT_FALSE(apps_to_uninstall.empty());
-        EXPECT_EQ(apps_to_uninstall[0], app_id);
-        event_order.push_back(Event::kUninstallFromSyncBeforeRegistryUpdate);
-        install_manager().UninstallFromSyncBeforeRegistryUpdate(
-            std::move(apps_to_uninstall));
-      }));
-
   base::RunLoop run_loop;
-  controller().SetUninstallFromSyncAfterRegistryUpdateDelegate(
+  controller().SetUninstallWithoutRegistryUpdateFromSyncDelegate(
       base::BindLambdaForTesting(
-          [&](std::vector<std::unique_ptr<WebApp>> apps_unregistered,
+          [&](const std::vector<AppId>& apps_to_uninstall,
               SyncInstallDelegate::RepeatingUninstallCallback callback) {
-            install_manager().UninstallFromSyncAfterRegistryUpdate(
-                std::move(apps_unregistered),
-                base::BindLambdaForTesting([&](const AppId& uninstalled_app_id,
+            ASSERT_FALSE(apps_to_uninstall.empty());
+            EXPECT_EQ(apps_to_uninstall[0], app_id);
+            event_order.push_back(
+                Event::kUninstallWithoutRegistryUpdateFromSync);
+            install_manager().UninstallWithoutRegistryUpdateFromSync(
+                std::move(apps_to_uninstall),
+                base::BindLambdaForTesting([&, callback](
+                                               const AppId& uninstalled_app_id,
                                                bool uninstalled) {
                   EXPECT_EQ(uninstalled_app_id, app_id);
                   EXPECT_TRUE(uninstalled);
                   event_order.push_back(
-                      Event::kUninstallFromSyncAfterRegistryUpdate_Callback);
+                      Event::kUninstallWithoutRegistryUpdateFromSync_Callback);
                   run_loop.Quit();
+                  callback.Run(uninstalled_app_id, uninstalled);
                 }));
           }));
 
@@ -868,10 +871,10 @@ TEST_P(WebAppInstallManagerTest_SyncOnly,
   run_loop.Run();
 
   const std::vector<Event> expected_event_order{
-      Event::kUninstallFromSyncBeforeRegistryUpdate,
+      Event::kUninstallWithoutRegistryUpdateFromSync,
       Event::kObserver_OnWebAppWillBeUninstalled,
       Event::kObserver_OnWebAppUninstalled,
-      Event::kUninstallFromSyncAfterRegistryUpdate_Callback};
+      Event::kUninstallWithoutRegistryUpdateFromSync_Callback};
   EXPECT_EQ(expected_event_order, event_order);
 }
 

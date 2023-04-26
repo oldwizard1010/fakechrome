@@ -15,6 +15,32 @@ namespace internal {
 // specified by the ".Background" suffix. For these events, we put them into the
 // background histogram if the web contents was ever in the background from
 // navigation start to the event in question.
+extern const char
+    kHistogramAverageUserInteractionLatencyOverBudgetMaxEventDuration[];
+extern const char
+    kHistogramSlowUserInteractionLatencyOverBudgetHighPercentileMaxEventDuration
+        [];
+extern const char
+    kHistogramSlowUserInteractionLatencyOverBudgetHighPercentile2MaxEventDuration
+        [];
+extern const char
+    kHistogramSumOfUserInteractionLatencyOverBudgetMaxEventDuration[];
+extern const char kHistogramWorstUserInteractionLatencyMaxEventDuration[];
+extern const char
+    kHistogramWorstUserInteractionLatencyOverBudgetMaxEventDuration[];
+extern const char
+    kHistogramAverageUserInteractionLatencyOverBudgetTotalEventDuration[];
+extern const char
+    kHistogramSlowUserInteractionLatencyOverBudgetHighPercentileTotalEventDuration
+        [];
+extern const char
+    kHistogramSlowUserInteractionLatencyOverBudgetHighPercentile2TotalEventDuration
+        [];
+extern const char
+    kHistogramSumOfUserInteractionLatencyOverBudgetTotalEventDuration[];
+extern const char kHistogramWorstUserInteractionLatencyTotalEventDuration[];
+extern const char
+    kHistogramWorstUserInteractionLatencyOverBudgetTotalEventDuration[];
 extern const char kHistogramFirstInputDelay[];
 extern const char kHistogramFirstInputTimestamp[];
 extern const char kHistogramFirstInputDelay4[];
@@ -32,11 +58,6 @@ extern const char kHistogramLargestContentfulPaintContentType[];
 extern const char kHistogramLargestContentfulPaintMainFrame[];
 extern const char kHistogramLargestContentfulPaintMainFrameContentType[];
 extern const char kHistogramLargestContentfulPaintCrossSiteSubFrame[];
-extern const char kDeprecatedHistogramLargestContentfulPaint[];
-extern const char kHistogramExperimentalLargestContentfulPaintContentType[];
-extern const char kDeprecatedHistogramLargestContentfulPaintMainFrame[];
-extern const char
-    kHistogramExperimentalLargestContentfulPaintMainFrameContentType[];
 extern const char kHistogramParseDuration[];
 extern const char kHistogramParseBlockedOnScriptLoad[];
 extern const char kHistogramParseBlockedOnScriptExecution[];
@@ -251,6 +272,7 @@ class UmaPageLoadMetricsObserver
       const page_load_metrics::mojom::PageLoadTiming& timing,
       base::TimeTicks app_background_time);
   void RecordV8MemoryHistograms();
+  void RecordNormalizedResponsivenessMetrics();
 
   content::NavigationHandleTiming navigation_handle_timing_;
 

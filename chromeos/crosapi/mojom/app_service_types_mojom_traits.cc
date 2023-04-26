@@ -114,6 +114,10 @@ bool StructTraits<crosapi::mojom::AppDataView, apps::mojom::AppPtr>::Read(
   if (!data.ReadPermissions(&permissions))
     return false;
 
+  apps::mojom::OptionalBool allow_uninstall;
+  if (!data.ReadAllowUninstall(&allow_uninstall))
+    return false;
+
   auto app = apps::mojom::App::New();
   app->app_type = std::move(app_type);
   app->app_id = app_id;
@@ -140,6 +144,7 @@ bool StructTraits<crosapi::mojom::AppDataView, apps::mojom::AppPtr>::Read(
   app->intent_filters = std::move(intent_filters);
   app->window_mode = window_mode;
   app->permissions = std::move(permissions);
+  app->allow_uninstall = allow_uninstall;
   *out = std::move(app);
   return true;
 }
@@ -597,37 +602,37 @@ bool StructTraits<crosapi::mojom::CapabilityAccessDataView,
 }
 
 crosapi::mojom::IconType
-EnumTraits<crosapi::mojom::IconType, apps::mojom::IconType>::ToMojom(
-    apps::mojom::IconType input) {
+EnumTraits<crosapi::mojom::IconType, apps::IconType>::ToMojom(
+    apps::IconType input) {
   switch (input) {
-    case apps::mojom::IconType::kUnknown:
+    case apps::IconType::kUnknown:
       return crosapi::mojom::IconType::kUnknown;
-    case apps::mojom::IconType::kUncompressed:
+    case apps::IconType::kUncompressed:
       return crosapi::mojom::IconType::kUncompressed;
-    case apps::mojom::IconType::kCompressed:
+    case apps::IconType::kCompressed:
       return crosapi::mojom::IconType::kCompressed;
-    case apps::mojom::IconType::kStandard:
+    case apps::IconType::kStandard:
       return crosapi::mojom::IconType::kStandard;
   }
 
   NOTREACHED();
 }
 
-bool EnumTraits<crosapi::mojom::IconType, apps::mojom::IconType>::FromMojom(
+bool EnumTraits<crosapi::mojom::IconType, apps::IconType>::FromMojom(
     crosapi::mojom::IconType input,
-    apps::mojom::IconType* output) {
+    apps::IconType* output) {
   switch (input) {
     case crosapi::mojom::IconType::kUnknown:
-      *output = apps::mojom::IconType::kUnknown;
+      *output = apps::IconType::kUnknown;
       return true;
     case crosapi::mojom::IconType::kUncompressed:
-      *output = apps::mojom::IconType::kUncompressed;
+      *output = apps::IconType::kUncompressed;
       return true;
     case crosapi::mojom::IconType::kCompressed:
-      *output = apps::mojom::IconType::kCompressed;
+      *output = apps::IconType::kCompressed;
       return true;
     case crosapi::mojom::IconType::kStandard:
-      *output = apps::mojom::IconType::kStandard;
+      *output = apps::IconType::kStandard;
       return true;
   }
 
@@ -635,11 +640,10 @@ bool EnumTraits<crosapi::mojom::IconType, apps::mojom::IconType>::FromMojom(
   return false;
 }
 
-bool StructTraits<
-    crosapi::mojom::IconValueDataView,
-    apps::mojom::IconValuePtr>::Read(crosapi::mojom::IconValueDataView data,
-                                     apps::mojom::IconValuePtr* out) {
-  apps::mojom::IconType icon_type;
+bool StructTraits<crosapi::mojom::IconValueDataView, apps::IconValuePtr>::Read(
+    crosapi::mojom::IconValueDataView data,
+    apps::IconValuePtr* out) {
+  apps::IconType icon_type;
   if (!data.ReadIconType(&icon_type))
     return false;
 
@@ -647,11 +651,11 @@ bool StructTraits<
   if (!data.ReadUncompressed(&uncompressed))
     return false;
 
-  absl::optional<std::vector<uint8_t>> compressed;
+  std::vector<uint8_t> compressed;
   if (!data.ReadCompressed(&compressed))
     return false;
 
-  auto icon_value = apps::mojom::IconValue::New();
+  auto icon_value = std::make_unique<apps::IconValue>();
   icon_value->icon_type = icon_type;
   icon_value->uncompressed = std::move(uncompressed);
   icon_value->compressed = std::move(compressed);
@@ -1013,6 +1017,46 @@ bool UnionTraits<crosapi::mojom::PermissionValueDataView,
   }
   NOTREACHED();
   return false;
+}
+
+bool StructTraits<crosapi::mojom::PreferredAppDataView,
+                  apps::mojom::PreferredAppPtr>::
+    Read(crosapi::mojom::PreferredAppDataView data,
+         apps::mojom::PreferredAppPtr* out) {
+  apps::mojom::IntentFilterPtr intent_filter;
+  if (!data.ReadIntentFilter(&intent_filter))
+    return false;
+
+  std::string app_id;
+  if (!data.ReadAppId(&app_id))
+    return false;
+
+  auto preferred_app = apps::mojom::PreferredApp::New();
+  preferred_app->intent_filter = std::move(intent_filter);
+  preferred_app->app_id = app_id;
+  *out = std::move(preferred_app);
+  return true;
+}
+
+bool StructTraits<crosapi::mojom::PreferredAppChangesDataView,
+                  apps::mojom::PreferredAppChangesPtr>::
+    Read(crosapi::mojom::PreferredAppChangesDataView data,
+         apps::mojom::PreferredAppChangesPtr* out) {
+  base::flat_map<std::string, std::vector<apps::mojom::IntentFilterPtr>>
+      added_filters;
+  if (!data.ReadAddedFilters(&added_filters))
+    return false;
+
+  base::flat_map<std::string, std::vector<apps::mojom::IntentFilterPtr>>
+      removed_filters;
+  if (!data.ReadRemovedFilters(&removed_filters))
+    return false;
+
+  auto preferred_app_changes = apps::mojom::PreferredAppChanges::New();
+  preferred_app_changes->added_filters = std::move(added_filters);
+  preferred_app_changes->removed_filters = std::move(removed_filters);
+  *out = std::move(preferred_app_changes);
+  return true;
 }
 
 }  // namespace mojo

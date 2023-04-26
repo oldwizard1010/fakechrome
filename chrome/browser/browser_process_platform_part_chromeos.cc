@@ -15,6 +15,7 @@
 #include "base/memory/singleton.h"
 #include "base/time/default_tick_clock.h"
 #include "base/time/tick_clock.h"
+#include "chrome/browser/ash/crosapi/browser_manager.h"
 #include "chrome/browser/ash/login/saml/in_session_password_change_manager.h"
 #include "chrome/browser/ash/login/session/chrome_session_manager.h"
 #include "chrome/browser/ash/login/users/chrome_user_manager_impl.h"
@@ -264,7 +265,7 @@ void BrowserProcessPlatformPart::ShutdownCrosComponentManager() {
 void BrowserProcessPlatformPart::InitializeSchedulerConfigurationManager() {
   DCHECK(!scheduler_configuration_manager_);
   scheduler_configuration_manager_ =
-      std::make_unique<chromeos::SchedulerConfigurationManager>(
+      std::make_unique<ash::SchedulerConfigurationManager>(
           chromeos::DBusThreadManager::Get()->GetDebugDaemonClient(),
           g_browser_process->local_state());
 }
@@ -298,8 +299,8 @@ void BrowserProcessPlatformPart::InitializePrimaryProfileServices(
               &BrowserProcessPlatformPart::ShutdownPrimaryProfileServices,
               base::Unretained(this)));
 
-  if (chromeos::SystemProxyManager::Get()) {
-    chromeos::SystemProxyManager::Get()->StartObservingPrimaryProfilePrefs(
+  if (ash::SystemProxyManager::Get()) {
+    ash::SystemProxyManager::Get()->StartObservingPrimaryProfilePrefs(
         primary_profile);
   }
 
@@ -315,8 +316,8 @@ void BrowserProcessPlatformPart::ShutdownPrimaryProfileServices() {
   if (manager)
     manager->policy_service()->StopObservingPrimaryProfilePrefs();
 
-  if (chromeos::SystemProxyManager::Get())
-    chromeos::SystemProxyManager::Get()->StopObservingPrimaryProfilePrefs();
+  if (ash::SystemProxyManager::Get())
+    ash::SystemProxyManager::Get()->StopObservingPrimaryProfilePrefs();
   in_session_password_change_manager_.reset();
 }
 
@@ -361,8 +362,8 @@ ash::TimeZoneResolver* BrowserProcessPlatformPart::GetTimezoneResolver() {
         ash::SimpleGeolocationProvider::DefaultGeolocationProviderURL(),
         base::BindRepeating(&ash::system::ApplyTimeZone),
         base::BindRepeating(
-            &chromeos::DelayNetworkCall,
-            base::Milliseconds(chromeos::kDefaultNetworkRetryDelayMS)),
+            &ash::DelayNetworkCall,
+            base::Milliseconds(ash::kDefaultNetworkRetryDelayMS)),
         g_browser_process->local_state());
   }
   return timezone_resolver_.get();
@@ -373,6 +374,16 @@ void BrowserProcessPlatformPart::StartTearDown() {
   // destroyed.  So we need to destroy |timezone_resolver_| here.
   timezone_resolver_.reset();
   profile_helper_.reset();
+}
+
+void BrowserProcessPlatformPart::AttemptExit(bool try_to_quit_application) {
+  // Request Lacros terminate early during shutdown to give it the opportunity
+  // to shutdown gracefully. Check to make sure `browser_manager` is available
+  // as it may be null in tests.
+  if (auto* browser_manager = crosapi::BrowserManager::Get())
+    browser_manager->Shutdown();
+
+  BrowserProcessPlatformPartBase::AttemptExit(try_to_quit_application);
 }
 
 chromeos::system::SystemClock* BrowserProcessPlatformPart::GetSystemClock() {

@@ -204,8 +204,7 @@ void OfflineInternalsUIMessageHandler::HandleRequestQueueCallback(
 void OfflineInternalsUIMessageHandler::HandleGetRequestQueue(
     const base::ListValue* args) {
   AllowJavascript();
-  std::string callback_id;
-  CHECK(args->GetString(0, &callback_id));
+  const std::string& callback_id = args->GetList()[0].GetString();
 
   if (request_coordinator_) {
     request_coordinator_->GetAllRequests(base::BindOnce(
@@ -220,8 +219,7 @@ void OfflineInternalsUIMessageHandler::HandleGetRequestQueue(
 void OfflineInternalsUIMessageHandler::HandleGetStoredPages(
     const base::ListValue* args) {
   AllowJavascript();
-  std::string callback_id;
-  CHECK(args->GetString(0, &callback_id));
+  const std::string& callback_id = args->GetList()[0].GetString();
 
   if (offline_page_model_) {
     offline_page_model_->GetAllPages(base::BindOnce(
@@ -236,8 +234,9 @@ void OfflineInternalsUIMessageHandler::HandleGetStoredPages(
 void OfflineInternalsUIMessageHandler::HandleSetRecordPageModel(
     const base::ListValue* args) {
   AllowJavascript();
-  bool should_record;
-  CHECK(args->GetBoolean(0, &should_record));
+  const auto& list = args->GetList();
+  CHECK(!list.empty());
+  const bool should_record = list[0].GetBool();
   if (offline_page_model_)
     offline_page_model_->GetLogger()->SetIsLogging(should_record);
 }
@@ -290,8 +289,7 @@ void OfflineInternalsUIMessageHandler::HandleCancelNwake(
 void OfflineInternalsUIMessageHandler::HandleGeneratePageBundle(
     const base::ListValue* args) {
   AllowJavascript();
-  std::string callback_id;
-  CHECK(args->GetString(0, &callback_id));
+  const std::string& callback_id = args->GetList()[0].GetString();
 
   if (!prefetch_service_) {
     RejectJavascriptCallback(base::Value(callback_id),
@@ -299,8 +297,7 @@ void OfflineInternalsUIMessageHandler::HandleGeneratePageBundle(
     return;
   }
 
-  std::string data;
-  CHECK(args->GetString(1, &data));
+  const std::string& data = args->GetList()[1].GetString();
   std::vector<std::string> page_urls = base::SplitStringUsingSubstr(
       data, ",", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
   std::vector<offline_pages::PrefetchURL> prefetch_urls;
@@ -343,8 +340,7 @@ void OfflineInternalsUIMessageHandler::HandleGeneratePageBundle(
 void OfflineInternalsUIMessageHandler::HandleGetOperation(
     const base::ListValue* args) {
   AllowJavascript();
-  std::string callback_id;
-  CHECK(args->GetString(0, &callback_id));
+  const std::string& callback_id = args->GetList()[0].GetString();
 
   if (!prefetch_service_) {
     RejectJavascriptCallback(base::Value(callback_id),
@@ -352,8 +348,7 @@ void OfflineInternalsUIMessageHandler::HandleGetOperation(
     return;
   }
 
-  std::string name;
-  CHECK(args->GetString(1, &name));
+  std::string name = args->GetList()[1].GetString();
   base::TrimWhitespaceASCII(name, base::TRIM_ALL, &name);
 
   prefetch_service_->GetPrefetchDispatcher()
@@ -365,8 +360,7 @@ void OfflineInternalsUIMessageHandler::HandleGetOperation(
 void OfflineInternalsUIMessageHandler::HandleDownloadArchive(
     const base::ListValue* args) {
   AllowJavascript();
-  std::string name;
-  CHECK(args->GetString(0, &name));
+  std::string name = args->GetList()[0].GetString();
   base::TrimWhitespaceASCII(name, base::TRIM_ALL, &name);
 
   if (prefetch_service_) {
@@ -378,8 +372,9 @@ void OfflineInternalsUIMessageHandler::HandleDownloadArchive(
 void OfflineInternalsUIMessageHandler::HandleSetRecordRequestQueue(
     const base::ListValue* args) {
   AllowJavascript();
-  bool should_record;
-  CHECK(args->GetBoolean(0, &should_record));
+  const auto& list = args->GetList();
+  CHECK(!list.empty());
+  const bool should_record = list[0].GetBool();
   if (request_coordinator_)
     request_coordinator_->GetLogger()->SetIsLogging(should_record);
 }
@@ -387,8 +382,9 @@ void OfflineInternalsUIMessageHandler::HandleSetRecordRequestQueue(
 void OfflineInternalsUIMessageHandler::HandleSetRecordPrefetchService(
     const base::ListValue* args) {
   AllowJavascript();
-  bool should_record;
-  CHECK(args->GetBoolean(0, &should_record));
+  const auto& list = args->GetList();
+  CHECK(!list.empty());
+  const bool should_record = list[0].GetBool();
   if (prefetch_service_)
     prefetch_service_->GetLogger()->SetIsLogging(should_record);
 }
@@ -509,12 +505,10 @@ void OfflineInternalsUIMessageHandler::HandleGetEventLogs(
 
 void OfflineInternalsUIMessageHandler::HandleAddToRequestQueue(
     const base::ListValue* args) {
-  std::string callback_id;
-  CHECK(args->GetString(0, &callback_id));
+  const std::string& callback_id = args->GetList()[0].GetString();
 
   if (request_coordinator_) {
-    std::string url;
-    CHECK(args->GetString(1, &url));
+    const std::string& url = args->GetList()[1].GetString();
 
     // To be visible in Downloads UI, these items need a well-formed GUID
     // and AsyncNamespace in their ClientId.

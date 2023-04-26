@@ -6,17 +6,27 @@
 
 #include <utility>
 
+#include "base/check.h"
 #include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/common/features.h"
+#include "third_party/blink/public/common/interest_group/ad_auction_constants.h"
 #include "third_party/blink/public/mojom/interest_group/interest_group_types.mojom-blink.h"
+#include "third_party/blink/public/mojom/permissions_policy/permissions_policy.mojom-blink.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_union_usvstring_usvstringsequence.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_auction_ad.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_auction_ad_config.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_auction_ad_interest_group.h"
+#include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
+#include "third_party/blink/renderer/core/frame/local_dom_window.h"
+#include "third_party/blink/renderer/core/frame/navigator.h"
+#include "third_party/blink/renderer/core/loader/document_loader.h"
 #include "third_party/blink/renderer/modules/ad_auction/validate_blink_interest_group.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin_hash.h"
+#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
+#include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace blink {
 
@@ -427,6 +437,7 @@ void NavigatorAuction::joinAdInterestGroup(ScriptState* script_state,
                                            double duration_seconds,
                                            ExceptionState& exception_state) {
   const ExecutionContext* context = ExecutionContext::From(script_state);
+
   auto mojo_group = mojom::blink::InterestGroup::New();
   mojo_group->expiry = base::Time::Now() + base::Seconds(duration_seconds);
   if (!CopyOwnerFromIdlToMojo(*context, exception_state, *group, *mojo_group))
@@ -478,6 +489,14 @@ void NavigatorAuction::joinAdInterestGroup(ScriptState* script_state,
                                            const AuctionAdInterestGroup* group,
                                            double duration_seconds,
                                            ExceptionState& exception_state) {
+  const ExecutionContext* context = ExecutionContext::From(script_state);
+  if (!context->IsFeatureEnabled(
+          blink::mojom::PermissionsPolicyFeature::kJoinAdInterestGroup)) {
+    exception_state.ThrowException(
+        static_cast<int>(DOMExceptionCode::kNotAllowedError),
+        "Feature join-ad-interest-group is not enabled by Permissions Policy");
+    return;
+  }
   return From(ExecutionContext::From(script_state), navigator)
       .joinAdInterestGroup(script_state, group, duration_seconds,
                            exception_state);
@@ -502,6 +521,14 @@ void NavigatorAuction::leaveAdInterestGroup(ScriptState* script_state,
                                             Navigator& navigator,
                                             const AuctionAdInterestGroup* group,
                                             ExceptionState& exception_state) {
+  ExecutionContext* context = ExecutionContext::From(script_state);
+  if (!context->IsFeatureEnabled(
+          blink::mojom::PermissionsPolicyFeature::kJoinAdInterestGroup)) {
+    exception_state.ThrowException(
+        static_cast<int>(DOMExceptionCode::kNotAllowedError),
+        "Feature join-ad-interest-group is not enabled by Permissions Policy");
+    return;
+  }
   return From(ExecutionContext::From(script_state), navigator)
       .leaveAdInterestGroup(script_state, group, exception_state);
 }
@@ -512,9 +539,17 @@ void NavigatorAuction::updateAdInterestGroups() {
 
 /* static */
 void NavigatorAuction::updateAdInterestGroups(ScriptState* script_state,
-                                              Navigator& navigator) {
-  return From(ExecutionContext::From(script_state), navigator)
-      .updateAdInterestGroups();
+                                              Navigator& navigator,
+                                              ExceptionState& exception_state) {
+  ExecutionContext* context = ExecutionContext::From(script_state);
+  if (!context->IsFeatureEnabled(
+          blink::mojom::PermissionsPolicyFeature::kJoinAdInterestGroup)) {
+    exception_state.ThrowException(
+        static_cast<int>(DOMExceptionCode::kNotAllowedError),
+        "Feature join-ad-interest-group is not enabled by Permissions Policy");
+    return;
+  }
+  return From(context, navigator).updateAdInterestGroups();
 }
 
 ScriptPromise NavigatorAuction::runAdAuction(ScriptState* script_state,
@@ -554,8 +589,46 @@ ScriptPromise NavigatorAuction::runAdAuction(ScriptState* script_state,
                                              Navigator& navigator,
                                              const AuctionAdConfig* config,
                                              ExceptionState& exception_state) {
+  const ExecutionContext* context = ExecutionContext::From(script_state);
+  if (!context->IsFeatureEnabled(
+          blink::mojom::PermissionsPolicyFeature::kRunAdAuction)) {
+    exception_state.ThrowException(
+        static_cast<int>(DOMExceptionCode::kNotAllowedError),
+        "Feature run-ad-auction is not enabled by Permissions Policy");
+    return ScriptPromise();
+  }
   return From(ExecutionContext::From(script_state), navigator)
       .runAdAuction(script_state, config, exception_state);
+}
+
+/* static */
+Vector<String> NavigatorAuction::adAuctionComponents(
+    ScriptState* script_state,
+    Navigator& navigator,
+    uint16_t num_ad_components,
+    ExceptionState& exception_state) {
+  const auto& ad_auction_components =
+      navigator.DomWindow()->document()->Loader()->AdAuctionComponents();
+  Vector<String> out;
+  if (!ad_auction_components) {
+    exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
+                                      "This frame was not loaded with the "
+                                      "result of an interest group auction.");
+    return out;
+  }
+
+  // Clamp the number of ad components at blink::kMaxAdAuctionAdComponents.
+  if (num_ad_components >
+      static_cast<int16_t>(blink::kMaxAdAuctionAdComponents)) {
+    num_ad_components = blink::kMaxAdAuctionAdComponents;
+  }
+
+  DCHECK_EQ(kMaxAdAuctionAdComponents, ad_auction_components->size());
+
+  for (int i = 0; i < num_ad_components; ++i) {
+    out.push_back((*ad_auction_components)[i].GetString());
+  }
+  return out;
 }
 
 ScriptPromise NavigatorAuction::createAdRequest(ScriptState* script_state,

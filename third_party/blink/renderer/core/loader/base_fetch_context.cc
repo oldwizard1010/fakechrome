@@ -161,7 +161,7 @@ void BaseFetchContext::AddClientHintsIfNecessary(
           network::GetClientHintToNameMap()
               .at(network::mojom::blink::WebClientHintsType::kUA)
               .c_str(),
-          ua->SerializeBrandVersionList().c_str());
+          ua->SerializeBrandMajorVersionList().c_str());
     }
 
     // We also send Sec-CH-UA-Mobile to all hints. It is a one-bit header
@@ -198,13 +198,16 @@ void BaseFetchContext::AddClientHintsIfNecessary(
           network::mojom::blink::WebClientHintsType::kDeviceMemory_DEPRECATED,
           hints_preferences)) {
     request.SetHttpHeaderField(
-        "Device-Memory",
+        network::GetClientHintToNameMap()
+            .at(network::mojom::blink::WebClientHintsType::
+                    kDeviceMemory_DEPRECATED)
+            .c_str(),
         AtomicString(String::Number(
             ApproximatedDeviceMemory::GetApproximatedDeviceMemory())));
   }
 
   if (ShouldSendClientHint(
-          ClientHintsMode::kLegacy, policy, resource_origin, is_1p_origin,
+          ClientHintsMode::kStandard, policy, resource_origin, is_1p_origin,
           network::mojom::blink::WebClientHintsType::kDeviceMemory,
           hints_preferences)) {
     request.SetHttpHeaderField(
@@ -221,12 +224,15 @@ void BaseFetchContext::AddClientHintsIfNecessary(
             ClientHintsMode::kLegacy, policy, resource_origin, is_1p_origin,
             network::mojom::blink::WebClientHintsType::kDpr_DEPRECATED,
             hints_preferences)) {
-      request.SetHttpHeaderField("DPR",
-                                 AtomicString(String::Number(image_info->dpr)));
+      request.SetHttpHeaderField(
+          network::GetClientHintToNameMap()
+              .at(network::mojom::blink::WebClientHintsType::kDpr_DEPRECATED)
+              .c_str(),
+          AtomicString(String::Number(image_info->dpr)));
     }
 
-    if (ShouldSendClientHint(ClientHintsMode::kLegacy, policy, resource_origin,
-                             is_1p_origin,
+    if (ShouldSendClientHint(ClientHintsMode::kStandard, policy,
+                             resource_origin, is_1p_origin,
                              network::mojom::blink::WebClientHintsType::kDpr,
                              hints_preferences)) {
       request.SetHttpHeaderField(
@@ -243,12 +249,15 @@ void BaseFetchContext::AddClientHintsIfNecessary(
                              hints_preferences) &&
         image_info->viewport_width) {
       request.SetHttpHeaderField(
-          "Viewport-Width",
+          network::GetClientHintToNameMap()
+              .at(network::mojom::blink::WebClientHintsType::
+                      kViewportWidth_DEPRECATED)
+              .c_str(),
           AtomicString(String::Number(image_info->viewport_width.value())));
     }
 
     if (ShouldSendClientHint(
-            ClientHintsMode::kLegacy, policy, resource_origin, is_1p_origin,
+            ClientHintsMode::kStandard, policy, resource_origin, is_1p_origin,
             network::mojom::blink::WebClientHintsType::kViewportWidth,
             hints_preferences) &&
         image_info->viewport_width) {
@@ -280,12 +289,16 @@ void BaseFetchContext::AddClientHintsIfNecessary(
         float physical_width =
             image_info->resource_width.width * image_info->dpr;
         request.SetHttpHeaderField(
-            "Width", AtomicString(String::Number(ceil(physical_width))));
+            network::GetClientHintToNameMap()
+                .at(network::mojom::blink::WebClientHintsType::
+                        kResourceWidth_DEPRECATED)
+                .c_str(),
+            AtomicString(String::Number(ceil(physical_width))));
       }
     }
 
     if (ShouldSendClientHint(
-            ClientHintsMode::kLegacy, policy, resource_origin, is_1p_origin,
+            ClientHintsMode::kStandard, policy, resource_origin, is_1p_origin,
             network::mojom::blink::WebClientHintsType::kResourceWidth,
             hints_preferences)) {
       if (image_info->resource_width.is_set) {
@@ -410,6 +423,17 @@ void BaseFetchContext::AddClientHintsIfNecessary(
               .at(network::mojom::blink::WebClientHintsType::kUAFullVersion)
               .c_str(),
           SerializeStringHeader(ua->full_version));
+    }
+
+    if (ShouldSendClientHint(
+            ClientHintsMode::kStandard, policy, resource_origin, is_1p_origin,
+            network::mojom::blink::WebClientHintsType::kUAFullVersionList,
+            hints_preferences)) {
+      request.SetHttpHeaderField(
+          network::GetClientHintToNameMap()
+              .at(network::mojom::blink::WebClientHintsType::kUAFullVersionList)
+              .c_str(),
+          ua->SerializeBrandFullVersionList().c_str());
     }
 
     if (ShouldSendClientHint(
@@ -611,22 +635,13 @@ BaseFetchContext::CanRequestInternal(
   if (IsSVGImageChromeClient() && !url.ProtocolIsData())
     return ResourceRequestBlockedReason::kOrigin;
 
-  // Measure the number of legacy URL schemes ('ftp://') and the number of
-  // embedded-credential ('http://user:password@...') resources embedded as
-  // subresources.
+  // Measure the number of embedded-credential ('http://user:password@...')
+  // resources embedded as subresources.
   const FetchClientSettingsObject& fetch_client_settings_object =
       GetResourceFetcherProperties().GetFetchClientSettingsObject();
   const SecurityOrigin* embedding_origin =
       fetch_client_settings_object.GetSecurityOrigin();
   DCHECK(embedding_origin);
-  if (SchemeRegistry::ShouldTreatURLSchemeAsLegacy(url.Protocol()) &&
-      !SchemeRegistry::ShouldTreatURLSchemeAsLegacy(
-          embedding_origin->Protocol())) {
-    CountDeprecation(WebFeature::kLegacyProtocolEmbeddedAsSubresource);
-
-    return ResourceRequestBlockedReason::kOrigin;
-  }
-
   if (ShouldBlockFetchAsCredentialedSubresource(resource_request, url))
     return ResourceRequestBlockedReason::kOrigin;
 
@@ -697,10 +712,9 @@ bool BaseFetchContext::ShouldSendClientHint(
 }
 
 void BaseFetchContext::AddBackForwardCacheExperimentHTTPHeaderIfNeeded(
-    ExecutionContext* context,
     ResourceRequest& request) {
   if (!RuntimeEnabledFeatures::BackForwardCacheExperimentHTTPHeaderEnabled(
-          context)) {
+          GetExecutionContext())) {
     return;
   }
   if (!base::FeatureList::IsEnabled(
@@ -709,7 +723,8 @@ void BaseFetchContext::AddBackForwardCacheExperimentHTTPHeaderIfNeeded(
   }
   // Send the 'Sec-bfcache-experiment' HTTP header to indicate which
   // BackForwardCacheSameSite experiment group we're in currently.
-  UseCounter::Count(context, WebFeature::kBackForwardCacheExperimentHTTPHeader);
+  UseCounter::Count(GetExecutionContext(),
+                    WebFeature::kBackForwardCacheExperimentHTTPHeader);
   auto experiment_group = base::GetFieldTrialParamValueByFeature(
       features::kBackForwardCacheABExperimentControl,
       features::kBackForwardCacheABExperimentGroup);

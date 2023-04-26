@@ -12,7 +12,6 @@
 #include "base/auto_reset.h"
 #include "base/callback.h"
 #include "base/callback_helpers.h"
-#include "base/macros.h"
 #include "base/scoped_observation.h"
 #include "ui/aura/window.h"
 
@@ -40,6 +39,10 @@ class ASH_EXPORT WindowScaleAnimation {
   WindowScaleAnimation& operator=(const WindowScaleAnimation&) = delete;
 
   ~WindowScaleAnimation();
+
+  // Starts animating and creating animation observers for all window(s) in the
+  // transient tree of `window_` in a descending order,
+  void Start();
 
   // For tests only:
   static base::AutoReset<bool>

@@ -13,9 +13,9 @@
 #include "base/callback_forward.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/observer_list.h"
+#include "base/power_monitor/power_observer.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
@@ -141,7 +141,8 @@ class COMPOSITOR_EXPORT ContextFactory {
 // displayable form of pixels comprising a single widget's contents. It draws an
 // appropriately transformed texture for each transformed view in the widget's
 // view hierarchy.
-class COMPOSITOR_EXPORT Compositor : public cc::LayerTreeHostClient,
+class COMPOSITOR_EXPORT Compositor : public base::PowerSuspendObserver,
+                                     public cc::LayerTreeHostClient,
                                      public cc::LayerTreeHostSingleThreadClient,
                                      public viz::HostFrameSinkClient,
                                      public ThroughputTrackerHost {
@@ -240,10 +241,6 @@ class COMPOSITOR_EXPORT Compositor : public cc::LayerTreeHostClient,
   // the |root_layer|.
   void SetBackgroundColor(SkColor color);
 
-  // Evicts the root surface and sets the LocalSurfaceId of the root to
-  // `surface_id`.
-  void EvictRootSurface(const viz::LocalSurfaceId& surface_id);
-
   // Inform the display corresponding to this compositor if it is visible. When
   // false it does not need to produce any frames. Visibility is reset for each
   // call to CreateLayerTreeFrameSink.
@@ -324,6 +321,9 @@ class COMPOSITOR_EXPORT Compositor : public cc::LayerTreeHostClient,
   // Creates a ThroughputTracker for tracking this Compositor.
   ThroughputTracker RequestNewThroughputTracker();
 
+  // Returns a percentage representing average throughput of last X seconds.
+  uint32_t GetAverageThroughput() const;
+
   // LayerTreeHostClient implementation.
   void WillBeginMainFrame() override {}
   void DidBeginMainFrame() override {}
@@ -342,7 +342,7 @@ class COMPOSITOR_EXPORT Compositor : public cc::LayerTreeHostClient,
   void RequestNewLayerTreeFrameSink() override;
   void DidInitializeLayerTreeFrameSink() override {}
   void DidFailToInitializeLayerTreeFrameSink() override;
-  void WillCommit() override {}
+  void WillCommit(cc::CommitState*) override {}
   void DidCommit(base::TimeTicks, base::TimeTicks) override;
   void DidCommitAndDrawFrame() override {}
   void DidReceiveCompositorFrameAck() override;
@@ -381,6 +381,9 @@ class COMPOSITOR_EXPORT Compositor : public cc::LayerTreeHostClient,
       ThroughputTrackerHost::ReportCallback callback) override;
   bool StopThroughtputTracker(TrackerId tracker_id) override;
   void CancelThroughtputTracker(TrackerId tracker_id) override;
+
+  // base::PowerSuspendObserver:
+  void OnResume() override;
 
 // TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
 // of lacros-chrome is complete.

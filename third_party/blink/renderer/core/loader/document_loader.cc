@@ -58,6 +58,7 @@
 #include "third_party/blink/renderer/core/execution_context/security_context_init.h"
 #include "third_party/blink/renderer/core/execution_context/window_agent.h"
 #include "third_party/blink/renderer/core/execution_context/window_agent_factory.h"
+#include "third_party/blink/renderer/core/fragment_directive/text_fragment_anchor.h"
 #include "third_party/blink/renderer/core/frame/csp/content_security_policy.h"
 #include "third_party/blink/renderer/core/frame/deprecation.h"
 #include "third_party/blink/renderer/core/frame/frame_console.h"
@@ -88,7 +89,6 @@
 #include "third_party/blink/renderer/core/origin_trials/origin_trial_context.h"
 #include "third_party/blink/renderer/core/page/frame_tree.h"
 #include "third_party/blink/renderer/core/page/page.h"
-#include "third_party/blink/renderer/core/page/scrolling/text_fragment_anchor.h"
 #include "third_party/blink/renderer/core/permissions_policy/document_policy_parser.h"
 #include "third_party/blink/renderer/core/probe/core_probes.h"
 #include "third_party/blink/renderer/core/timing/dom_window_performance.h"
@@ -288,7 +288,6 @@ struct SameSizeAsDocumentLoader
   bool is_same_origin_navigation;
   bool has_text_fragment_token;
   bool was_discarded;
-  bool listing_ftp_directory;
   bool loading_main_document_from_mhtml_archive;
   bool loading_srcdoc;
   bool loading_url_as_empty_document;
@@ -313,7 +312,8 @@ struct SameSizeAsDocumentLoader
   WebVector<WebHistoryItem> app_history_back_entries;
   WebVector<WebHistoryItem> app_history_forward_entries;
   std::unique_ptr<CodeCacheHost> code_cache_host;
-  HashSet<KURL> early_hints_preloaded_resources_;
+  HashSet<KURL> early_hints_preloaded_resources;
+  absl::optional<Vector<KURL>> ad_auction_components;
 };
 
 // Asserts size of DocumentLoader, so that whenever a new attribute is added to
@@ -471,6 +471,13 @@ DocumentLoader::DocumentLoader(
 
   if (IsBackForwardLoadType(params_->frame_load_type))
     DCHECK(history_item_);
+
+  if (params_->ad_auction_components) {
+    ad_auction_components_.emplace();
+    for (const WebURL& url : *params_->ad_auction_components) {
+      ad_auction_components_->emplace_back(KURL(url));
+    }
+  }
 }
 
 std::unique_ptr<WebNavigationParams>
@@ -540,6 +547,12 @@ DocumentLoader::CreateWebNavigationParamsToCloneDocument() {
       CopyForceEnabledOriginTrials(force_enabled_origin_trials_);
   for (const auto& resource : early_hints_preloaded_resources_)
     params->early_hints_preloaded_resources.push_back(resource);
+  if (ad_auction_components_) {
+    params->ad_auction_components.emplace();
+    for (const KURL& url : *ad_auction_components_) {
+      params->ad_auction_components->emplace_back(KURL(url));
+    }
+  }
   return params;
 }
 
@@ -603,6 +616,10 @@ const AtomicString& DocumentLoader::HttpMethod() const {
 
 const Referrer& DocumentLoader::GetReferrer() const {
   return referrer_;
+}
+
+const SecurityOrigin* DocumentLoader::GetRequestorOrigin() const {
+  return requestor_origin_.get();
 }
 
 void DocumentLoader::SetServiceWorkerNetworkProvider(
@@ -781,9 +798,6 @@ void DocumentLoader::UpdateForSameDocumentNavigation(
   frame_->GetFrameScheduler()->DidCommitProvisionalLoad(
       commit_type == kWebHistoryInertCommit,
       FrameScheduler::NavigationType::kSameDocument);
-
-  if (auto* mf_checker = frame_->View()->GetMobileFriendlinessChecker())
-    mf_checker->EvaluateNow();
 
   GetLocalFrameClient().DidFinishSameDocumentNavigation(
       history_item_.Get(), commit_type, is_synchronously_committed,
@@ -1690,13 +1704,8 @@ void DocumentLoader::StartLoadingResponse() {
     return;
   }
 
-  bool use_isolated_code_cache =
-      RuntimeEnabledFeatures::CacheInlineScriptCodeEnabled() &&
-      ShouldUseIsolatedCodeCache(mojom::blink::RequestContextType::HYPERLINK,
-                                 response_);
-
   // The |cached_metadata_handler_| is created, even when
-  // |use_isolated_code_cache| is false to support the parts that don't
+  // |UseIsolatedCodeCache()| is false to support the parts that don't
   // go throught the site-isolated-code-cache.
   auto cached_metadata_sender = CachedMetadataSender::Create(
       response_, blink::mojom::CodeCacheType::kJavascript, requestor_origin_);
@@ -1705,7 +1714,7 @@ void DocumentLoader::StartLoadingResponse() {
           WTF::TextEncoding(), std::move(cached_metadata_sender));
 
   CodeCacheHost* code_cache_host = nullptr;
-  if (use_isolated_code_cache) {
+  if (UseIsolatedCodeCache()) {
     code_cache_host = GetCodeCacheHost();
     DCHECK(code_cache_host);
   }
@@ -2187,6 +2196,13 @@ void DocumentLoader::CommitNavigation() {
   DCHECK_EQ(frame_->Tree().ChildCount(), 0u);
   state_ = kCommitted;
 
+  if (body_loader_ && !loading_main_document_from_mhtml_archive_ &&
+      !loading_url_as_empty_document_ && url_.ProtocolIsInHTTPFamily() &&
+      UseIsolatedCodeCache() &&
+      base::FeatureList::IsEnabled(features::kEarlyCodeCache)) {
+    body_loader_->StartLoadingCodeCache(GetCodeCacheHost());
+  }
+
   // Prepare a DocumentInit before clearing the frame, because it may need to
   // inherit an aliased security context.
   Document* owner_document = nullptr;
@@ -2318,8 +2334,10 @@ void DocumentLoader::CommitNavigation() {
       document->SetBaseURLOverride(main_resource_url);
   }
 
-  // appHistory is not set on the initial about:blank document.
-  if (commit_reason_ != CommitReason::kInitialization) {
+  // appHistory is not set on the initial about:blank document or opaque-origin
+  // documents.
+  if (commit_reason_ != CommitReason::kInitialization &&
+      !frame_->DomWindow()->GetSecurityOrigin()->IsOpaque()) {
     if (auto* app_history = AppHistory::appHistory(*frame_->DomWindow())) {
       app_history->InitializeForNewWindow(
           *history_item_, load_type_, commit_reason_,
@@ -2709,6 +2727,12 @@ ContentSecurityPolicy* DocumentLoader::CreateCSP() {
   }
 
   return csp;
+}
+
+bool DocumentLoader::UseIsolatedCodeCache() {
+  return RuntimeEnabledFeatures::CacheInlineScriptCodeEnabled() &&
+         ShouldUseIsolatedCodeCache(mojom::blink::RequestContextType::HYPERLINK,
+                                    response_);
 }
 
 bool& GetDisableCodeCacheForTesting() {

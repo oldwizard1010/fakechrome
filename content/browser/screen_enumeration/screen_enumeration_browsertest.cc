@@ -19,12 +19,12 @@ namespace content {
 
 namespace {
 
-// Used to get async getScreens() info in a list of dictionary values.
+// Used to get async getScreenDetails() info in a list of dictionary values.
 constexpr char kGetScreensScript[] = R"(
   (async () => {
-    const screens = await self.getScreens();
+    const screenDetails = await self.getScreenDetails();
     let result = [];
-    for (let s of screens) {
+    for (let s of screenDetails.screens) {
       result.push({ availHeight: s.availHeight,
                     availLeft: s.availLeft,
                     availTop: s.availTop,
@@ -102,15 +102,16 @@ class ScreenEnumerationTest : public ContentBrowserTest {
 
 IN_PROC_BROWSER_TEST_F(ScreenEnumerationTest, GetScreensNoPermission) {
   ASSERT_TRUE(NavigateToURL(shell(), GetTestUrl(nullptr, "empty.html")));
-  ASSERT_EQ(true, EvalJs(shell(), "'getScreens' in self"));
-  // getScreens() rejects its promise without the WindowPlacement permission.
-  EXPECT_FALSE(EvalJs(shell(), "await getScreens()").error.empty());
+  ASSERT_EQ(true, EvalJs(shell(), "'getScreenDetails' in self"));
+  // getScreenDetails() rejects its promise without the WindowPlacement
+  // permission.
+  EXPECT_FALSE(EvalJs(shell(), "await getScreenDetails()").error.empty());
 }
 
 // TODO(crbug.com/1119974): Need content_browsertests permission controls.
 IN_PROC_BROWSER_TEST_F(ScreenEnumerationTest, DISABLED_GetScreensBasic) {
   ASSERT_TRUE(NavigateToURL(shell(), GetTestUrl(nullptr, "empty.html")));
-  ASSERT_EQ(true, EvalJs(shell(), "'getScreens' in self"));
+  ASSERT_EQ(true, EvalJs(shell(), "'getScreenDetails' in self"));
   auto result = EvalJs(shell(), kGetScreensScript);
   EXPECT_EQ(GetExpectedScreens(), result.value);
 }
@@ -167,7 +168,7 @@ class FakeScreenEnumerationTest : public ScreenEnumerationTest {
 #endif
 IN_PROC_BROWSER_TEST_F(FakeScreenEnumerationTest, MAYBE_GetScreensFaked) {
   ASSERT_TRUE(NavigateToURL(test_shell(), GetTestUrl(nullptr, "empty.html")));
-  ASSERT_EQ(true, EvalJs(test_shell(), "'getScreens' in self"));
+  ASSERT_EQ(true, EvalJs(test_shell(), "'getScreenDetails' in self"));
 
   screen()->display_list().AddDisplay({1, gfx::Rect(100, 100, 801, 802)},
                                       display::DisplayList::Type::NOT_PRIMARY);
@@ -317,6 +318,7 @@ IN_PROC_BROWSER_TEST_F(FakeScreenEnumerationTest,
   EXPECT_EQ("0", EvalJs(test_shell(), "document.title"));
 
   // An event is sent when Screen work area changes.
+  // work_area translates into Screen.available_rect.
   display::Display display = screen()->display_list().displays()[0];
   display.set_work_area(gfx::Rect(101, 102, 903, 904));
   EXPECT_NE(0u, screen()->display_list().UpdateDisplay(display));

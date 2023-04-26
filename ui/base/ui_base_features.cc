@@ -16,9 +16,18 @@
 #include "base/android/build_info.h"
 #endif
 
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+#include "ui/base/shortcut_mapping_pref_delegate.h"
+#endif
+
 namespace features {
 
 #if defined(OS_WIN)
+// If enabled, the occluded region of the HWND is supplied to WindowTracker.
+const base::Feature kApplyNativeOccludedRegionToWindowTracker{
+    "ApplyNativeOccludedRegionToWindowTracker",
+    base::FEATURE_DISABLED_BY_DEFAULT};
+
 // Once enabled, the exact behavior is dictated by the field trial param
 // name `kApplyNativeOcclusionToCompositorType`.
 const base::Feature kApplyNativeOcclusionToCompositor{
@@ -26,14 +35,12 @@ const base::Feature kApplyNativeOcclusionToCompositor{
 
 // Field trial param name for `kApplyNativeOcclusionToCompositor`.
 const char kApplyNativeOcclusionToCompositorType[] = "type";
-// Indicates occlusion should be applied to the compositor.
-const char kApplyNativeOcclusionToCompositorTypeApplyOnly[] = "apply";
-// Indicates occlusion should be applied to the compositor, and when occluded
-// the root surface should be evicted when hidden/occluded.
-const char kApplyNativeOcclusionToCompositorTypeApplyAndEvict[] =
-    "apply-and-evict";
-// Indicates the root surface should be evicted when hidden/occluded.
-const char kApplyNativeOcclusionToCompositorTypeEvictOnly[] = "evict";
+// When the WindowTreeHost is occluded or hidden, resources are released and
+// the compositor is hidden. See WindowTreeHost for specifics on what this
+// does.
+const char kApplyNativeOcclusionToCompositorTypeRelease[] = "release";
+// When the WindowTreeHost is occluded the frame rate is throttled.
+const char kApplyNativeOcclusionToCompositorTypeThrottle[] = "throttle";
 
 // If enabled, calculate native window occlusion - Windows-only.
 const base::Feature kCalculateNativeWinOcclusion{
@@ -200,6 +207,18 @@ const base::Feature kImprovedKeyboardShortcuts = {
     "ImprovedKeyboardShortcuts", base::FEATURE_ENABLED_BY_DEFAULT};
 
 bool IsImprovedKeyboardShortcutsEnabled() {
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+  // TODO(crbug/1264581): Remove this once kDeviceI18nShortcutsEnabled policy is
+  // deprecated.
+  if (::ui::ShortcutMappingPrefDelegate::IsInitialized()) {
+    ::ui::ShortcutMappingPrefDelegate* instance =
+        ::ui::ShortcutMappingPrefDelegate::GetInstance();
+    if (instance && instance->IsDeviceEnterpriseManaged()) {
+      return instance->IsI18nShortcutPrefEnabled();
+    }
+  }
+#endif  // defined(IS_CHROMEOS_ASH)
+
   return base::FeatureList::IsEnabled(kImprovedKeyboardShortcuts);
 }
 

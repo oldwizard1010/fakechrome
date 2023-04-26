@@ -68,9 +68,9 @@
 #endif
 
 #if defined(OS_ANDROID)
-#include "base/cpu_affinity_posix.h"
 #include "base/trace_event/memory_dump_manager.h"
 #include "components/tracing/common/graphics_memory_dump_provider_android.h"
+#include "content/common/android/cpu_affinity_setter.h"
 #endif
 
 #if defined(OS_WIN)
@@ -82,17 +82,11 @@
 #include "sandbox/win/src/sandbox.h"
 #endif
 
-#if defined(USE_X11)
-#include "ui/base/x/x11_ui_thread.h"                     // nogncheck
-#include "ui/base/x/x11_util.h"                          // nogncheck
-#include "ui/gfx/linux/gpu_memory_buffer_support_x11.h"  // nogncheck
-#include "ui/gfx/x/x11_switches.h"                       // nogncheck
-#endif
-
 #if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "content/gpu/gpu_sandbox_hook_linux.h"
 #include "content/public/common/sandbox_init.h"
 #include "sandbox/policy/linux/sandbox_linux.h"
+#include "sandbox/policy/sandbox_type.h"
 #endif
 
 #if defined(OS_MAC)
@@ -192,13 +186,13 @@ class ContentSandboxHelper : public gpu::GpuSandboxHelper {
 }  // namespace
 
 // Main function for starting the Gpu process.
-int GpuMain(const MainFunctionParams& parameters) {
+int GpuMain(MainFunctionParams parameters) {
   TRACE_EVENT0("gpu", "GpuMain");
   base::trace_event::TraceLog::GetInstance()->set_process_name("GPU Process");
   base::trace_event::TraceLog::GetInstance()->SetProcessSortIndex(
       kTraceEventGpuProcessSortIndex);
 
-  const base::CommandLine& command_line = parameters.command_line;
+  const base::CommandLine& command_line = *parameters.command_line;
 
   gpu::GpuPreferences gpu_preferences;
   if (command_line.HasSwitch(switches::kGpuPreferences)) {
@@ -236,13 +230,6 @@ int GpuMain(const MainFunctionParams& parameters) {
 
   if (base::FeatureList::IsEnabled(features::kGpuProcessHighPriorityWin))
     ::SetPriorityClass(::GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
-#elif defined(OS_ANDROID)
-  if (base::GetFieldTrialParamByFeatureAsBool(
-          features::kBigLittleScheduling,
-          features::kBigLittleSchedulingGpuMainBigParam, false)) {
-    base::SetThreadCpuAffinityMode(base::PlatformThread::CurrentId(),
-                                   base::CpuAffinityMode::kBigCoresOnly);
-  }
 #endif
 
   // Installs a base::LogMessageHandlerFunction which ensures messages are sent
@@ -268,24 +255,7 @@ int GpuMain(const MainFunctionParams& parameters) {
     main_thread_task_executor =
         std::make_unique<base::SingleThreadTaskExecutor>(
             base::MessagePumpType::DEFAULT);
-#elif defined(USE_X11) || defined(USE_OZONE)
-#if defined(USE_X11)
-    if (!features::IsUsingOzonePlatform()) {
-      // We need a UI loop so that we can grab the Expose events. See
-      // GLSurfaceGLX and https://crbug.com/326995.
-      if (!x11::Connection::Get()->Ready())
-        return RESULT_CODE_GPU_DEAD_ON_ARRIVAL;
-      main_thread_task_executor =
-          std::make_unique<base::SingleThreadTaskExecutor>(
-              base::MessagePumpType::UI);
-      event_source = ui::PlatformEventSource::CreateDefault();
-      // Set up the X11UiThread before the sandbox gets set up.  This cannot be
-      // done later since opening the connection requires socket() and
-      // connect().
-      ui::X11UiThread::SetConnection(x11::Connection::Get()->Clone().release());
-    }
-#endif
-#if defined(USE_OZONE)
+#elif defined(USE_OZONE)
     // The MessagePump type required depends on the Ozone platform selected at
     // runtime.
     if (!main_thread_task_executor) {
@@ -293,7 +263,6 @@ int GpuMain(const MainFunctionParams& parameters) {
           std::make_unique<base::SingleThreadTaskExecutor>(
               gpu_preferences.message_pump_type);
     }
-#endif
 #elif defined(OS_LINUX) || defined(OS_CHROMEOS)
 #error "Unsupported Linux platform."
 #elif defined(OS_MAC)
@@ -373,19 +342,6 @@ int GpuMain(const MainFunctionParams& parameters) {
   GpuProcess gpu_process(io_thread_priority);
 #endif
 
-#if defined(USE_X11)
-  // ui::GbmDevice() takes >50ms with amdgpu, so kick off
-  // GpuMemoryBufferSupportX11 creation on another thread now.
-  if (!features::IsUsingOzonePlatform() &&
-      gpu_preferences.enable_native_gpu_memory_buffers) {
-    base::ThreadPool::PostTask(
-        FROM_HERE, base::BindOnce([]() {
-          SCOPED_UMA_HISTOGRAM_TIMER("Linux.X11.GbmSupportX11CreationTime");
-          ui::GpuMemoryBufferSupportX11::GetInstance();
-        }));
-  }
-#endif
-
   auto* client = GetContentClient()->gpu();
   if (client)
     client->PostIOThreadCreated(gpu_process.io_task_runner());
@@ -428,6 +384,11 @@ int GpuMain(const MainFunctionParams& parameters) {
   base::trace_event::MemoryDumpManager::GetInstance()->RegisterDumpProvider(
       tracing::GraphicsMemoryDumpProvider::GetInstance(), "AndroidGraphics",
       nullptr);
+  if (base::GetFieldTrialParamByFeatureAsBool(
+          features::kBigLittleScheduling,
+          features::kBigLittleSchedulingGpuMainBigParam, false)) {
+    SetCpuAffinityForCurrentThread(base::CpuAffinityMode::kBigCoresOnly);
+  }
 #endif
 
   internal::PartitionAllocSupport::Get()->ReconfigureAfterTaskRunnerInit(

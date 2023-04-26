@@ -5,14 +5,13 @@
 #ifndef CHROME_BROWSER_ASH_NET_NETWORK_PREF_STATE_OBSERVER_H_
 #define CHROME_BROWSER_ASH_NET_NETWORK_PREF_STATE_OBSERVER_H_
 
-#include "base/macros.h"
 #include "base/scoped_observation.h"
 #include "components/session_manager/core/session_manager.h"
 #include "components/session_manager/core/session_manager_observer.h"
 
 class Profile;
 
-namespace chromeos {
+namespace ash {
 
 // Class to update NetworkHandler when the PrefService state changes. The
 // implementation currently relies on g_browser_process since it holds the
@@ -38,6 +37,6 @@ class NetworkPrefStateObserver
       session_observation_{this};
 };
 
-}  // namespace chromeos
+}  // namespace ash
 
 #endif  // CHROME_BROWSER_ASH_NET_NETWORK_PREF_STATE_OBSERVER_H_

@@ -3068,10 +3068,11 @@ TEST_P(RendererPixelTestWithBackdropFilter, InvertFilter) {
 }
 
 TEST_P(RendererPixelTestWithBackdropFilter, InvertFilterWithMask) {
-  // TODO(989312): The mask on gl_renderer and software_renderer appears to be
-  // offset from the correct location.
-  if (is_gl_renderer() || is_software_renderer())
+  // TODO(crbug.com/989312): Delete this condition with GLRendere. The mask
+  // appears to be offset from the correct location but this isn't relevant.
+  if (is_gl_renderer())
     return;
+
   this->backdrop_filters_.Append(cc::FilterOperation::CreateInvertFilter(1.f));
   this->filter_pass_layer_rect_ = gfx::Rect(this->device_viewport_size_);
   this->filter_pass_layer_rect_.Inset(12, 14, 16, 18);
@@ -3079,10 +3080,14 @@ TEST_P(RendererPixelTestWithBackdropFilter, InvertFilterWithMask) {
       gfx::RRectF(gfx::RectF(this->filter_pass_layer_rect_));
   this->include_backdrop_mask_ = true;
   this->SetUpRenderPassList();
-  EXPECT_TRUE(this->RunPixelTest(
-      &this->pass_list_,
-      base::FilePath(FILE_PATH_LITERAL("backdrop_filter_masked.png")),
-      cc::FuzzyPixelOffByOneComparator(false)));
+
+  base::FilePath expected_path(
+      is_software_renderer()
+          ? FILE_PATH_LITERAL("backdrop_filter_masked_sw.png")
+          : FILE_PATH_LITERAL("backdrop_filter_masked.png"));
+
+  EXPECT_TRUE(this->RunPixelTest(&this->pass_list_, expected_path,
+                                 cc::FuzzyPixelOffByOneComparator(false)));
 }
 
 // Tests if drawing using the fast solid color draw feature returns the same
@@ -4264,9 +4269,10 @@ TEST_F(SoftwareRendererPixelTest, TextureDrawQuadLinear) {
   float vertex_opacity[4] = {1.0f, 1.0f, 1.0f, 1.0f};
   auto* quad = pass->CreateAndAppendDrawQuad<TextureDrawQuad>();
   quad->SetNew(shared_state, viewport, viewport, needs_blending,
-               mapped_resource, false, gfx::PointF(0, 0), gfx::PointF(1, 1),
-               SK_ColorBLACK, vertex_opacity, false, nearest_neighbor,
-               /*secure_output_only=*/false, gfx::ProtectedVideoType::kClear);
+               mapped_resource, /*premultiplied=*/true, gfx::PointF(0, 0),
+               gfx::PointF(1, 1), SK_ColorBLACK, vertex_opacity, false,
+               nearest_neighbor, /*secure_output=*/false,
+               gfx::ProtectedVideoType::kClear);
 
   AggregatedRenderPassList pass_list;
   pass_list.push_back(std::move(pass));

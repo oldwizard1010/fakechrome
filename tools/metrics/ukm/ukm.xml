@@ -18,6 +18,30 @@ be describing additional metrics about the same event.
 
 <ukm-configuration>
 
+<event name="AboutThisSiteStatus">
+  <owner>olesiamarukhnno@google.com</owner>
+  <summary>
+    Recorded on each page info bubble open when &quot;About this site&quot; data
+    is fetched.
+  </summary>
+  <metric name="Status" enum="AboutThisSiteStatus">
+    <summary>
+      The status of the &quot;About this site&quot; info, including if the data
+      is available and whether the proto is valid. See
+      |page_info::about_this_site_validation::ProtoValidation| for enum
+      elements.
+    </summary>
+    <aggregation>
+      <history>
+        <index fields="profile.country"/>
+        <statistics>
+          <enumeration/>
+        </statistics>
+      </history>
+    </aggregation>
+  </metric>
+</event>
+
 <event name="AbusiveExperienceHeuristic">
   <owner>csharrison@chromium.org</owner>
   <owner>yaoxia@chromium.org</owner>
@@ -461,6 +485,28 @@ be describing additional metrics about the same event.
       site-wide framework and not a reader experience.
     </summary>
   </metric>
+  <metric
+      name="SubFrame.InteractiveTiming.AverageUserInteractionLatencyOverBudget.MaxEventduration">
+    <summary>
+      The average value of user interaction latency above budget of a page load
+      in AMP subframes, in ms. For this metric, we measure the latency of user
+      interactions by Responsiveness.UserInteraction.MaxEventDuration and we
+      deduct a budget from the original value. If the latency value is below the
+      budget, it will be treated as 0 ms. Each type of interaction has its own
+      budget.
+    </summary>
+  </metric>
+  <metric
+      name="SubFrame.InteractiveTiming.AverageUserInteractionLatencyOverBudget.TotalEventduration">
+    <summary>
+      The average value of user interaction latency above budget of a page load
+      in AMP subframes, in ms. For this metric, we measure the latency of user
+      interactions by Responsiveness.UserInteraction.TotalEventDuration and we
+      deduct a budget from the original value. If the latency value is below the
+      budget, it will be treated as 0 ms. Each type of interaction has its own
+      budget.
+    </summary>
+  </metric>
   <metric name="SubFrame.InteractiveTiming.FirstInputDelay3">
     <obsolete>
       Removed July 2019 in favor of FirstInputDelay4.
@@ -478,6 +524,112 @@ be describing additional metrics about the same event.
       and the start of event processing on the main thread for the first
       meaningful input per navigation, in the AMP subframe. See
       https://goo.gl/tr1oTZ for a detailed explanation. In milliseconds.
+    </summary>
+  </metric>
+  <metric
+      name="SubFrame.InteractiveTiming.SlowUserInteractionLatencyOverBudget.HighPercentile.MaxEventduration">
+    <summary>
+      An approximation of high percentile of user interaction latency above
+      budget of a page load in AMP subframes, in ms. For this metric, we measure
+      the latency of user interactions by
+      Responsiveness.UserInteraction.MaxEventDuration and we deduct a budget
+      from the original value. If the latency value is below the budget, it will
+      be treated as 0 ms. Each type of interaction has its own budget.
+    </summary>
+  </metric>
+  <metric
+      name="SubFrame.InteractiveTiming.SlowUserInteractionLatencyOverBudget.HighPercentile.TotalEventduration">
+    <summary>
+      An approximation of high percentile of user interaction latency above
+      budget of a page load in AMP subframes, in ms. For this metric, we measure
+      the latency of user interactions by
+      Responsiveness.UserInteraction.TotalEventDuration and we deduct a budget
+      from the original value. If the latency value is below the budget, it will
+      be treated as 0 ms. Each type of interaction has its own budget.
+    </summary>
+  </metric>
+  <metric
+      name="SubFrame.InteractiveTiming.SlowUserInteractionLatencyOverBudget.HighPercentile2.MaxEventduration">
+    <summary>
+      An approximation of high percentile of user interaction latency above
+      budget of a page load in AMP subframes, in ms. For this metric, we measure
+      the latency of user interactions by
+      Responsiveness.UserInteraction.MaxEventDuration and we deduct a budget
+      from the original value. If the latency value is below the budget, it will
+      be treated as 0 ms. Each type of interaction has its own budget.
+    </summary>
+  </metric>
+  <metric
+      name="SubFrame.InteractiveTiming.SlowUserInteractionLatencyOverBudget.HighPercentile2.TotalEventduration">
+    <summary>
+      An approximation of high percentile of user interaction latency above
+      budget of a page load in AMP subframes, in ms. For this metric, we measure
+      the latency of user interactions by
+      Responsiveness.UserInteraction.TotalEventDuration and we deduct a budget
+      from the original value. If the latency value is below the budget, it will
+      be treated as 0 ms. Each type of interaction has its own budget.
+    </summary>
+  </metric>
+  <metric
+      name="SubFrame.InteractiveTiming.SumOfUserInteractionLatencyOverBudget.MaxEventduration">
+    <summary>
+      The sum of user interaction latency above budget of a page load in AMP
+      subframes, in ms. For this metric, we measure the latency of user
+      interactions by Responsiveness.UserInteraction.MaxEventDuration and we
+      deduct a budget from the original value. If the latency value is below the
+      budget, it will be treated as 0 ms. Each type of interaction has its own
+      budget.
+    </summary>
+  </metric>
+  <metric
+      name="SubFrame.InteractiveTiming.SumOfUserInteractionLatencyOverBudget.TotalEventduration">
+    <summary>
+      The sum of user interaction latency above budget of a page load in AMP
+      subframes, in ms. For this metric, we measure the latency of user
+      interactions by Responsiveness.UserInteraction.TotalEventDuration and we
+      deduct a budget from the original value. If the latency value is below the
+      budget, it will be treated as 0 ms. Each type of interaction has its own
+      budget.
+    </summary>
+  </metric>
+  <metric
+      name="SubFrame.InteractiveTiming.WorstUserInteractionLatency.MaxEventduration">
+    <summary>
+      The maximum value of high percentile of user interaction latency above
+      budget of a page load in AMP subframes, in ms. For this metric, we measure
+      the latency of user interactions by
+      Responsiveness.UserInteraction.MaxEventDuration.
+    </summary>
+  </metric>
+  <metric
+      name="SubFrame.InteractiveTiming.WorstUserInteractionLatency.TotalEventduration">
+    <summary>
+      The maximum value of high percentile of user interaction latency above
+      budget of a page load in AMP subframes, in ms. For this metric, we measure
+      the latency of user interactions by
+      Responsiveness.UserInteraction.TotalEventDuration.
+    </summary>
+  </metric>
+  <metric
+      name="SubFrame.InteractiveTiming.WorstUserInteractionLatencyOverBudget.MaxEventduration">
+    <summary>
+      The maximum value of user interaction latency above budget of a page load
+      in AMP subframes, in ms. For this metric, we measure the latency of user
+      interactions by Responsiveness.UserInteraction.MaxEventDuration and we
+      deduct a budget from the original value. If the latency value is below the
+      budget, it will be treated as 0 ms. Each type of interaction has its own
+      budget.
+    </summary>
+  </metric>
+  <metric
+      name="SubFrame.InteractiveTiming.WorstUserInteractionLatencyOverBudget.TotalEventduration">
+    <summary>
+      The maximum value of user interaction latency above budget of a page load
+      in AMP subframes, in ms. For this metric, we measure the latency of user
+      interactions by Responsiveness.UserInteraction.TotalEventDuration and we
+      deduct a budget from the original value. If the latency value is below the
+      budget, it will be treated as 0 ms. Each type of interaction has its own
+      budget.
     </summary>
   </metric>
   <metric
@@ -664,6 +816,10 @@ be describing additional metrics about the same event.
     </summary>
   </metric>
   <metric name="SubFrame.PaintTiming.NavigationToLargestContentfulPaint">
+    <obsolete>
+      Replaced by SubFrame.PaintTiming.NavigationToLargestContentfulPaint2. No
+      longer reported from Nov 2021.
+    </obsolete>
     <summary>
       Measures the time in milliseconds from navigation timing's navigation
       start to the time when the page first paints the largest content (text or
@@ -1055,8 +1211,7 @@ be describing additional metrics about the same event.
     from the suggestion chip, or from the grid of apps. The UKM metrics are not
     keyed by navigational urls. Instead, for Chrome apps the keys are based upon
     the app id, for Play apps the keys are based upon a hash of the package name
-    and for PWAs and bookmark apps the keys are the urls associated with the
-    PWA/bookmark.
+    and for PWAs the keys are the urls associated with the PWA.
   </summary>
   <metric name="AllClicksLast24Hours">
     <summary>
@@ -7742,6 +7897,28 @@ be describing additional metrics about the same event.
       cumulative layout shift score described in the explainer.
     </summary>
   </metric>
+  <metric
+      name="AverageUserInteractionLatencyOverBudgetAfterBackForwardCacheRestore.MaxEventduration">
+    <summary>
+      The average value of user interaction latency above budget of a page after
+      it is restored from the back-forward, in ms. For this metric, we measure
+      the latency of user interactions by
+      Responsiveness.UserInteraction.MaxEventDuration and we deduct a budget
+      from the original value. If the latency value is below the budget, it will
+      be treated as 0 ms. Each type of interaction has its own budget.
+    </summary>
+  </metric>
+  <metric
+      name="AverageUserInteractionLatencyOverBudgetAfterBackForwardCacheRestore.TotalEventduration">
+    <summary>
+      The average value of user interaction latency above budget of a page after
+      it is restored from the back-forward, in ms. For this metric, we measure
+      the latency of user interactions by
+      Responsiveness.UserInteraction.TotalEventDuration and we deduct a budget
+      from the original value. If the latency value is below the budget, it will
+      be treated as 0 ms. Each type of interaction has its own budget.
+    </summary>
+  </metric>
   <metric name="BackForwardCache.BlocklistedFeatures"
       enum="WebSchedulerTrackedFeature">
     <summary>
@@ -7949,6 +8126,72 @@ be describing additional metrics about the same event.
       cache and the second requestAnimationFrame time in milliseconds.
     </summary>
   </metric>
+  <metric
+      name="SlowUserInteractionLatencyOverBudgetAfterBackForwardCacheRestore.HighPercentile.MaxEventduration">
+    <summary>
+      An approximation of high percentile of user interaction latency above
+      budget of a page after it is restored from the back-forward, in ms. For
+      this metric, we measure the latency of user interactions by
+      Responsiveness.UserInteraction.MaxEventDuration and we deduct a budget
+      from the original value. If the latency value is below the budget, it will
+      be treated as 0 ms. Each type of interaction has its own budget.
+    </summary>
+  </metric>
+  <metric
+      name="SlowUserInteractionLatencyOverBudgetAfterBackForwardCacheRestore.HighPercentile.TotalEventduration">
+    <summary>
+      An approximation of high percentile of user interaction latency above
+      budget of a page after it is restored from the back-forward, in ms. For
+      this metric, we measure the latency of user interactions by
+      Responsiveness.UserInteraction.TotalEventDuration and we deduct a budget
+      from the original value. If the latency value is below the budget, it will
+      be treated as 0 ms. Each type of interaction has its own budget.
+    </summary>
+  </metric>
+  <metric
+      name="SlowUserInteractionLatencyOverBudgetAfterBackForwardCacheRestore.HighPercentile2.MaxEventduration">
+    <summary>
+      An approximation of high percentile of user interaction latency above
+      budget of a page after it is restored from the back-forward, in ms. For
+      this metric, we measure the latency of user interactions by
+      Responsiveness.UserInteraction.MaxEventDuration and we deduct a budget
+      from the original value. If the latency value is below the budget, it will
+      be treated as 0 ms. Each type of interaction has its own budget.
+    </summary>
+  </metric>
+  <metric
+      name="SlowUserInteractionLatencyOverBudgetAfterBackForwardCacheRestore.HighPercentile2.TotalEventduration">
+    <summary>
+      An approximation of high percentile of user interaction latency above
+      budget of a page after it is restored from the back-forward, in ms. For
+      this metric, we measure the latency of user interactions by
+      Responsiveness.UserInteraction.TotalEventDuration and we deduct a budget
+      from the original value. If the latency value is below the budget, it will
+      be treated as 0 ms. Each type of interaction has its own budget.
+    </summary>
+  </metric>
+  <metric
+      name="SumOfUserInteractionLatencyOverBudgetAfterBackForwardCacheRestore.MaxEventduration">
+    <summary>
+      The sum of user interaction latency above budget of a page after it is
+      restored from the back-forward, in ms. For this metric, we measure the
+      latency of user interactions by
+      Responsiveness.UserInteraction.MaxEventDuration and we deduct a budget
+      from the original value. If the latency value is below the budget, it will
+      be treated as 0 ms. Each type of interaction has its own budget.
+    </summary>
+  </metric>
+  <metric
+      name="SumOfUserInteractionLatencyOverBudgetAfterBackForwardCacheRestore.TotalEventduration">
+    <summary>
+      The sum of user interaction latency above budget of a page after it is
+      restored from the back-forward, in ms. For this metric, we measure the
+      latency of user interactions by
+      Responsiveness.UserInteraction.TotalEventDuration and we deduct a budget
+      from the original value. If the latency value is below the budget, it will
+      be treated as 0 ms. Each type of interaction has its own budget.
+    </summary>
+  </metric>
   <metric name="ThirdRequestAnimationFrameAfterBackForwardCacheRestore">
     <summary>
       Measures the time duration between the page restore from back-forward
@@ -7963,6 +8206,46 @@ be describing additional metrics about the same event.
       This is clamped to hours for values greater than 3 hours, to minutes for
       values greater than 3 minutes, to seconds for values greater than 5
       seconds.
+    </summary>
+  </metric>
+  <metric
+      name="WorstUserInteractionLatencyAfterBackForwardCacheRestore.MaxEventduration">
+    <summary>
+      The maximum value of user interaction latency of a page after it is
+      restored from the back-forward, in ms. For this metric, we measure the
+      latency of user interactions by
+      Responsiveness.UserInteraction.MaxEventDuration.
+    </summary>
+  </metric>
+  <metric
+      name="WorstUserInteractionLatencyAfterBackForwardCacheRestore.TotalEventduration">
+    <summary>
+      The maximum value of user interaction latency of a page after it is
+      restored from the back-forward, in ms. For this metric, we measure the
+      latency of user interactions by
+      Responsiveness.UserInteraction.TotalEventDuration.
+    </summary>
+  </metric>
+  <metric
+      name="WorstUserInteractionLatencyOverBudgetAfterBackForwardCacheRestore.MaxEventduration">
+    <summary>
+      The maximum value of user interaction latency above budget of a page after
+      it is restored from the back-forward, in ms. For this metric, we measure
+      the latency of user interactions by
+      Responsiveness.UserInteraction.MaxEventDuration and we reduct a budget
+      from the original value. If the latency value is below the budget, it will
+      be treated as 0 ms. Each type of interaction has its own budget.
+    </summary>
+  </metric>
+  <metric
+      name="WorstUserInteractionLatencyOverBudgetAfterBackForwardCacheRestore.TotalEventduration">
+    <summary>
+      The maximum value of user interaction latency above budget of a page after
+      it is restored from the back-forward, in ms. For this metric, we measure
+      the latency of user interactions by
+      Responsiveness.UserInteraction.TotalEventDuration and we reduct a budget
+      from the original value. If the latency value is below the budget, it will
+      be treated as 0 ms. Each type of interaction has its own budget.
     </summary>
   </metric>
 </event>
@@ -9157,9 +9440,33 @@ be describing additional metrics about the same event.
       </history>
     </aggregation>
   </metric>
+  <metric name="KeySystem" enum="MediaKeySystem">
+    <summary>
+      The key system associated with the current CDM.
+    </summary>
+    <aggregation>
+      <history>
+        <statistics>
+          <enumeration/>
+        </statistics>
+      </history>
+    </aggregation>
+  </metric>
   <metric name="SystemCode" enum="CdmSystemCode">
     <summary>
       A CDM specific code providing more details about the cause of rejection.
+    </summary>
+    <aggregation>
+      <history>
+        <statistics>
+          <enumeration/>
+        </statistics>
+      </history>
+    </aggregation>
+  </metric>
+  <metric name="UseHardwareSecureCodecs" enum="Boolean">
+    <summary>
+      Whether hardware secure codecs are required for the current CDM.
     </summary>
     <aggregation>
       <history>
@@ -9214,7 +9521,7 @@ be describing additional metrics about the same event.
       </history>
     </aggregation>
   </metric>
-  <metric name="KeySystem" enum="MediaKeySystem">
+  <metric name="KeySystem" enum="MediaKeySystemLegacy">
     <summary>
       The key system associated with this call.
     </summary>
@@ -9271,7 +9578,7 @@ be describing additional metrics about the same event.
       </history>
     </aggregation>
   </metric>
-  <metric name="KeySystem" enum="MediaKeySystem">
+  <metric name="KeySystem" enum="MediaKeySystemLegacy">
     <summary>
       The key system passed in requestMediaKeySystemAccess() call.
     </summary>
@@ -11607,6 +11914,14 @@ be describing additional metrics about the same event.
       Records an enum value representing which action on the Page Info Bubble
       was taken.
     </summary>
+    <aggregation>
+      <history>
+        <index fields="profile.country"/>
+        <statistics>
+          <enumeration/>
+        </statistics>
+      </history>
+    </aggregation>
   </metric>
 </event>
 
@@ -11687,7 +12002,10 @@ be describing additional metrics about the same event.
       for quiescent windows. The unit of time is ms.
     </summary>
   </metric>
-  <metric name="Experimental.PageLoadType" enum="PageLoadType">
+  <metric name="Experimental.PageLoadType" enum="PageVisitFinalStatus">
+    <obsolete>
+      Renamed in 11/2021, use PageVisitFinalStatus instead.
+    </obsolete>
     <summary>
       Determines the PageLoadType for this page load. That is, records whether
       the page was never foregrounded, was foregrounded but did not reach FCP,
@@ -12882,6 +13200,23 @@ be describing additional metrics about the same event.
       </history>
     </aggregation>
   </metric>
+  <metric name="PageVisitFinalStatus" enum="PageVisitFinalStatus">
+    <summary>
+      Determines the final status for this page load. That is, records whether
+      the page was never foregrounded, was foregrounded but did not reach FCP,
+      or did reach FCP. The metric is recorded at the end of each page load. As
+      usual with PageLoad metrics, we consider app backgrounding on Android to
+      be the end of page load as well as the app could be evicted by Android
+      anytime after that happens.
+    </summary>
+  </metric>
+  <metric name="PaintTiming.LargestContentfulPaintType">
+    <summary>
+      Indicates that type of the LargestContentfulPaint candidate. This value is
+      a packed set of flags, defined in
+      third_party/blink/public/common/performance/largest_contentful_paint_type.h
+    </summary>
+  </metric>
   <metric name="PaintTiming.NavigationToExperimentalLargestContentfulPaint">
     <obsolete>
       Replaced by PaintTiming.NavigationToLargestContentfulPaint2 on Oct 2020.
@@ -12957,6 +13292,10 @@ be describing additional metrics about the same event.
     </aggregation>
   </metric>
   <metric name="PaintTiming.NavigationToLargestContentfulPaint">
+    <obsolete>
+      Replaced by PaintTiming.NavigationToLargestContentfulPaint2. No longer
+      reported from Nov 2021.
+    </obsolete>
     <summary>
       Measures the time in milliseconds from navigation timing's navigation
       start to the time when the page first paints the largest content (text or
@@ -12980,6 +13319,10 @@ be describing additional metrics about the same event.
     </aggregation>
   </metric>
   <metric name="PaintTiming.NavigationToLargestContentfulPaint.MainFrame">
+    <obsolete>
+      Replaced by PaintTiming.NavigationToLargestContentfulPaint2.MainFrame. No
+      longer reported from Nov 2021.
+    </obsolete>
     <summary>
       Measures the time in milliseconds from navigation timing's navigation
       start to the time when the page first paints the largest content (text or
@@ -13091,6 +13434,13 @@ be describing additional metrics about the same event.
   <summary>
     Recorded for page loads that were navigated to via Google Search.
   </summary>
+  <metric name="GoogleSearchMode" enum="GoogleSearchMode">
+    <summary>
+      Google Search mode used by the user. This corresponds to the tab (e.g. web
+      result, image results, video results, etc.) the user is on. This
+      information is extracted from the tbm query parameter on the Search URL.
+    </summary>
+  </metric>
 </event>
 
 <event name="PageLoad.Internal" singular="True">
@@ -13102,6 +13452,10 @@ be describing additional metrics about the same event.
   </summary>
   <metric name="PaintTiming.ExperimentalLargestContentfulPaint.ContentType"
       enum="LargestContentType">
+    <obsolete>
+      Replaced by PaintTiming.LargestContentfulPaint.ContentType. No longer
+      reported from Nov 2021.
+    </obsolete>
     <summary>
       Records whether the page's experimental version of largest contentful
       paint, whose timestamp is measured by
@@ -13114,6 +13468,10 @@ be describing additional metrics about the same event.
   <metric
       name="PaintTiming.ExperimentalLargestContentfulPaint.TerminationState"
       enum="LargestContentfulPaint.TerminationState">
+    <obsolete>
+      Replaced by PaintTiming.LargestContentfulPaint.TerminationState. No longer
+      reported from Nov 2021.
+    </obsolete>
     <summary>
       Records the state of the experimental largest contentful paint algorithm
       at the time in which the browser attempts to record
@@ -17767,6 +18125,30 @@ be describing additional metrics about the same event.
     <summary>
       Site engagement score in the range [0, 100], rounded down to a multiple of
       10 to limit granularity.
+    </summary>
+  </metric>
+</event>
+
+<event name="UserPerceivedPageVisit" singular="True">
+  <owner>djw@chromium.org</owner>
+  <owner>altimin@chromium.org</owner>
+  <summary>
+    Metrics related to a page visit as a user perceives it, regardless of how
+    the page was visited. More metrics may be associated with a particular page
+    visit, these can be found in specific UKM events with the same UKM source
+    ID. Currently the methods of visiting a page that will populate this event
+    are: 'normal' page load (more metrics in the PageLoad event), Back-Forward
+    Cache Restore (more metrics in the HistoryNavigation event), and AMP
+    documents (more metrics in the AmpPageLoad event)
+  </summary>
+  <metric name="PageVisitFinalStatus" enum="PageVisitFinalStatus">
+    <summary>
+      Determines the final status for this page visit. That is, records whether
+      the page was never foregrounded, was foregrounded but did not reach FCP,
+      or did reach FCP. The metric is recorded at the end of each page visit.
+      App backgrounding on Android to is considered to be the end of page visit
+      as well, as the app could be evicted by Android anytime after that
+      happens.
     </summary>
   </metric>
 </event>

@@ -41,6 +41,7 @@
 #include "chrome/browser/data_reduction_proxy/data_reduction_proxy_chrome_settings.h"
 #include "chrome/browser/data_reduction_proxy/data_reduction_proxy_chrome_settings_factory.h"
 #include "chrome/browser/devtools/devtools_window.h"
+#include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/download/download_stats.h"
 #include "chrome/browser/language/language_model_manager_factory.h"
 #include "chrome/browser/media/router/media_router_feature.h"
@@ -634,6 +635,18 @@ ui::MenuSourceType GetMenuSourceType(int event_flags) {
 }
 #endif
 
+bool IsFrameInPdfViewer(content::RenderFrameHost* rfh) {
+  if (!rfh)
+    return false;
+
+  if (IsPdfExtensionOrigin(rfh->GetLastCommittedOrigin()))
+    return true;
+
+  content::RenderFrameHost* parent_rfh = rfh->GetParent();
+  return parent_rfh &&
+         IsPdfExtensionOrigin(parent_rfh->GetLastCommittedOrigin());
+}
+
 }  // namespace
 
 // static
@@ -654,7 +667,7 @@ void RenderViewContextMenu::AddSpellCheckServiceItem(ui::SimpleMenuModel* menu,
 }
 
 RenderViewContextMenu::RenderViewContextMenu(
-    content::RenderFrameHost* render_frame_host,
+    content::RenderFrameHost& render_frame_host,
     const content::ContextMenuParams& params)
     : RenderViewContextMenuBase(render_frame_host, params),
       extension_items_(browser_context_,
@@ -1507,7 +1520,13 @@ void RenderViewContextMenu::AppendOpenInWebAppLinkItems() {
   if (system_app_ &&
       system_app_->GetType() ==
           web_app::GetSystemWebAppTypeForAppId(profile, *link_app_id) &&
-      system_app_->ShouldBeSingleWindow()) {
+      system_app_->ShouldReuseExistingWindow()) {
+    return;
+  }
+
+  // Only applies to apps that open in an app window.
+  if (provider->registrar().GetAppUserDisplayMode(*link_app_id) ==
+      web_app::DisplayMode::kBrowser) {
     return;
   }
 
@@ -2289,14 +2308,10 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
 
     case IDC_CONTENT_CONTEXT_ROTATECW:
     case IDC_CONTENT_CONTEXT_ROTATECCW: {
-      bool is_pdf_viewer_fullscreen = false;
-#if BUILDFLAG(ENABLE_PDF)
       // Rotate commands should be disabled when in PDF Viewer's Presentation
       // mode.
-      is_pdf_viewer_fullscreen =
-          IsPdfExtensionOrigin(url::Origin::Create(GetDocumentURL(params_))) &&
-          IsHTML5Fullscreen();
-#endif
+      bool is_pdf_viewer_fullscreen =
+          IsFrameInPdfViewer(GetRenderFrameHost()) && IsHTML5Fullscreen();
       return !is_pdf_viewer_fullscreen &&
              (params_.media_flags & ContextMenuData::kMediaCanRotate) != 0;
     }
@@ -2897,6 +2912,20 @@ const policy::DlpRulesManager* RenderViewContextMenu::GetDlpRulesManager()
 }
 #endif
 
+bool RenderViewContextMenu::IsSaveAsItemAllowedByPolicy() const {
+  PrefService* local_state = g_browser_process->local_state();
+  DCHECK(local_state);
+  // Check if file-selection dialogs are forbidden by policy.
+  if (!local_state->GetBoolean(prefs::kAllowFileSelectionDialogs))
+    return false;
+  // Check if all downloads are forbidden by policy.
+  if (DownloadPrefs::FromBrowserContext(GetProfile())->download_restriction() ==
+      DownloadPrefs::DownloadRestriction::ALL_FILES) {
+    return false;
+  }
+  return true;
+}
+
 // Controller functions --------------------------------------------------------
 
 bool RenderViewContextMenu::IsReloadEnabled() const {
@@ -2954,10 +2983,7 @@ bool RenderViewContextMenu::IsTranslateEnabled() const {
 }
 
 bool RenderViewContextMenu::IsSaveLinkAsEnabled() const {
-  PrefService* local_state = g_browser_process->local_state();
-  DCHECK(local_state);
-  // Test if file-selection dialogs are forbidden by policy.
-  if (!local_state->GetBoolean(prefs::kAllowFileSelectionDialogs))
+  if (!IsSaveAsItemAllowedByPolicy())
     return false;
 
   PolicyBlocklistService* service =
@@ -2985,20 +3011,14 @@ bool RenderViewContextMenu::IsSaveLinkAsEnabled() const {
 }
 
 bool RenderViewContextMenu::IsSaveImageAsEnabled() const {
-  PrefService* local_state = g_browser_process->local_state();
-  DCHECK(local_state);
-  // Test if file-selection dialogs are forbidden by policy.
-  if (!local_state->GetBoolean(prefs::kAllowFileSelectionDialogs))
+  if (!IsSaveAsItemAllowedByPolicy())
     return false;
 
   return params_.has_image_contents;
 }
 
 bool RenderViewContextMenu::IsSaveAsEnabled() const {
-  PrefService* local_state = g_browser_process->local_state();
-  DCHECK(local_state);
-  // Test if file-selection dialogs are forbidden by policy.
-  if (!local_state->GetBoolean(prefs::kAllowFileSelectionDialogs))
+  if (!IsSaveAsItemAllowedByPolicy())
     return false;
 
   const GURL& url = params_.src_url;
@@ -3023,10 +3043,7 @@ bool RenderViewContextMenu::IsSavePageEnabled() const {
   if (browser && !browser->CanSaveContents(embedder_web_contents_))
     return false;
 
-  PrefService* local_state = g_browser_process->local_state();
-  DCHECK(local_state);
-  // Test if file-selection dialogs are forbidden by policy.
-  if (!local_state->GetBoolean(prefs::kAllowFileSelectionDialogs))
+  if (!IsSaveAsItemAllowedByPolicy())
     return false;
 
   // We save the last committed entry (which the user is looking at), as
@@ -3112,7 +3129,7 @@ bool RenderViewContextMenu::IsRegionSearchEnabled() const {
       provider && !provider->image_url().empty() &&
       provider->image_url_ref().IsValid(service->search_terms_data());
   return base::FeatureList::IsEnabled(lens::features::kLensRegionSearch) &&
-         !IsPdfExtensionOrigin(url::Origin::Create(GetDocumentURL(params_))) &&
+         !IsFrameInPdfViewer(GetRenderFrameHost()) &&
          provider_supports_image_search &&
          !GetDocumentURL(params_).SchemeIs(content::kChromeUIScheme) &&
          !in_app &&

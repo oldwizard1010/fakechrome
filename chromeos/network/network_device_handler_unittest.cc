@@ -8,7 +8,6 @@
 #include "base/bind.h"
 #include "base/feature_list.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
@@ -199,6 +198,8 @@ TEST_F(NetworkDeviceHandlerTest, SetDeviceProperty) {
   EXPECT_NE(kResultSuccess, result_);
 }
 
+// TODO(crbug.com/1232818): Update test to no longer reference
+// Device.AllowRoaming when the property is fully deprecated by Shill.
 TEST_F(NetworkDeviceHandlerTest, CellularAllowRoaming) {
   // Start with disabled Device.AllowRoaming and Device.PolicyAllowRoaming.
   ShillDeviceClient::TestInterface* device_test =
@@ -213,14 +214,14 @@ TEST_F(NetworkDeviceHandlerTest, CellularAllowRoaming) {
   network_device_handler_->SetCellularAllowRoaming(true, true);
   base::RunLoop().RunUntilIdle();
 
-  // Both Device.AllowRoaming and Device.PolicyAllowRoaming should be enabled
-  // now.
+  // Only Device.PolicyAllowRoaming should be updated when per-network cellular
+  // roaming is enabled.
   GetDeviceProperties(kDefaultCellularDevicePath, kResultSuccess);
 
   absl::optional<bool> allow_roaming =
       properties_->FindBoolKey(shill::kCellularAllowRoamingProperty);
   EXPECT_TRUE(allow_roaming.has_value());
-  EXPECT_TRUE(allow_roaming.value());
+  EXPECT_FALSE(allow_roaming.value());
 
   absl::optional<bool> policy_allow_roaming =
       properties_->FindBoolKey(shill::kCellularPolicyAllowRoamingProperty);

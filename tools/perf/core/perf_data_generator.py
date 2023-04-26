@@ -248,8 +248,9 @@ FYI_BUILDERS = {
             'extra_args': [
                 '--output-format=histograms',
                 '--experimental-tbmv3-metrics',
-                '--device=custom',
-                '--custom-device-target=internal.astro_target',
+                '-d',
+                '--system-image-dir=../../third_party/fuchsia-sdk/images-internal/astro-release/smart_display_eng_arrested',
+                '--os-check=update',
             ],
             'type':
             TEST_TYPES.TELEMETRY,
@@ -259,6 +260,29 @@ FYI_BUILDERS = {
         'dimension': {
             'cpu': None,
             'device_type': 'Astro',
+            'os': 'Fuchsia',
+            'pool': 'chrome.tests',
+        },
+    },
+    'fuchsia-perf-sherlock-fyi': {
+        'tests': [{
+            'isolate':
+            'performance_web_engine_test_suite',
+            'extra_args': [
+                '--output-format=histograms',
+                '--experimental-tbmv3-metrics',
+                '-d',
+                '--system-image-dir=../../third_party/fuchsia-sdk/images-internal/sherlock-release/smart_display_max_eng_arrested',
+                '--os-check=update',
+            ],
+            'type':
+            TEST_TYPES.TELEMETRY,
+        }],
+        'platform':
+        'fuchsia',
+        'dimension': {
+            'cpu': None,
+            'device_type': 'Sherlock',
             'os': 'Fuchsia',
             'pool': 'chrome.tests',
         },

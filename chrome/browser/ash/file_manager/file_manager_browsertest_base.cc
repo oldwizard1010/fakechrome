@@ -90,9 +90,9 @@
 #include "chromeos/dbus/dbus_thread_manager.h"
 #include "chromeos/disks/mount_point.h"
 #include "components/arc/arc_features.h"
-#include "components/arc/arc_service_manager.h"
 #include "components/arc/arc_util.h"
 #include "components/arc/session/arc_bridge_service.h"
+#include "components/arc/session/arc_service_manager.h"
 #include "components/arc/test/arc_util_test_support.h"
 #include "components/arc/test/connection_holder_util.h"
 #include "components/arc/test/fake_file_system_instance.h"
@@ -1719,6 +1719,10 @@ void FileManagerBrowserTestBase::SetUpCommandLine(
   // Make sure to run the ARC storage UI toast tests.
   enabled_features.push_back(arc::kUsbStorageUIFeature);
 
+  // FileManager tests exist for the deprecated audio player app, which will be
+  // removed, along with the kMediaAppHandlesAudio flag at ~M100.
+  disabled_features.push_back(ash::features::kMediaAppHandlesAudio);
+
   if (options.files_swa) {
     enabled_features.push_back(chromeos::features::kFilesSWA);
   } else {
@@ -2086,10 +2090,16 @@ void FileManagerBrowserTestBase::OnCommand(const std::string& name,
 
   if (name == "launchFileManagerSwa") {
     std::string launchDir;
-    std::string search;
+    std::string type;
+    base::DictionaryValue arg_value;
     if (value.GetString("launchDir", &launchDir)) {
-      base::DictionaryValue arg_value;
       arg_value.SetString("currentDirectoryURL", launchDir);
+    }
+    if (value.GetString("type", &type)) {
+      arg_value.SetString("type", type);
+    }
+    std::string search;
+    if (arg_value.HasKey("currentDirectoryURL") || arg_value.HasKey("type")) {
       std::string json_args;
       base::JSONWriter::Write(arg_value, &json_args);
       search = base::StrCat(
@@ -2169,9 +2179,9 @@ void FileManagerBrowserTestBase::OnCommand(const std::string& name,
   }
 
   if (name == "getWindowsSWA") {
-    bool is_swa = false;
-    ASSERT_TRUE(value.GetBoolean("isSWA", &is_swa));
-    ASSERT_TRUE(is_swa);
+    absl::optional<bool> is_swa = value.FindBoolKey("isSWA");
+    ASSERT_TRUE(is_swa.has_value());
+    ASSERT_TRUE(is_swa.value());
 
     base::DictionaryValue dictionary;
 
@@ -2205,20 +2215,24 @@ void FileManagerBrowserTestBase::OnCommand(const std::string& name,
 
   if (name == "executeScriptInChromeUntrusted") {
     for (auto* web_contents : GetAllWebContents()) {
-      std::vector<content::RenderFrameHost*> all_frames =
-          web_contents->GetAllFrames();
-      for (auto frame_iterator = all_frames.begin();
-           frame_iterator != all_frames.end(); ++frame_iterator) {
-        content::RenderFrameHost* frame = *frame_iterator;
-        const url::Origin origin = frame->GetLastCommittedOrigin();
-        if (origin.GetURL() ==
-            ash::file_manager::kChromeUIFileManagerUntrustedURL) {
-          std::string script;
-          ASSERT_TRUE(value.GetString("data", &script));
-          CHECK(ExecuteScriptAndExtractString(frame, script, output));
-          return;
-        }
-      }
+      bool found = false;
+      web_contents->GetMainFrame()->ForEachRenderFrameHost(base::BindRepeating(
+          [](const base::DictionaryValue& value, bool& found,
+             std::string* output, content::RenderFrameHost* frame) {
+            const url::Origin origin = frame->GetLastCommittedOrigin();
+            if (origin.GetURL() ==
+                ash::file_manager::kChromeUIFileManagerUntrustedURL) {
+              std::string script;
+              EXPECT_TRUE(value.GetString("data", &script));
+              CHECK(ExecuteScriptAndExtractString(frame, script, output));
+              found = true;
+              return content::RenderFrameHost::FrameIterationAction::kStop;
+            }
+            return content::RenderFrameHost::FrameIterationAction::kContinue;
+          },
+          std::ref(value), std::ref(found), output));
+      if (found)
+        return;
     }
     // Fail the test if the chrome-untrusted:// frame wasn't found.
     NOTREACHED();
@@ -2535,39 +2549,40 @@ void FileManagerBrowserTestBase::OnCommand(const std::string& name,
   }
 
   if (name == "setDriveEnabled") {
-    bool enabled;
-    ASSERT_TRUE(value.GetBoolean("enabled", &enabled));
-    profile()->GetPrefs()->SetBoolean(drive::prefs::kDisableDrive, !enabled);
+    absl::optional<bool> enabled = value.FindBoolKey("enabled");
+    ASSERT_TRUE(enabled.has_value());
+    profile()->GetPrefs()->SetBoolean(drive::prefs::kDisableDrive,
+                                      !enabled.value());
     return;
   }
 
   if (name == "setPdfPreviewEnabled") {
-    bool enabled;
-    ASSERT_TRUE(value.GetBoolean("enabled", &enabled));
+    absl::optional<bool> enabled = value.FindBoolKey("enabled");
+    ASSERT_TRUE(enabled.has_value());
     profile()->GetPrefs()->SetBoolean(prefs::kPluginsAlwaysOpenPdfExternally,
-                                      !enabled);
+                                      !enabled.value());
     return;
   }
 
   if (name == "setCrostiniEnabled") {
-    bool enabled;
-    ASSERT_TRUE(value.GetBoolean("enabled", &enabled));
+    absl::optional<bool> enabled = value.FindBoolKey("enabled");
+    ASSERT_TRUE(enabled.has_value());
     profile()->GetPrefs()->SetBoolean(crostini::prefs::kCrostiniEnabled,
-                                      enabled);
+                                      enabled.value());
     return;
   }
 
   if (name == "setCrostiniRootAccessAllowed") {
-    bool enabled;
-    ASSERT_TRUE(value.GetBoolean("enabled", &enabled));
-    crostini_features_.set_root_access_allowed(enabled);
+    absl::optional<bool> enabled = value.FindBoolKey("enabled");
+    ASSERT_TRUE(enabled.has_value());
+    crostini_features_.set_root_access_allowed(enabled.value());
     return;
   }
 
   if (name == "setCrostiniExportImportAllowed") {
-    bool enabled;
-    ASSERT_TRUE(value.GetBoolean("enabled", &enabled));
-    crostini_features_.set_export_import_ui_allowed(enabled);
+    absl::optional<bool> enabled = value.FindBoolKey("enabled");
+    ASSERT_TRUE(enabled.has_value());
+    crostini_features_.set_export_import_ui_allowed(enabled.value());
     return;
   }
 
@@ -2615,10 +2630,8 @@ void FileManagerBrowserTestBase::OnCommand(const std::string& name,
 
   if (name == "dispatchTabKey") {
     // Read optional modifier parameter |shift|.
-    bool shift;
-    if (!value.GetBoolean("shift", &shift)) {
-      shift = false;
-    }
+    absl::optional<bool> shift_opt = value.FindBoolKey("shift");
+    bool shift = shift_opt.value_or(false);
 
     int flag = shift ? ui::EF_SHIFT_DOWN : 0;
     ui::KeyEvent key_event(ui::ET_KEY_PRESSED, ui::VKEY_TAB, flag);

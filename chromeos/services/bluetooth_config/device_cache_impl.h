@@ -70,13 +70,13 @@ class DeviceCacheImpl : public DeviceCache,
   void DeviceConnectedStateChanged(device::BluetoothAdapter* adapter,
                                    device::BluetoothDevice* device,
                                    bool is_now_connected) override;
-  void DeviceBatteryChanged(
-      device::BluetoothAdapter* adapter,
-      device::BluetoothDevice* device,
-      absl::optional<uint8_t> new_battery_percentage) override;
+  void DeviceBatteryChanged(device::BluetoothAdapter* adapter,
+                            device::BluetoothDevice* device,
+                            device::BluetoothDevice::BatteryType type) override;
 
   // DeviceNameManager::Observer:
-  void OnDeviceNicknameChanged(const std::string& device_id) override;
+  void OnDeviceNicknameChanged(const std::string& device_id,
+                               const std::string& nickname) override;
 
   // Fetches all known devices from BluetoothAdapter and populates them into
   // |paired_devices_| and |unpaired_devices_|.

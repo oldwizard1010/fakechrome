@@ -8,7 +8,6 @@
 #include <map>
 #include <string>
 
-#include "base/macros.h"
 #include "base/memory/memory_pressure_listener.h"
 #include "base/memory/ref_counted.h"
 #include "base/synchronization/lock.h"
@@ -71,7 +70,12 @@ class CONTENT_EXPORT DOMStorageContextWrapper
       StoragePartitionImpl* partition,
       scoped_refptr<storage::SpecialStoragePolicy> special_storage_policy);
 
+  DOMStorageContextWrapper() = delete;
+
   explicit DOMStorageContextWrapper(StoragePartitionImpl* partition);
+
+  DOMStorageContextWrapper(const DOMStorageContextWrapper&) = delete;
+  DOMStorageContextWrapper& operator=(const DOMStorageContextWrapper&) = delete;
 
   storage::mojom::SessionStorageControl* GetSessionStorageControl();
   storage::mojom::LocalStorageControl* GetLocalStorageControl();
@@ -192,8 +196,6 @@ class CONTENT_EXPORT DOMStorageContextWrapper
   mojo::Remote<storage::mojom::LocalStorageControl> local_storage_control_;
 
   absl::optional<storage::StoragePolicyObserver> storage_policy_observer_;
-
-  DISALLOW_IMPLICIT_CONSTRUCTORS(DOMStorageContextWrapper);
 };
 
 }  // namespace content

@@ -1907,3 +1907,58 @@ TEST_F('ChromeVoxEditingTest', 'DISABLED_ParagraphNavigation', function() {
         .replay();
   });
 });
+
+TEST_F(
+    'ChromeVoxEditingTest', 'StartAndEndOfOutputStopAtEditableRoot',
+    function() {
+      const mockFeedback = this.createMockFeedback();
+      const site = `
+    <div role="article">
+      <div contenteditable role="textbox">
+        hello<br>world
+      </div>
+    </div>
+  `;
+      this.runWithLoadedTree(site, async function(root) {
+        await this.focusFirstTextField(root);
+        mockFeedback.expectSpeech('Text area')
+            .call(this.press(KeyCode.DOWN))
+            .expectSpeech('world')
+            .call(this.press(KeyCode.UP))
+            .expectNextSpeechUtteranceIsNot('Article')
+            .expectNextSpeechUtteranceIsNot('Article end')
+            .expectSpeech('hello')
+            .replay();
+      });
+    });
+
+TEST_F('ChromeVoxEditingTest', 'TableNavigation', function() {
+  const mockFeedback = this.createMockFeedback();
+  const site = `
+    <div contenteditable role="textbox" tabindex=0>
+      <table border=1>
+        <tr><td>hello<br>world</td><td>goodbye</td></tr>
+        <tr><td>hola</td><td>hasta luego</td></tr>
+      </table>
+    </div>
+  `;
+  this.runWithLoadedTree(site, async function(root) {
+    await this.focusFirstTextField(root);
+
+    mockFeedback.expectSpeech('Text area')
+        .call(this.press(KeyCode.RIGHT))
+        .call(this.press(KeyCode.RIGHT))
+        .expectSpeech('e')
+        .call(doCmd('nextCol'))
+        .expectSpeech('goodbye')
+        .expectSpeech('row 1 column 2')
+        .call(this.press(KeyCode.RIGHT))
+        .expectSpeech('o')
+        .call(doCmd('previousCol'))
+        .expectSpeech('hello', 'world')
+        .expectSpeech('row 1 column 1')
+        .call(this.press(KeyCode.RIGHT))
+        .expectSpeech('e')
+        .replay();
+  });
+});

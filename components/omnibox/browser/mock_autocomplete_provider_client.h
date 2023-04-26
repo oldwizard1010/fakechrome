@@ -10,7 +10,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/macros.h"
 #include "components/omnibox/browser/actions/omnibox_pedal_provider.h"
 #include "components/omnibox/browser/autocomplete_provider_client.h"
 #include "components/omnibox/browser/autocomplete_scheme_classifier.h"
@@ -120,6 +119,11 @@ class MockAutocompleteProviderClient
   MOCK_METHOD2(DeleteMatchingURLsForKeywordFromHistory,
                void(history::KeywordID keyword_id, const std::u16string& term));
   MOCK_METHOD1(PrefetchImage, void(const GURL& url));
+
+  void set_pedal_provider(
+      std::unique_ptr<OmniboxPedalProvider> pedal_provider) {
+    pedal_provider_ = std::move(pedal_provider);
+  }
 
   void set_template_url_service(std::unique_ptr<TemplateURLService> service) {
     template_url_service_ = std::move(service);

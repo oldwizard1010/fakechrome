@@ -163,6 +163,10 @@ class CORE_EXPORT ChromeClient : public GarbageCollected<ChromeClient> {
   void SetWindowRectWithAdjustment(const IntRect& pending_rect,
                                    LocalFrame& frame);
 
+  // Tells the browser that another page has accessed the DOM of the initial
+  // empty document of a main frame.
+  virtual void DidAccessInitialMainDocument() = 0;
+
   // This gives the rect of the top level window that the given LocalFrame is a
   // part of.
   virtual IntRect RootWindowRect(LocalFrame&) = 0;
@@ -431,9 +435,6 @@ class CORE_EXPORT ChromeClient : public GarbageCollected<ChromeClient> {
   virtual void SetEventListenerProperties(LocalFrame*,
                                           cc::EventListenerClass,
                                           cc::EventListenerProperties) = 0;
-  virtual cc::EventListenerProperties EventListenerProperties(
-      LocalFrame*,
-      cc::EventListenerClass) const = 0;
 
   virtual void SetHasScrollEventHandlers(LocalFrame*, bool) = 0;
   virtual void SetNeedsLowLatencyInput(LocalFrame*, bool) = 0;

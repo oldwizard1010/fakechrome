@@ -160,7 +160,8 @@ const float kIdealPaddingRatio = 0.3f;
 // location and size.
 FloatRect NormalizeRect(const IntRect& to_normalize, const IntRect& base_rect) {
   FloatRect result(to_normalize);
-  result.set_origin(FloatPoint(to_normalize.origin() + (-base_rect.origin())));
+  result.set_origin(
+      FloatPoint(to_normalize.origin() - base_rect.OffsetFromOrigin()));
   result.Scale(1.0 / base_rect.width(), 1.0 / base_rect.height());
   return result;
 }
@@ -231,7 +232,7 @@ viz::FrameSinkId GetRemoteFrameSinkId(const HitTestResult& result) {
   if (!object->IsBox())
     return viz::FrameSinkId();
 
-  IntPoint local_point = RoundedIntPoint(result.LocalPoint());
+  gfx::Point local_point = ToRoundedPoint(result.LocalPoint());
   if (!To<LayoutBox>(object)->ComputedCSSContentBoxRect().Contains(local_point))
     return viz::FrameSinkId();
 
@@ -334,7 +335,7 @@ gfx::Rect WebFrameWidgetImpl::ComputeBlockBound(
     const gfx::Point& point_in_root_frame,
     bool ignore_clipping) const {
   HitTestLocation location(local_root_->GetFrameView()->ConvertFromRootFrame(
-      PhysicalOffset(IntPoint(point_in_root_frame))));
+      PhysicalOffset(point_in_root_frame)));
   HitTestRequest::HitTestRequestType hit_type =
       HitTestRequest::kReadOnly | HitTestRequest::kActive |
       (ignore_clipping ? HitTestRequest::kIgnoreClipping : 0);
@@ -861,7 +862,7 @@ WebInputEventResult WebFrameWidgetImpl::HandleGestureEvent(
           web_view->MinimumPageScaleFactor() !=
               web_view->MaximumPageScaleFactor()) {
         gfx::Point pos_in_local_frame_root =
-            ToGfxPoint(FlooredIntPoint(scaled_event.PositionInRootFrame()));
+            FlooredIntPoint(scaled_event.PositionInRootFrame());
         auto block_bounds = ComputeBlockBound(pos_in_local_frame_root, false);
 
         if (ForMainFrame()) {
@@ -2050,13 +2051,14 @@ void WebFrameWidgetImpl::BeginMainFrame(base::TimeTicks last_frame_time) {
       ->GetEventHandler()
       .RecomputeMouseHoverStateIfNeeded();
 
-  // Adjusting frame anchor only happens on the main frame.
-  if (ForMainFrame()) {
-    if (LocalFrameView* view = LocalRootImpl()->GetFrameView()) {
-      if (FragmentAnchor* anchor = view->GetFragmentAnchor())
-        anchor->PerformPreRafActions();
-    }
-  }
+  ForEachLocalFrameControlledByWidget(
+      LocalRootImpl()->GetFrame(),
+      WTF::BindRepeating([](WebLocalFrameImpl* local_frame) {
+        if (LocalFrameView* view = local_frame->GetFrameView()) {
+          if (FragmentAnchor* anchor = view->GetFragmentAnchor())
+            anchor->PerformPreRafActions();
+        }
+      }));
 
   absl::optional<LocalFrameUkmAggregator::ScopedUkmHierarchicalTimer> ukm_timer;
   if (WidgetBase::ShouldRecordBeginMainFrameMetrics()) {
@@ -2077,6 +2079,7 @@ void WebFrameWidgetImpl::BeginMainFrame(base::TimeTicks last_frame_time) {
 
 void WebFrameWidgetImpl::BeginCommitCompositorFrame() {
   commit_compositor_frame_start_time_.emplace(base::TimeTicks::Now());
+  probe::LayerTreePainted(LocalRootImpl()->GetFrame());
 }
 
 void WebFrameWidgetImpl::EndCommitCompositorFrame(
@@ -3908,30 +3911,31 @@ void WebFrameWidgetImpl::DidUpdateSurfaceAndScreen(
     View()->CancelPagePopup();
   }
 
+  const bool window_screen_has_changed =
+      !Screen::AreWebExposedScreenPropertiesEqual(
+          previous_original_screen_infos.current(),
+          original_screen_infos.current());
+
   // Update Screens interface data before firing any events. The API is designed
   // to offer synchronous access to the most up-to-date cached screen
   // information when a change event is fired.  It is not required but it
-  // is convenient to have all ScreenAdvanced objects be up to date when any
+  // is convenient to have all ScreenDetailed objects be up to date when any
   // window.screen events are fired as well.
   ForEachLocalFrameControlledByWidget(
       LocalRootImpl()->GetFrame(),
       WTF::BindRepeating(
           [](const display::ScreenInfos& original_screen_infos,
-             WebLocalFrameImpl* local_frame) {
+             bool window_screen_has_changed, WebLocalFrameImpl* local_frame) {
             CoreInitializer::GetInstance().DidUpdateScreens(
                 *local_frame->GetFrame(), original_screen_infos);
+            if (window_screen_has_changed) {
+              local_frame->GetFrame()->DomWindow()->screen()->DispatchEvent(
+                  *Event::Create(event_type_names::kChange));
+            }
           },
-          original_screen_infos));
+          original_screen_infos, window_screen_has_changed));
 
   if (previous_original_screen_infos != original_screen_infos) {
-    // TODO(enne): http://crbug.com/1202981 only send this event when properties
-    // on Screen (vs anything in ScreenInfo) change.
-    if (previous_original_screen_infos.current() !=
-        original_screen_infos.current()) {
-      local_root_->GetFrame()->DomWindow()->screen()->DispatchEvent(
-          *Event::Create(event_type_names::kChange));
-    }
-
     // Propagate changes down to child local root RenderWidgets and
     // BrowserPlugins in other frame trees/processes.
     ForEachRemoteFrameControlledByWidget(WTF::BindRepeating(
@@ -4300,8 +4304,9 @@ WebFrameWidgetImpl::GetScrollParamsForFocusedEditableElement(
   if (!maximal_rect_fits_in_frame) {
     IntRect frame_rect(maximal_rect.origin(), frame_view.Size());
     maximal_rect.Intersect(frame_rect);
-    IntPoint point_forced_to_be_visible = absolute_caret_bounds.bottom_right() +
-                                          IntSize(kCaretPadding, kCaretPadding);
+    gfx::Point point_forced_to_be_visible =
+        absolute_caret_bounds.bottom_right() +
+        gfx::Vector2d(kCaretPadding, kCaretPadding);
     if (!maximal_rect.Contains(point_forced_to_be_visible)) {
       // Move the rect towards the point until the point is barely contained.
       maximal_rect.Offset(point_forced_to_be_visible -

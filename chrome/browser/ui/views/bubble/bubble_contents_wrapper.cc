@@ -9,7 +9,6 @@
 #include "content/public/browser/native_web_keyboard_event.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "ui/base/models/menu_model.h"
-#include "ui/gfx/color_palette.h"
 #include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/views/widget/widget.h"
 
@@ -29,11 +28,6 @@ content::WebContents::CreateParams GetWebContentsCreateParams(
 }
 
 }  // namespace
-
-SkColor BubbleContentsWrapper::Host::GetColorProviderColor(ui::ColorId id) {
-  NOTREACHED();
-  return gfx::kPlaceholderColor;
-}
 
 bool BubbleContentsWrapper::Host::HandleKeyboardEvent(
     content::WebContents* source,
@@ -98,7 +92,7 @@ bool BubbleContentsWrapper::HandleKeyboardEvent(
 }
 
 bool BubbleContentsWrapper::HandleContextMenu(
-    content::RenderFrameHost* render_frame_host,
+    content::RenderFrameHost& render_frame_host,
     const content::ContextMenuParams& params) {
   // Ignores context menu.
   return true;
@@ -116,7 +110,8 @@ void BubbleContentsWrapper::RenderViewHostChanged(
                                             gfx::Size(INT_MAX, INT_MAX));
 }
 
-void BubbleContentsWrapper::RenderProcessGone(base::TerminationStatus status) {
+void BubbleContentsWrapper::PrimaryMainFrameRenderProcessGone(
+    base::TerminationStatus status) {
   CloseUI();
 }
 
@@ -140,10 +135,6 @@ void BubbleContentsWrapper::ShowContextMenu(
 void BubbleContentsWrapper::HideContextMenu() {
   if (host_)
     host_->HideCustomContextMenu();
-}
-
-SkColor BubbleContentsWrapper::GetColorProviderColor(ui::ColorId id) {
-  return host_ ? host_->GetColorProviderColor(id) : gfx::kPlaceholderColor;
 }
 
 base::WeakPtr<BubbleContentsWrapper::Host> BubbleContentsWrapper::GetHost() {

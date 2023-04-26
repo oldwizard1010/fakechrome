@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import './accessibility_features.mojom-lite.js';
 import './action_toolbar.js';
 import './scanning_fonts_css.js';
 import './scanning_shared_css.js';
@@ -13,7 +14,8 @@ import {I18nBehavior} from 'chrome://resources/js/i18n_behavior.m.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
 import {afterNextRender, html, Polymer} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {AppState} from './scanning_app_types.js';
+import {getAccessibilityFeaturesInterface} from './mojo_interface_provider.js';
+import {AppState, ForceHiddenElementsVisibleObserverInterface} from './scanning_app_types.js';
 import {ScanningBrowserProxy, ScanningBrowserProxyImpl} from './scanning_browser_proxy.js';
 
 /** @type {number} */
@@ -60,6 +62,13 @@ Polymer({
 
   /** @private {number} */
   actionToolbarWidth_: 0,
+
+  /**
+   * Receives the status of the enabled accesbility features that should force
+   * the hidden elements visible.
+   * @private {?ash.common.mojom.ForceHiddenElementsVisibleObserverReceiver}
+   */
+  forceHiddenElementsVisibleObserverReceiver_: null,
 
   properties: {
     /** @type {!AppState} */
@@ -182,6 +191,19 @@ Polymer({
       type: Boolean,
       reflectToAttribute: true,
     },
+
+    /**
+     * True when the ChromeVox, Switch, or Screen Magnifier accessibility
+     * features are turned on that require the action toolbar to always be
+     * visible during multi-page scan sessions. Only used for CSS selector
+     * logic.
+     * @private {boolean}
+     */
+    forceActionToolbarVisible_: {
+      type: Boolean,
+      value: false,
+      reflectToAttribute: true,
+    },
   },
 
   observers: [
@@ -210,6 +232,20 @@ Polymer({
         parseFloat(this.getComputedStyleValue('--action-toolbar-height'));
     this.actionToolbarWidth_ =
         parseFloat(this.getComputedStyleValue('--action-toolbar-width'));
+
+    this.forceHiddenElementsVisibleObserverReceiver_ =
+        new ash.common.mojom.ForceHiddenElementsVisibleObserverReceiver(
+            /**
+               @type {!ForceHiddenElementsVisibleObserverInterface}
+             */
+            (this));
+    getAccessibilityFeaturesInterface()
+        .observeForceHiddenElementsVisible(
+            this.forceHiddenElementsVisibleObserverReceiver_.$
+                .bindNewPipeAndPassRemote())
+        .then(
+            response => this.forceActionToolbarVisible_ =
+                response.forceVisible);
   },
 
   /** @override */
@@ -218,6 +254,18 @@ Polymer({
       window.removeEventListener('resize', this.onWindowResized_);
       this.previewAreaResizeObserver_.disconnect();
     }
+
+    if (this.forceHiddenElementsVisibleObserverReceiver_) {
+      this.forceHiddenElementsVisibleObserverReceiver_.$.close();
+    }
+  },
+
+  /**
+   * Overrides ash.common.mojom.ForceHiddenElementsVisibleObserverReceiver.
+   * @param {boolean} forceVisible
+   */
+  onForceHiddenElementsVisibleChange(forceVisible) {
+    this.forceActionToolbarVisible_ = forceVisible;
   },
 
   /** @private */
@@ -347,10 +395,13 @@ Polymer({
   },
 
   /**
-   * Calculates the current page in view. Returns the page index of the highest
-   * page in the viewport unless that page is scrolled halfway outside the
-   * viewport, then it'll return the following page number. Assumes each scanned
-   * image is the same height.
+   * Calculates the index of the current page in view based on the scroll
+   * position. This algorithm allows for every scanned image to be focusable
+   * via scrolling. It starts by waiting until the previous image is scrolled
+   * halfway outside the viewport before the page index changes, but then
+   * changes behavior once the end of the scroll area is reached and no more
+   * images can be scrolled up. In that case, the remaining scroll area is
+   * divided evenly between the final images in the viewport.
    * @param {!HTMLCollection} scannedImages
    * @return {number}
    * @private
@@ -358,17 +409,58 @@ Polymer({
   getCurrentPageInView_(scannedImages) {
     assert(this.isMultiPageScan);
 
-    const imageHeight = scannedImages[0].height;
-    const scrollTop = this.$$('#previewDiv').scrollTop - (imageHeight * .5);
-
-    // This is a special case for the first page since there is no margin or
-    // previous page above it.
-    if (scrollTop < 0) {
+    if (scannedImages.length === 1) {
       return 0;
     }
 
-    return 1 +
-        Math.floor(scrollTop / (imageHeight + SCANNED_IMG_MARGIN_BOTTOM_PX));
+    // Assumes the scanned images share the same dimensions.
+    const imageHeight = scannedImages[0].getBoundingClientRect().height +
+        SCANNED_IMG_MARGIN_BOTTOM_PX;
+
+    // The first step is to calculate the number of images that will be visible
+    // in the viewport when scrolled to the bottom. That is how to calculate the
+    // "crossover" point where the algorithm needs to change.
+    const numImagesVisibleAtEnd =
+        Math.ceil(this.$$('#previewDiv').offsetHeight / imageHeight);
+    const numImagesBeforeCrossover =
+        scannedImages.length - numImagesVisibleAtEnd;
+
+    // Calculate the point where the last images in the scroll area are visible
+    // and the scrolling algorithm needs to change.
+    const crossoverBreakpoint = numImagesBeforeCrossover == 0 ?
+        Number.MIN_VALUE :
+        scannedImages[numImagesBeforeCrossover].offsetTop - (imageHeight / 2);
+
+    // Before the "crossover", update the page index based on when the previous
+    // image is scrolled halfway outside the viewport.
+    if (this.$$('#previewDiv').scrollTop < crossoverBreakpoint) {
+      // Subtract half the image height so |scrollTop| = 0 when the first page
+      // is scrolled halfway outside the viewport. That way each page index will
+      // be the current scroll divided by the image height.
+      const scrollTop = this.$$('#previewDiv').scrollTop - (imageHeight / 2) -
+          /*imageFocusBorder=*/ 2;
+      if (scrollTop < 0) {
+        return 0;
+      }
+
+      return 1 + Math.floor(scrollTop / imageHeight);
+    }
+
+    // After the "crossover", the remaining amount of scroll left in the
+    // scrollbar is divided evenly to the remaining images. This allows every
+    // image to be scrolled to.
+    const maxScrollTop = this.$$('#previewDiv').scrollHeight -
+        this.$$('#previewDiv').offsetHeight;
+    const scrollRemainingAfterCrossover =
+        Math.max(maxScrollTop - crossoverBreakpoint, 0);
+    const imageScrollProportion =
+        scrollRemainingAfterCrossover / numImagesVisibleAtEnd;
+
+    // Calculate the new page index.
+    const scrollTop = this.$$('#previewDiv').scrollTop - crossoverBreakpoint;
+    const index = Math.floor(scrollTop / imageScrollProportion);
+
+    return Math.min(numImagesBeforeCrossover + index, scannedImages.length - 1);
   },
 
   /**
@@ -539,7 +631,7 @@ Polymer({
               this.dialogTitleText_ =
                   isRemoveFromMultiplePages ? '' : pluralString;
               if (isRemoveFromMultiplePages) {
-                this.dialogConfirmationText_ = pluralString
+                this.dialogConfirmationText_ = pluralString;
               }
 
               // Once strings are loaded, open the dialog.
@@ -570,7 +662,7 @@ Polymer({
   },
 
   /**
-   * Scrolls down until the page at |pageIndex| is at the top of the viewport.
+   * Scrolls the image specified by |pageIndex| into view.
    * @param {number} pageIndex
    * @private
    */
@@ -584,12 +676,8 @@ Polymer({
     }
 
     assert(pageIndex >= 0 && pageIndex < scannedImages.length);
-    const imageHeight = scannedImages[0].offsetHeight;
-
-    // Use |pageIndex| to calculate the number of pages needed to scroll by to
-    // get to our desired page. Ex: If we want to scroll to the page with
-    // |pageIndex| = 3, we should scroll past 3 pages.
-    this.$$('#previewDiv').scrollTop = imageHeight * pageIndex;
+    this.$$('#previewDiv').scrollTop =
+        scannedImages[pageIndex].offsetTop - /*imageFocusBorder=*/ 2;
   },
 
   /** @private */

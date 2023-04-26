@@ -40,7 +40,6 @@
 #include "base/strings/stringprintf.h"
 #include "base/unguessable_token.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "cc/input/overscroll_behavior.h"
 #include "cc/layers/picture_layer.h"
 #include "cc/paint/paint_op_buffer.h"
@@ -117,6 +116,7 @@
 #include "third_party/blink/renderer/core/css/media_values.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/css/resolver/viewport_style_resolver.h"
+#include "third_party/blink/renderer/core/css/style_engine.h"
 #include "third_party/blink/renderer/core/css/style_sheet_contents.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/events/native_event_listener.h"
@@ -258,16 +258,31 @@ std::string GetHTMLStringForReferrerPolicy(const std::string& meta_policy,
       meta_tag.c_str(), referrer_policy_attr.c_str());
 }
 
-// A helper function to execute the given `script` in the main world of the
+// A helper function to execute the given `scripts` in the main world of the
 // specified `frame`.
+void ExecuteScriptsInMainWorld(WebLocalFrame* frame,
+                               base::span<const String> scripts,
+                               WebScriptExecutionCallback* callback,
+                               bool wait_for_promise = true,
+                               bool user_gesture = false) {
+  Vector<WebScriptSource> sources;
+  for (auto script : scripts)
+    sources.push_back(WebScriptSource(script));
+  frame->RequestExecuteScript(
+      DOMWrapperWorld::kMainWorldId, sources, user_gesture,
+      WebLocalFrame::kSynchronous, callback, BackForwardCacheAware::kAllow,
+      wait_for_promise ? WebLocalFrame::PromiseBehavior::kAwait
+                       : WebLocalFrame::PromiseBehavior::kDontWait);
+}
+
+// Same as above, but for a single script.
 void ExecuteScriptInMainWorld(WebLocalFrame* frame,
                               String script_string,
                               WebScriptExecutionCallback* callback,
+                              bool wait_for_promise = true,
                               bool user_gesture = false) {
-  WebScriptSource source(script_string);
-  frame->RequestExecuteScript(
-      DOMWrapperWorld::kMainWorldId, base::make_span(&source, 1), user_gesture,
-      WebLocalFrame::kSynchronous, callback, BackForwardCacheAware::kAllow);
+  ExecuteScriptsInMainWorld(frame, base::make_span(&script_string, 1), callback,
+                            wait_for_promise, user_gesture);
 }
 
 }  // namespace
@@ -518,30 +533,51 @@ TEST_F(WebFrameTest, FrameForEnteredContext) {
 class ScriptExecutionCallbackHelper : public WebScriptExecutionCallback {
  public:
   explicit ScriptExecutionCallbackHelper(v8::Local<v8::Context> context)
-      : did_complete_(false), bool_value_(false), context_(context) {}
+      : context_(context) {}
   ~ScriptExecutionCallbackHelper() override = default;
 
+  // Returns true if the callback helper was ever invoked.
   bool DidComplete() const { return did_complete_; }
-  const String& StringValue() const { return string_value_; }
-  bool BoolValue() { return bool_value_; }
+
+  // Returns true if any results (even if they were empty) were passed to the
+  // callback helper. This is generally false if the execution context was
+  // invalidated while running the script.
+  bool HasAnyResults() const { return !string_values_.IsEmpty(); }
+
+  // Returns the single value returned from the execution.
+  String SingleStringValue() const {
+    if (string_values_.size() != 1u) {
+      ADD_FAILURE() << "Expected a single result, but found: "
+                    << string_values_.size();
+      return String();
+    }
+    return string_values_[0];
+  }
+
+  // Returns the value at the given index.
+  String StringValueAt(wtf_size_t i) const {
+    if (i >= string_values_.size()) {
+      ADD_FAILURE() << "Attempted OOB access at index: " << i;
+      return String();
+    }
+    return string_values_[i];
+  }
 
  private:
   // WebScriptExecutionCallback:
   void Completed(const WebVector<v8::Local<v8::Value>>& values) override {
     did_complete_ = true;
-    if (!values.empty()) {
-      if (values[0]->IsString()) {
-        string_value_ =
-            ToCoreString(values[0]->ToString(context_).ToLocalChecked());
-      } else if (values[0]->IsBoolean()) {
-        bool_value_ = values[0].As<v8::Boolean>()->Value();
-      }
+    string_values_.Grow(static_cast<wtf_size_t>(values.size()));
+    for (wtf_size_t i = 0u; i < values.size(); ++i) {
+      if (values[i].IsEmpty())
+        continue;
+      string_values_[i] =
+          ToCoreString(values[i]->ToString(context_).ToLocalChecked());
     }
   }
 
-  bool did_complete_;
-  String string_value_;
-  bool bool_value_;
+  bool did_complete_ = false;
+  Vector<String> string_values_;
   v8::Local<v8::Context> context_;
 };
 
@@ -558,7 +594,7 @@ TEST_F(WebFrameTest, RequestExecuteScript) {
                            "'hello';", &callback_helper);
   RunPendingTasks();
   EXPECT_TRUE(callback_helper.DidComplete());
-  EXPECT_EQ("hello", callback_helper.StringValue());
+  EXPECT_EQ("hello", callback_helper.SingleStringValue());
 }
 
 TEST_F(WebFrameTest, SuspendedRequestExecuteScript) {
@@ -580,7 +616,223 @@ TEST_F(WebFrameTest, SuspendedRequestExecuteScript) {
 
   web_view_helper.Reset();
   EXPECT_TRUE(callback_helper.DidComplete());
-  EXPECT_EQ(String(), callback_helper.StringValue());
+  EXPECT_FALSE(callback_helper.HasAnyResults());
+}
+
+TEST_F(WebFrameTest, ExecuteScriptWithError) {
+  RegisterMockedHttpURLLoad("foo.html");
+
+  frame_test_helpers::WebViewHelper web_view_helper;
+  web_view_helper.InitializeAndLoad(base_url_ + "foo.html");
+
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  v8::HandleScope scope(isolate);
+  v8::Local<v8::Context> context =
+      web_view_helper.LocalMainFrame()->MainWorldScriptContext();
+  ScriptExecutionCallbackHelper callback_helper(context);
+  v8::TryCatch try_catch(isolate);
+  try_catch.SetVerbose(true);
+  ExecuteScriptInMainWorld(web_view_helper.GetWebView()->MainFrameImpl(),
+                           "foo = bar; 'hello';", &callback_helper);
+  RunPendingTasks();
+  EXPECT_TRUE(callback_helper.DidComplete());
+  // Even though an error is thrown here, it's swallowed by one of the
+  // script runner classes, so the caller never sees it. Instead, the error
+  // is represented by an empty V8Value (stringified to an empty string).
+  EXPECT_FALSE(try_catch.HasCaught());
+  EXPECT_EQ(String(), callback_helper.SingleStringValue());
+}
+
+TEST_F(WebFrameTest, ExecuteScriptWithPromiseWithoutWait) {
+  RegisterMockedHttpURLLoad("foo.html");
+
+  frame_test_helpers::WebViewHelper web_view_helper;
+  web_view_helper.InitializeAndLoad(base_url_ + "foo.html");
+
+  constexpr char kScript[] = R"(Promise.resolve('hello');)";
+
+  v8::HandleScope scope(v8::Isolate::GetCurrent());
+  ScriptExecutionCallbackHelper callback_helper(
+      web_view_helper.LocalMainFrame()->MainWorldScriptContext());
+  ExecuteScriptInMainWorld(web_view_helper.GetWebView()->MainFrameImpl(),
+                           kScript, &callback_helper,
+                           /*wait_for_promise=*/false);
+  RunPendingTasks();
+  // Since the caller specified the script shouldn't wait for the promise to
+  // be resolved, the callback should have completed normally and the result
+  // value should be the promise.
+  EXPECT_TRUE(callback_helper.DidComplete());
+  EXPECT_EQ("[object Promise]", callback_helper.SingleStringValue());
+}
+
+TEST_F(WebFrameTest, ExecuteScriptWithPromiseFulfilled) {
+  RegisterMockedHttpURLLoad("foo.html");
+
+  frame_test_helpers::WebViewHelper web_view_helper;
+  web_view_helper.InitializeAndLoad(base_url_ + "foo.html");
+
+  constexpr char kScript[] = R"(Promise.resolve('hello');)";
+
+  v8::HandleScope scope(v8::Isolate::GetCurrent());
+  ScriptExecutionCallbackHelper callback_helper(
+      web_view_helper.LocalMainFrame()->MainWorldScriptContext());
+  ExecuteScriptInMainWorld(web_view_helper.GetWebView()->MainFrameImpl(),
+                           kScript, &callback_helper);
+  RunPendingTasks();
+  EXPECT_TRUE(callback_helper.DidComplete());
+  EXPECT_EQ("hello", callback_helper.SingleStringValue());
+}
+
+TEST_F(WebFrameTest, ExecuteScriptWithPromiseRejected) {
+  RegisterMockedHttpURLLoad("foo.html");
+
+  frame_test_helpers::WebViewHelper web_view_helper;
+  web_view_helper.InitializeAndLoad(base_url_ + "foo.html");
+
+  constexpr char kScript[] = R"(Promise.reject('hello');)";
+
+  v8::HandleScope scope(v8::Isolate::GetCurrent());
+  ScriptExecutionCallbackHelper callback_helper(
+      web_view_helper.LocalMainFrame()->MainWorldScriptContext());
+  ExecuteScriptInMainWorld(web_view_helper.GetWebView()->MainFrameImpl(),
+                           kScript, &callback_helper);
+  RunPendingTasks();
+  EXPECT_TRUE(callback_helper.DidComplete());
+  // Promise rejection, similar to errors, are represented by empty V8Values
+  // passed to the callback.
+  EXPECT_EQ(String(), callback_helper.SingleStringValue());
+}
+
+TEST_F(WebFrameTest, ExecuteScriptWithFrameRemovalBeforePromiseResolves) {
+  RegisterMockedHttpURLLoad("single_iframe.html");
+  RegisterMockedHttpURLLoad("visible_iframe.html");
+
+  frame_test_helpers::WebViewHelper web_view_helper;
+  web_view_helper.InitializeAndLoad(base_url_ + "single_iframe.html");
+
+  v8::HandleScope scope(v8::Isolate::GetCurrent());
+
+  constexpr char kScript[] = R"((new Promise((r) => {}));)";
+
+  WebLocalFrame* iframe =
+      web_view_helper.LocalMainFrame()->FirstChild()->ToWebLocalFrame();
+  ScriptExecutionCallbackHelper callback_helper(
+      iframe->MainWorldScriptContext());
+  ExecuteScriptInMainWorld(iframe, kScript, &callback_helper);
+  RunPendingTasks();
+  EXPECT_FALSE(callback_helper.DidComplete());
+
+  constexpr char kRemoveFrameScript[] =
+      "var iframe = document.getElementsByTagName('iframe')[0]; "
+      "document.body.removeChild(iframe);";
+  web_view_helper.LocalMainFrame()->ExecuteScript(
+      WebScriptSource(kRemoveFrameScript));
+  RunPendingTasks();
+
+  EXPECT_TRUE(callback_helper.DidComplete());
+  EXPECT_FALSE(callback_helper.HasAnyResults());
+}
+
+TEST_F(WebFrameTest, ExecuteScriptWithMultiplePromises) {
+  RegisterMockedHttpURLLoad("foo.html");
+
+  frame_test_helpers::WebViewHelper web_view_helper;
+  web_view_helper.InitializeAndLoad(base_url_ + "foo.html");
+
+  const String scripts[] = {
+      "Promise.resolve('hello');",
+      "Promise.resolve('world');",
+  };
+
+  v8::HandleScope scope(v8::Isolate::GetCurrent());
+  ScriptExecutionCallbackHelper callback_helper(
+      web_view_helper.LocalMainFrame()->MainWorldScriptContext());
+  ExecuteScriptsInMainWorld(web_view_helper.GetWebView()->MainFrameImpl(),
+                            scripts, &callback_helper, true);
+  RunPendingTasks();
+  EXPECT_TRUE(callback_helper.DidComplete());
+  EXPECT_EQ("hello", callback_helper.StringValueAt(0));
+  EXPECT_EQ("world", callback_helper.StringValueAt(1));
+}
+
+TEST_F(WebFrameTest, ExecuteScriptWithMultiplePromisesWithDelayedSettlement) {
+  RegisterMockedHttpURLLoad("foo.html");
+
+  frame_test_helpers::WebViewHelper web_view_helper;
+  web_view_helper.InitializeAndLoad(base_url_ + "foo.html");
+
+  const String scripts[] = {
+      "Promise.resolve('hello');",
+      "(new Promise((r) => { window.resolveSecond = r; }));",
+  };
+
+  v8::HandleScope scope(v8::Isolate::GetCurrent());
+  ScriptExecutionCallbackHelper callback_helper(
+      web_view_helper.LocalMainFrame()->MainWorldScriptContext());
+  ExecuteScriptsInMainWorld(web_view_helper.GetWebView()->MainFrameImpl(),
+                            scripts, &callback_helper, true);
+  RunPendingTasks();
+  EXPECT_FALSE(callback_helper.DidComplete());
+
+  {
+    ScriptExecutionCallbackHelper second_callback_helper(
+        web_view_helper.LocalMainFrame()->MainWorldScriptContext());
+    ExecuteScriptInMainWorld(web_view_helper.GetWebView()->MainFrameImpl(),
+                             String("window.resolveSecond('world');"),
+                             &second_callback_helper);
+    RunPendingTasks();
+    EXPECT_TRUE(second_callback_helper.DidComplete());
+    EXPECT_EQ("undefined", second_callback_helper.SingleStringValue());
+  }
+
+  EXPECT_TRUE(callback_helper.DidComplete());
+  EXPECT_EQ("hello", callback_helper.StringValueAt(0));
+  EXPECT_EQ("world", callback_helper.StringValueAt(1));
+}
+
+TEST_F(WebFrameTest, ExecuteScriptWithMultipleSourcesWhereSomeArePromises) {
+  RegisterMockedHttpURLLoad("foo.html");
+
+  frame_test_helpers::WebViewHelper web_view_helper;
+  web_view_helper.InitializeAndLoad(base_url_ + "foo.html");
+
+  const String scripts[] = {
+      "Promise.resolve('hello');",
+      "'world';",
+  };
+
+  v8::HandleScope scope(v8::Isolate::GetCurrent());
+  ScriptExecutionCallbackHelper callback_helper(
+      web_view_helper.LocalMainFrame()->MainWorldScriptContext());
+  ExecuteScriptsInMainWorld(web_view_helper.GetWebView()->MainFrameImpl(),
+                            scripts, &callback_helper, true);
+  RunPendingTasks();
+
+  EXPECT_TRUE(callback_helper.DidComplete());
+  EXPECT_EQ("hello", callback_helper.StringValueAt(0));
+  EXPECT_EQ("world", callback_helper.StringValueAt(1));
+}
+
+TEST_F(WebFrameTest, ExecuteScriptWithPromisesWhereOnlySomeAreFulfilled) {
+  RegisterMockedHttpURLLoad("foo.html");
+
+  frame_test_helpers::WebViewHelper web_view_helper;
+  web_view_helper.InitializeAndLoad(base_url_ + "foo.html");
+
+  String scripts[] = {
+      "Promise.resolve('hello');",
+      "Promise.reject('world');",
+  };
+
+  v8::HandleScope scope(v8::Isolate::GetCurrent());
+  ScriptExecutionCallbackHelper callback_helper(
+      web_view_helper.LocalMainFrame()->MainWorldScriptContext());
+  ExecuteScriptsInMainWorld(web_view_helper.GetWebView()->MainFrameImpl(),
+                            scripts, &callback_helper, true);
+  RunPendingTasks();
+  EXPECT_TRUE(callback_helper.DidComplete());
+  EXPECT_EQ("hello", callback_helper.StringValueAt(0));
+  EXPECT_EQ(String(), callback_helper.StringValueAt(1));
 }
 
 TEST_F(WebFrameTest, RequestExecuteV8Function) {
@@ -611,7 +863,7 @@ TEST_F(WebFrameTest, RequestExecuteV8Function) {
                                  base::size(args), args, &callback_helper);
   RunPendingTasks();
   EXPECT_TRUE(callback_helper.DidComplete());
-  EXPECT_EQ("hello", callback_helper.StringValue());
+  EXPECT_EQ("hello", callback_helper.SingleStringValue());
 }
 
 TEST_F(WebFrameTest, RequestExecuteV8FunctionWhileSuspended) {
@@ -645,7 +897,7 @@ TEST_F(WebFrameTest, RequestExecuteV8FunctionWhileSuspended) {
   web_view_helper.GetWebView()->GetPage()->SetPaused(false);
   RunPendingTasks();
   EXPECT_TRUE(callback_helper.DidComplete());
-  EXPECT_EQ("hello", callback_helper.StringValue());
+  EXPECT_EQ("hello", callback_helper.SingleStringValue());
 }
 
 TEST_F(WebFrameTest, RequestExecuteV8FunctionWhileSuspendedWithUserGesture) {
@@ -673,7 +925,7 @@ TEST_F(WebFrameTest, RequestExecuteV8FunctionWhileSuspendedWithUserGesture) {
   web_view_helper.GetWebView()->GetPage()->SetPaused(false);
   RunPendingTasks();
   EXPECT_TRUE(callback_helper.DidComplete());
-  EXPECT_EQ(true, callback_helper.BoolValue());
+  EXPECT_EQ("true", callback_helper.SingleStringValue());
 }
 
 TEST_F(WebFrameTest, IframeScriptRemovesSelf) {
@@ -696,7 +948,7 @@ TEST_F(WebFrameTest, IframeScriptRemovesSelf) {
       &callback_helper);
   RunPendingTasks();
   EXPECT_TRUE(callback_helper.DidComplete());
-  EXPECT_EQ(String(), callback_helper.StringValue());
+  EXPECT_FALSE(callback_helper.HasAnyResults());
 }
 
 namespace {
@@ -770,7 +1022,7 @@ TEST_F(WebFrameTest, CapabilityDelegationMessageEventTest) {
   // user activation but without the delegation option.
   ExecuteScriptInMainWorld(web_view_helper.GetWebView()->MainFrameImpl(),
                            post_message_wo_payment_request, &callback_helper,
-                           true);
+                           /*wait_for_promise=*/true, /*user_gesture=*/true);
   RunPendingTasks();
   EXPECT_TRUE(callback_helper.DidComplete());
   EXPECT_FALSE(message_event_listener->DelegatePaymentRequest());
@@ -779,7 +1031,7 @@ TEST_F(WebFrameTest, CapabilityDelegationMessageEventTest) {
   // user activation and the delegation option.
   ExecuteScriptInMainWorld(web_view_helper.GetWebView()->MainFrameImpl(),
                            post_message_w_payment_request, &callback_helper,
-                           true);
+                           /*wait_for_promise=*/true, /*user_gesture=*/true);
   RunPendingTasks();
   EXPECT_TRUE(callback_helper.DidComplete());
   EXPECT_TRUE(message_event_listener->DelegatePaymentRequest());
@@ -2008,8 +2260,6 @@ TEST_F(WebFrameTest, DocumentElementClientHeightWorksWithWrapContentMode) {
 }
 
 TEST_F(WebFrameTest, SetForceZeroLayoutHeightWorksWithWrapContentMode) {
-  ScopedCompositeAfterPaintForTest cap(false);
-
   RegisterMockedHttpURLLoad("0-by-0.html");
 
   int viewport_width = 640;
@@ -2024,16 +2274,11 @@ TEST_F(WebFrameTest, SetForceZeroLayoutHeightWorksWithWrapContentMode) {
 
   LocalFrameView* frame_view =
       web_view_helper.GetWebView()->MainFrameImpl()->GetFrameView();
-  GraphicsLayer* scroll_container =
-      frame_view->GetLayoutView()->Compositor()->RootGraphicsLayer();
 
   EXPECT_EQ(IntSize(), frame_view->GetLayoutSize());
-  EXPECT_EQ(gfx::Size(), scroll_container->Size());
-
   web_view_helper.Resize(gfx::Size(viewport_width, 0));
   UpdateAllLifecyclePhases(web_view_helper.GetWebView());
   EXPECT_EQ(IntSize(viewport_width, 0), frame_view->GetLayoutSize());
-  EXPECT_EQ(gfx::Size(viewport_width, 0), scroll_container->Size());
 
   // The flag ForceZeroLayoutHeight will cause the following resize of viewport
   // height to be ignored by the outer viewport (the container layer of
@@ -2043,8 +2288,6 @@ TEST_F(WebFrameTest, SetForceZeroLayoutHeightWorksWithWrapContentMode) {
   EXPECT_FALSE(frame_view->NeedsLayout());
   UpdateAllLifecyclePhases(web_view_helper.GetWebView());
   EXPECT_EQ(IntSize(viewport_width, 0), frame_view->GetLayoutSize());
-  EXPECT_EQ(gfx::Size(viewport_width, viewport_height),
-            scroll_container->Size());
 
   LocalFrame* frame = web_view_helper.LocalMainFrame()->GetFrame();
   VisualViewport& visual_viewport = frame->GetPage()->GetVisualViewport();
@@ -3001,7 +3244,7 @@ TEST_F(WebFrameTest, DesktopPageCanBeZoomedInWhenWideViewportIsTurnedOff) {
 
 class WebFrameResizeTest : public WebFrameTest {
  protected:
-  static FloatSize ComputeRelativeOffset(const IntPoint& absolute_offset,
+  static FloatSize ComputeRelativeOffset(const gfx::Point& absolute_offset,
                                          const LayoutRect& rect) {
     FloatSize relative_offset =
         FloatPoint(absolute_offset) - FloatPoint(rect.Location());
@@ -3191,7 +3434,6 @@ TEST_F(WebFrameTest, DISABLED_updateOverlayScrollbarLayers)
 TEST_F(WebFrameTest, updateOverlayScrollbarLayers)
 #endif
 {
-  ScopedCompositeAfterPaintForTest cap(false);
   RegisterMockedHttpURLLoad("large-div.html");
 
   int view_width = 500;
@@ -3205,14 +3447,15 @@ TEST_F(WebFrameTest, updateOverlayScrollbarLayers)
                                 base_url_ + "large-div.html");
 
   UpdateAllLifecyclePhases(web_view_helper.GetWebView());
-  LocalFrameView* view = web_view_helper.LocalMainFrame()->GetFrameView();
-  EXPECT_TRUE(view->LayoutViewport()->LayerForHorizontalScrollbar());
-  EXPECT_TRUE(view->LayoutViewport()->LayerForVerticalScrollbar());
+  const cc::Layer* root_layer =
+      web_view_helper.GetLayerTreeHost()->root_layer();
+  EXPECT_EQ(1u, CcLayersByName(root_layer, "HorizontalScrollbar").size());
+  EXPECT_EQ(1u, CcLayersByName(root_layer, "VerticalScrollbar").size());
 
   web_view_helper.Resize(gfx::Size(view_width * 10, view_height * 10));
   UpdateAllLifecyclePhases(web_view_helper.GetWebView());
-  EXPECT_FALSE(view->LayoutViewport()->LayerForHorizontalScrollbar());
-  EXPECT_FALSE(view->LayoutViewport()->LayerForVerticalScrollbar());
+  EXPECT_EQ(0u, CcLayersByName(root_layer, "HorizontalScrollbar").size());
+  EXPECT_EQ(0u, CcLayersByName(root_layer, "VerticalScrollbar").size());
 }
 
 void SetScaleAndScrollAndLayout(WebViewImpl* web_view,
@@ -3275,7 +3518,7 @@ TEST_F(WebFrameTest, DivAutoZoomParamsTest) {
   gfx::Point double_tap_point_wide(wide_div.x() + 50, wide_div.y() + 50);
   gfx::Point double_tap_point_tall(tall_div.x() + 50, tall_div.y() + 50);
   float scale;
-  IntPoint scroll;
+  gfx::Point scroll;
 
   float double_tap_zoom_already_legible_scale =
       web_view_helper.GetWebView()->MinimumPageScaleFactor() *
@@ -3293,8 +3536,7 @@ TEST_F(WebFrameTest, DivAutoZoomParamsTest) {
   EXPECT_NEAR(wide_div.x(), scroll.x(), 20);
   EXPECT_EQ(0, scroll.y());
 
-  SetScaleAndScrollAndLayout(web_view_helper.GetWebView(), ToGfxPoint(scroll),
-                             scale);
+  SetScaleAndScrollAndLayout(web_view_helper.GetWebView(), scroll, scale);
 
   // Test zoom out back to minimum scale.
   wide_block_bound = ComputeBlockBoundHelper(web_view_helper.GetWebView(),
@@ -3376,7 +3618,7 @@ TEST_F(WebFrameTest, DivAutoZoomVeryTallTest) {
   gfx::Rect div(200, 300, 400, 5000);
   gfx::Point point(div.x() + 50, div.y() + 3000);
   float scale;
-  IntPoint scroll;
+  gfx::Point scroll;
 
   gfx::Rect block_bound =
       ComputeBlockBoundHelper(web_view_helper.GetWebView(), point, true);
@@ -3946,7 +4188,7 @@ TEST_F(WebFrameTest, DivScrollIntoEditableTest) {
                              initial_scale);
 
   float scale;
-  IntPoint scroll;
+  gfx::Point scroll;
   bool need_animation;
   IntRect element_bounds, caret_bounds;
   GetElementAndCaretBoundsForFocusedEditableElement(
@@ -4004,7 +4246,7 @@ TEST_F(WebFrameTest, DivScrollIntoEditableTest) {
   web_view_helper.GetWebView()->AdvanceFocus(true);
   // Zoom out slightly.
   const float within_tolerance_scale = scale * 0.9f;
-  SetScaleAndScrollAndLayout(web_view_helper.GetWebView(), ToGfxPoint(scroll),
+  SetScaleAndScrollAndLayout(web_view_helper.GetWebView(), scroll,
                              within_tolerance_scale);
   // Move focus back to the second edit box.
   web_view_helper.GetWebView()->AdvanceFocus(false);
@@ -4056,7 +4298,7 @@ TEST_F(WebFrameTest, DivScrollIntoEditablePreservePageScaleTest) {
                              new_scale);
 
   float scale;
-  IntPoint scroll;
+  gfx::Point scroll;
   bool need_animation;
   IntRect element_bounds, caret_bounds;
   GetElementAndCaretBoundsForFocusedEditableElement(
@@ -4133,7 +4375,7 @@ TEST_F(WebFrameTest, DivScrollIntoEditableTestZoomToLegibleScaleDisabled) {
                              initial_scale);
 
   float scale;
-  IntPoint scroll;
+  gfx::Point scroll;
   bool need_animation;
   IntRect element_bounds, caret_bounds;
   GetElementAndCaretBoundsForFocusedEditableElement(
@@ -4153,8 +4395,7 @@ TEST_F(WebFrameTest, DivScrollIntoEditableTestZoomToLegibleScaleDisabled) {
                  (viewport_height / scale - edit_box_with_no_text.height()) / 2;
   EXPECT_NEAR(v_scroll, scroll.y(), 2);
 
-  SetScaleAndScrollAndLayout(web_view_helper.GetWebView(), ToGfxPoint(scroll),
-                             scale);
+  SetScaleAndScrollAndLayout(web_view_helper.GetWebView(), scroll, scale);
 
   // Select the first textbox.
   web_view_helper.GetWebView()->AdvanceFocus(true);
@@ -4210,7 +4451,7 @@ TEST_F(WebFrameTest, DivScrollIntoEditableTestWithDeviceScaleFactor) {
   ASSERT_EQ(web_view_helper.GetWebView()->PageScaleFactor(), initial_scale);
 
   float scale;
-  IntPoint scroll;
+  gfx::Point scroll;
   bool need_animation;
   IntRect element_bounds, caret_bounds;
   GetElementAndCaretBoundsForFocusedEditableElement(
@@ -6169,13 +6410,10 @@ TEST_F(WebFrameTest, MoveCaretStaysHorizontallyAlignedWhenMoved) {
 
 class CompositedSelectionBoundsTest
     : public WebFrameTest,
-      public testing::WithParamInterface<bool>,
-      private ScopedCompositedSelectionUpdateForTest,
-      private ScopedCompositeAfterPaintForTest {
+      private ScopedCompositedSelectionUpdateForTest {
  protected:
   CompositedSelectionBoundsTest()
-      : ScopedCompositedSelectionUpdateForTest(true),
-        ScopedCompositeAfterPaintForTest(GetParam()) {
+      : ScopedCompositedSelectionUpdateForTest(true) {
     RegisterMockedHttpURLLoad("Ahem.ttf");
 
     web_view_helper_.Initialize(nullptr, nullptr);
@@ -6378,7 +6616,7 @@ class CompositedSelectionBoundsTest
                                          : clm->MainGraphicsLayer();
   }
 
-  static int LayerIdFromNode(cc::Layer* root_layer, blink::Node* node) {
+  static int LayerIdFromNode(const cc::Layer* root_layer, blink::Node* node) {
     if (!RuntimeEnabledFeatures::CompositeAfterPaintEnabled()) {
       return GetExpectedLayerForSelection(node)->CcLayer().id();
     } else {
@@ -6400,81 +6638,70 @@ class CompositedSelectionBoundsTest
   frame_test_helpers::WebViewHelper web_view_helper_;
 };
 
-TEST_P(CompositedSelectionBoundsTest, None) {
+TEST_F(CompositedSelectionBoundsTest, None) {
   RunTestWithNoSelection("composited_selection_bounds_none.html");
 }
-TEST_P(CompositedSelectionBoundsTest, NoneReadonlyCaret) {
+TEST_F(CompositedSelectionBoundsTest, NoneReadonlyCaret) {
   RunTestWithNoSelection(
       "composited_selection_bounds_none_readonly_caret.html");
 }
-TEST_P(CompositedSelectionBoundsTest, DetachedFrame) {
+TEST_F(CompositedSelectionBoundsTest, DetachedFrame) {
   RunTestWithNoSelection("composited_selection_bounds_detached_frame.html");
 }
 
-TEST_P(CompositedSelectionBoundsTest, Basic) {
+TEST_F(CompositedSelectionBoundsTest, Basic) {
   RunTest("composited_selection_bounds_basic.html");
 }
-TEST_P(CompositedSelectionBoundsTest, Transformed) {
+TEST_F(CompositedSelectionBoundsTest, Transformed) {
   RunTest("composited_selection_bounds_transformed.html");
 }
-TEST_P(CompositedSelectionBoundsTest, VerticalRightToLeft) {
+TEST_F(CompositedSelectionBoundsTest, VerticalRightToLeft) {
   RunTest("composited_selection_bounds_vertical_rl.html");
 }
-TEST_P(CompositedSelectionBoundsTest, VerticalLeftToRight) {
+TEST_F(CompositedSelectionBoundsTest, VerticalLeftToRight) {
   RunTest("composited_selection_bounds_vertical_lr.html");
 }
-TEST_P(CompositedSelectionBoundsTest, BasicRTL) {
+TEST_F(CompositedSelectionBoundsTest, BasicRTL) {
   RunTest("composited_selection_bounds_basic_rtl.html");
 }
-TEST_P(CompositedSelectionBoundsTest, VerticalRightToLeftRTL) {
+TEST_F(CompositedSelectionBoundsTest, VerticalRightToLeftRTL) {
   RunTest("composited_selection_bounds_vertical_rl_rtl.html");
 }
-TEST_P(CompositedSelectionBoundsTest, VerticalLeftToRightRTL) {
+TEST_F(CompositedSelectionBoundsTest, VerticalLeftToRightRTL) {
   RunTest("composited_selection_bounds_vertical_lr_rtl.html");
 }
-TEST_P(CompositedSelectionBoundsTest, SplitLayer) {
+TEST_F(CompositedSelectionBoundsTest, SplitLayer) {
   RunTest("composited_selection_bounds_split_layer.html");
 }
-TEST_P(CompositedSelectionBoundsTest, Iframe) {
+TEST_F(CompositedSelectionBoundsTest, Iframe) {
   RunTestWithMultipleFiles("composited_selection_bounds_iframe.html",
                            {"composited_selection_bounds_basic.html"});
 }
-TEST_P(CompositedSelectionBoundsTest, Editable) {
+TEST_F(CompositedSelectionBoundsTest, Editable) {
   web_view_helper_.GetWebView()->GetSettings()->SetDefaultFontSize(16);
   RunTest("composited_selection_bounds_editable.html");
 }
-TEST_P(CompositedSelectionBoundsTest, EditableDiv) {
+TEST_F(CompositedSelectionBoundsTest, EditableDiv) {
   RunTest("composited_selection_bounds_editable_div.html");
 }
-TEST_P(CompositedSelectionBoundsTest, SVGBasic) {
+TEST_F(CompositedSelectionBoundsTest, SVGBasic) {
   RunTest("composited_selection_bounds_svg_basic.html");
 }
-TEST_P(CompositedSelectionBoundsTest, SVGTextWithFragments) {
+TEST_F(CompositedSelectionBoundsTest, SVGTextWithFragments) {
   RunTest("composited_selection_bounds_svg_text_with_fragments.html");
 }
 #if defined(OS_WIN) || defined(OS_LINUX) || defined(OS_CHROMEOS)
 #if !defined(OS_ANDROID)
-TEST_P(CompositedSelectionBoundsTest, Input) {
+TEST_F(CompositedSelectionBoundsTest, Input) {
   web_view_helper_.GetWebView()->GetSettings()->SetDefaultFontSize(16);
   RunTest("composited_selection_bounds_input.html");
 }
-TEST_P(CompositedSelectionBoundsTest, InputScrolled) {
+TEST_F(CompositedSelectionBoundsTest, InputScrolled) {
   web_view_helper_.GetWebView()->GetSettings()->SetDefaultFontSize(16);
   RunTest("composited_selection_bounds_input_scrolled.html");
 }
 #endif
 #endif
-
-struct CompositedSelectionBoundsTestPassToString {
-  std::string operator()(const testing::TestParamInfo<bool> b) const {
-    return b.param ? "CAP" : "NonCAP";
-  }
-};
-
-INSTANTIATE_TEST_SUITE_P(All,
-                         CompositedSelectionBoundsTest,
-                         testing::Bool(),
-                         CompositedSelectionBoundsTestPassToString());
 
 class CompositedSelectionBoundsTestWithImage
     : public CompositedSelectionBoundsTest {
@@ -6484,22 +6711,17 @@ class CompositedSelectionBoundsTestWithImage
   }
 };
 
-TEST_P(CompositedSelectionBoundsTestWithImage, Replaced) {
+TEST_F(CompositedSelectionBoundsTestWithImage, Replaced) {
   RunTest("composited_selection_bounds_replaced.html");
 }
 
-TEST_P(CompositedSelectionBoundsTestWithImage, ReplacedRTL) {
+TEST_F(CompositedSelectionBoundsTestWithImage, ReplacedRTL) {
   RunTest("composited_selection_bounds_replaced_rtl.html");
 }
 
-TEST_P(CompositedSelectionBoundsTestWithImage, ReplacedVerticalLR) {
+TEST_F(CompositedSelectionBoundsTestWithImage, ReplacedVerticalLR) {
   RunTest("composited_selection_bounds_replaced_vertical_lr.html");
 }
-
-INSTANTIATE_TEST_SUITE_P(All,
-                         CompositedSelectionBoundsTestWithImage,
-                         testing::Bool(),
-                         CompositedSelectionBoundsTestPassToString());
 
 class TestWillInsertBodyWebFrameClient final
     : public frame_test_helpers::TestWebFrameClient {
@@ -6867,168 +7089,210 @@ TEST_F(WebFrameTest, SpellcheckResultsSavedInDocument) {
             document->Markers().Markers()[0]->GetType());
 }
 
-class TestAccessInitialDocumentLocalFrameHost : public FakeLocalFrameHost {
+class TestAccessInitialDocumentLocalFrameHost
+    : public mojom::blink::LocalMainFrameHost {
  public:
   TestAccessInitialDocumentLocalFrameHost() = default;
   ~TestAccessInitialDocumentLocalFrameHost() override = default;
 
-  // FakeLocalFrameHost:
-  void DidAccessInitialDocument() override { ++did_access_initial_document_; }
+  void Init(blink::AssociatedInterfaceProvider* provider) {
+    provider->OverrideBinderForTesting(
+        mojom::blink::LocalMainFrameHost::Name_,
+        base::BindRepeating(
+            &TestAccessInitialDocumentLocalFrameHost::BindFrameHostReceiver,
+            base::Unretained(this)));
+  }
+
+  // LocalMainFrameHost:
+  void ScaleFactorChanged(float scale) override {}
+  void ContentsPreferredSizeChanged(const ::gfx::Size& pref_size) override {}
+  void TextAutosizerPageInfoChanged(
+      ::blink::mojom::blink::TextAutosizerPageInfoPtr page_info) override {}
+  void FocusPage() override {}
+  void TakeFocus(bool reverse) override {}
+  void UpdateTargetURL(const ::blink::KURL& url,
+                       UpdateTargetURLCallback callback) override {
+    std::move(callback).Run();
+  }
+  void RequestClose() override {}
+  void ShowCreatedWindow(const ::blink::LocalFrameToken& opener_frame_token,
+                         ::ui::mojom::blink::WindowOpenDisposition disposition,
+                         const ::gfx::Rect& rect,
+                         bool opened_by_user_gesture,
+                         ShowCreatedWindowCallback callback) override {
+    std::move(callback).Run();
+  }
+  void SetWindowRect(const ::gfx::Rect& bounds,
+                     SetWindowRectCallback callback) override {
+    std::move(callback).Run();
+  }
+  void DidFirstVisuallyNonEmptyPaint() override {}
+  void DidAccessInitialMainDocument() override {
+    ++did_access_initial_main_document_;
+  }
 
   // !!!!!!!!!!!!!!!!!! IMPORTANT !!!!!!!!!!!!!!!!!!
   // If the actual counts in the tests below increase, this could be an
-  // indicator of a bug that causes DidAccessInitialDocument() to always be
+  // indicator of a bug that causes DidAccessInitialMainDocument() to always be
   // invoked, regardless of whether or not the initial document is accessed.
   // Please do not simply increment the expected counts in the below tests
   // without understanding what's causing the increased count.
-  int did_access_initial_document_ = 0;
+  int did_access_initial_main_document_ = 0;
+
+ private:
+  void BindFrameHostReceiver(mojo::ScopedInterfaceEndpointHandle handle) {
+    receiver_.Bind(
+        mojo::PendingAssociatedReceiver<mojom::blink::LocalMainFrameHost>(
+            std::move(handle)));
+  }
+  mojo::AssociatedReceiver<mojom::blink::LocalMainFrameHost> receiver_{this};
 };
 
-TEST_F(WebFrameTest, DidAccessInitialDocumentBody) {
+TEST_F(WebFrameTest, DidAccessInitialMainDocumentBody) {
   TestAccessInitialDocumentLocalFrameHost frame_host;
   frame_test_helpers::TestWebFrameClient web_frame_client;
   frame_host.Init(web_frame_client.GetRemoteNavigationAssociatedInterfaces());
   frame_test_helpers::WebViewHelper web_view_helper;
   web_view_helper.Initialize(&web_frame_client);
   RunPendingTasks();
-  EXPECT_EQ(0, frame_host.did_access_initial_document_);
+  EXPECT_EQ(0, frame_host.did_access_initial_main_document_);
 
   // Create another window that will try to access it.
   frame_test_helpers::WebViewHelper new_web_view_helper;
   WebViewImpl* new_view = new_web_view_helper.InitializeWithOpener(
       web_view_helper.GetWebView()->MainFrame());
   RunPendingTasks();
-  EXPECT_EQ(0, frame_host.did_access_initial_document_);
+  EXPECT_EQ(0, frame_host.did_access_initial_main_document_);
 
   // Access the initial document by modifying the body.
   new_view->MainFrameImpl()->ExecuteScript(
       WebScriptSource("window.opener.document.body.innerHTML += 'Modified';"));
   RunPendingTasks();
-  EXPECT_EQ(1, frame_host.did_access_initial_document_);
+  EXPECT_EQ(1, frame_host.did_access_initial_main_document_);
 
   web_view_helper.Reset();
 }
 
-TEST_F(WebFrameTest, DidAccessInitialDocumentOpen) {
+TEST_F(WebFrameTest, DidAccessInitialMainDocumentOpen) {
   TestAccessInitialDocumentLocalFrameHost frame_host;
   frame_test_helpers::TestWebFrameClient web_frame_client;
   frame_host.Init(web_frame_client.GetRemoteNavigationAssociatedInterfaces());
   frame_test_helpers::WebViewHelper web_view_helper;
   web_view_helper.Initialize(&web_frame_client);
   RunPendingTasks();
-  EXPECT_EQ(0, frame_host.did_access_initial_document_);
+  EXPECT_EQ(0, frame_host.did_access_initial_main_document_);
 
   // Create another window that will try to access it.
   frame_test_helpers::WebViewHelper new_web_view_helper;
   WebViewImpl* new_view = new_web_view_helper.InitializeWithOpener(
       web_view_helper.GetWebView()->MainFrame());
   RunPendingTasks();
-  EXPECT_EQ(0, frame_host.did_access_initial_document_);
+  EXPECT_EQ(0, frame_host.did_access_initial_main_document_);
 
   // Access the initial document by calling document.open(), which allows
   // arbitrary modification of the initial document.
   new_view->MainFrameImpl()->ExecuteScript(
       WebScriptSource("window.opener.document.open();"));
   RunPendingTasks();
-  EXPECT_EQ(1, frame_host.did_access_initial_document_);
+  EXPECT_EQ(1, frame_host.did_access_initial_main_document_);
 
   web_view_helper.Reset();
 }
 
-TEST_F(WebFrameTest, DidAccessInitialDocumentNavigator) {
+TEST_F(WebFrameTest, DidAccessInitialMainDocumentNavigator) {
   TestAccessInitialDocumentLocalFrameHost frame_host;
   frame_test_helpers::TestWebFrameClient web_frame_client;
   frame_host.Init(web_frame_client.GetRemoteNavigationAssociatedInterfaces());
   frame_test_helpers::WebViewHelper web_view_helper;
   web_view_helper.Initialize(&web_frame_client);
   RunPendingTasks();
-  EXPECT_EQ(0, frame_host.did_access_initial_document_);
+  EXPECT_EQ(0, frame_host.did_access_initial_main_document_);
 
   // Create another window that will try to access it.
   frame_test_helpers::WebViewHelper new_web_view_helper;
   WebViewImpl* new_view = new_web_view_helper.InitializeWithOpener(
       web_view_helper.GetWebView()->MainFrame());
   RunPendingTasks();
-  EXPECT_EQ(0, frame_host.did_access_initial_document_);
+  EXPECT_EQ(0, frame_host.did_access_initial_main_document_);
 
   // Access the initial document to get to the navigator object.
   new_view->MainFrameImpl()->ExecuteScript(
       WebScriptSource("console.log(window.opener.navigator);"));
   RunPendingTasks();
-  EXPECT_EQ(1, frame_host.did_access_initial_document_);
+  EXPECT_EQ(1, frame_host.did_access_initial_main_document_);
 
   web_view_helper.Reset();
 }
 
-TEST_F(WebFrameTest, DidAccessInitialDocumentViaJavascriptUrl) {
+TEST_F(WebFrameTest, DidAccessInitialMainDocumentViaJavascriptUrl) {
   TestAccessInitialDocumentLocalFrameHost frame_host;
   frame_test_helpers::TestWebFrameClient web_frame_client;
   frame_host.Init(web_frame_client.GetRemoteNavigationAssociatedInterfaces());
   frame_test_helpers::WebViewHelper web_view_helper;
   web_view_helper.Initialize(&web_frame_client);
   RunPendingTasks();
-  EXPECT_EQ(0, frame_host.did_access_initial_document_);
+  EXPECT_EQ(0, frame_host.did_access_initial_main_document_);
 
   // Access the initial document from a javascript: URL.
   frame_test_helpers::LoadFrame(web_view_helper.GetWebView()->MainFrameImpl(),
                                 "javascript:document.body.appendChild(document."
                                 "createTextNode('Modified'))");
-  EXPECT_EQ(1, frame_host.did_access_initial_document_);
+  EXPECT_EQ(1, frame_host.did_access_initial_main_document_);
 
   web_view_helper.Reset();
 }
 
-TEST_F(WebFrameTest, DidAccessInitialDocumentBodyBeforeModalDialog) {
+TEST_F(WebFrameTest, DidAccessInitialMainDocumentBodyBeforeModalDialog) {
   TestAccessInitialDocumentLocalFrameHost frame_host;
   frame_test_helpers::TestWebFrameClient web_frame_client;
   frame_host.Init(web_frame_client.GetRemoteNavigationAssociatedInterfaces());
   frame_test_helpers::WebViewHelper web_view_helper;
   web_view_helper.Initialize(&web_frame_client);
   RunPendingTasks();
-  EXPECT_EQ(0, frame_host.did_access_initial_document_);
+  EXPECT_EQ(0, frame_host.did_access_initial_main_document_);
 
   // Create another window that will try to access it.
   frame_test_helpers::WebViewHelper new_web_view_helper;
   WebViewImpl* new_view = new_web_view_helper.InitializeWithOpener(
       web_view_helper.GetWebView()->MainFrame());
   RunPendingTasks();
-  EXPECT_EQ(0, frame_host.did_access_initial_document_);
+  EXPECT_EQ(0, frame_host.did_access_initial_main_document_);
 
   // Access the initial document by modifying the body.
   new_view->MainFrameImpl()->ExecuteScript(
       WebScriptSource("window.opener.document.body.innerHTML += 'Modified';"));
   RunPendingTasks();
-  EXPECT_EQ(1, frame_host.did_access_initial_document_);
+  EXPECT_EQ(1, frame_host.did_access_initial_main_document_);
 
   // Run a modal dialog, which used to run a nested run loop and require
   // a special case for notifying about the access.
   new_view->MainFrameImpl()->ExecuteScript(
       WebScriptSource("window.opener.confirm('Modal');"));
   RunPendingTasks();
-  EXPECT_EQ(1, frame_host.did_access_initial_document_);
+  EXPECT_EQ(1, frame_host.did_access_initial_main_document_);
 
   // Ensure that we don't notify again later.
   RunPendingTasks();
-  EXPECT_EQ(1, frame_host.did_access_initial_document_);
+  EXPECT_EQ(1, frame_host.did_access_initial_main_document_);
 
   web_view_helper.Reset();
 }
 
-TEST_F(WebFrameTest, DidWriteToInitialDocumentBeforeModalDialog) {
+TEST_F(WebFrameTest, DidWriteToInitialMainDocumentBeforeModalDialog) {
   TestAccessInitialDocumentLocalFrameHost frame_host;
   frame_test_helpers::TestWebFrameClient web_frame_client;
   frame_host.Init(web_frame_client.GetRemoteNavigationAssociatedInterfaces());
   frame_test_helpers::WebViewHelper web_view_helper;
   web_view_helper.Initialize(&web_frame_client);
   RunPendingTasks();
-  EXPECT_EQ(0, frame_host.did_access_initial_document_);
+  EXPECT_EQ(0, frame_host.did_access_initial_main_document_);
 
   // Create another window that will try to access it.
   frame_test_helpers::WebViewHelper new_web_view_helper;
   WebViewImpl* new_view = new_web_view_helper.InitializeWithOpener(
       web_view_helper.GetWebView()->MainFrame());
   RunPendingTasks();
-  EXPECT_EQ(0, frame_host.did_access_initial_document_);
+  EXPECT_EQ(0, frame_host.did_access_initial_main_document_);
 
   // Access the initial document with document.write, which moves us past the
   // initial empty document state of the state machine.
@@ -7036,18 +7300,18 @@ TEST_F(WebFrameTest, DidWriteToInitialDocumentBeforeModalDialog) {
       WebScriptSource("window.opener.document.write('Modified'); "
                       "window.opener.document.close();"));
   RunPendingTasks();
-  EXPECT_EQ(1, frame_host.did_access_initial_document_);
+  EXPECT_EQ(1, frame_host.did_access_initial_main_document_);
 
   // Run a modal dialog, which used to run a nested run loop and require
   // a special case for notifying about the access.
   new_view->MainFrameImpl()->ExecuteScript(
       WebScriptSource("window.opener.confirm('Modal');"));
   RunPendingTasks();
-  EXPECT_EQ(1, frame_host.did_access_initial_document_);
+  EXPECT_EQ(1, frame_host.did_access_initial_main_document_);
 
   // Ensure that we don't notify again later.
   RunPendingTasks();
-  EXPECT_EQ(1, frame_host.did_access_initial_document_);
+  EXPECT_EQ(1, frame_host.did_access_initial_main_document_);
 
   web_view_helper.Reset();
 }
@@ -9632,7 +9896,7 @@ TEST_F(WebFrameSwapTest, HistoryCommitTypeAfterExistingRemoteToLocalSwap) {
   RemoteToLocalSwapWebFrameClient client;
   WebLocalFrameImpl* local_frame =
       web_view_helper_.CreateProvisional(*remote_frame, &client);
-  local_frame->SetCommittedFirstRealLoad();
+  local_frame->SetIsNotOnInitialEmptyDocument();
   frame_test_helpers::LoadFrame(local_frame, base_url_ + "subframe-hello.html");
   EXPECT_EQ(kWebStandardCommit, client.HistoryCommitType());
 
@@ -10001,7 +10265,7 @@ class DeviceEmulationTest : public WebFrameTest {
                              code, &callback_helper);
     RunPendingTasks();
     EXPECT_TRUE(callback_helper.DidComplete());
-    return callback_helper.StringValue();
+    return callback_helper.SingleStringValue();
   }
 
   frame_test_helpers::WebViewHelper web_view_helper_;
@@ -10846,12 +11110,12 @@ TEST_F(WebFrameTest, RotatedIframeViewportIntersection) {
   base::RunLoop().RunUntilIdle();
   ASSERT_TRUE(!remote_frame_host.GetIntersectionState()
                    ->viewport_intersection.IsEmpty());
-  EXPECT_TRUE(IntRect(IntPoint(), remote_frame->GetFrame()->View()->Size())
+  EXPECT_TRUE(IntRect(gfx::Point(), remote_frame->GetFrame()->View()->Size())
                   .Contains(IntRect(remote_frame_host.GetIntersectionState()
                                         ->viewport_intersection)));
   ASSERT_TRUE(!remote_frame_host.GetIntersectionState()
                    ->main_frame_intersection.IsEmpty());
-  EXPECT_TRUE(IntRect(IntPoint(), remote_frame->GetFrame()->View()->Size())
+  EXPECT_TRUE(IntRect(gfx::Point(), remote_frame->GetFrame()->View()->Size())
                   .Contains(IntRect(remote_frame_host.GetIntersectionState()
                                         ->main_frame_intersection)));
   remote_frame->Detach();
@@ -11931,7 +12195,7 @@ TEST_F(WebFrameSimTest, TickmarksDocumentRelative) {
       frame_view->LayoutViewport()->GetTickmarks();
   EXPECT_EQ(1u, original_tickmarks.size());
 
-  EXPECT_EQ(IntPoint(800, 2000), original_tickmarks[0].origin());
+  EXPECT_EQ(gfx::Point(800, 2000), original_tickmarks[0].origin());
 }
 
 TEST_F(WebFrameSimTest, FindInPageSelectNextMatch) {
@@ -12174,7 +12438,7 @@ TEST_F(WebFrameSimTest, TestScrollFocusedEditableElementIntoView) {
       ->ScrollFocusedEditableElementIntoView();
 
   EXPECT_EQ(0, WebView().FakePageScaleAnimationPageScaleForTesting());
-  EXPECT_EQ(IntPoint(),
+  EXPECT_EQ(gfx::Point(),
             WebView().FakePageScaleAnimationTargetPositionForTesting());
 
   // Now resize the visual viewport so that the input box is no longer in view
@@ -12363,7 +12627,7 @@ TEST_F(WebFrameSimTest, ScrollFocusedIntoViewClipped) {
                      input->getBoundingClientRect()->width(),
                      input->getBoundingClientRect()->height());
 
-  IntRect visible_content_rect(IntPoint(), frame_view->Size());
+  IntRect visible_content_rect(gfx::Point(), frame_view->Size());
   EXPECT_TRUE(visible_content_rect.Contains(input_rect))
       << "Layout viewport [" << visible_content_rect.ToString()
       << "] does not contain input rect [" << input_rect.ToString()
@@ -12515,7 +12779,7 @@ TEST_F(WebFrameSimTest, DoubleTapZoomWhileScrolled) {
     gfx::Rect block_bounds = ComputeBlockBoundHelper(&WebView(), point, false);
     WebView().AnimateDoubleTapZoom(point, block_bounds);
     EXPECT_TRUE(WebView().FakeDoubleTapAnimationPendingForTesting());
-    IntPoint target_offset(
+    gfx::Point target_offset(
         WebView().FakePageScaleAnimationTargetPositionForTesting());
     float new_scale = WebView().FakePageScaleAnimationPageScaleForTesting();
 
@@ -12629,7 +12893,7 @@ TEST_F(WebFrameSimTest, ScrollEditContextIntoView) {
   // scrollOffset.x = controlBound.x - left padding = 500 - 150 = 350
   // scrollOffset.y = controlBound.y - (viewport.height - controlBound.height)/2
   //                = 850 - (600 - 20) / 2 = 560
-  EXPECT_EQ(IntPoint(350, 560),
+  EXPECT_EQ(gfx::Point(350, 560),
             WebView().FakePageScaleAnimationTargetPositionForTesting());
 }
 
@@ -12925,7 +13189,7 @@ TEST_F(WebFrameTest, ShowVirtualKeyboardOnElementFocus) {
 
   RunPendingTasks();
   // Verify that the right WidgetHost has been notified.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   EXPECT_EQ(0u, widget_host.VirtualKeyboardRequestCount());
 #else
   EXPECT_LT(0u, widget_host.VirtualKeyboardRequestCount());
@@ -13318,55 +13582,6 @@ TEST_F(WebFrameTest, RightClickActivatesForExecuteCommand) {
 
   frame->ExecuteCommand(WebString::FromUTF8("Paste"));
   EXPECT_TRUE(frame->GetFrame()->HasStickyUserActivation());
-}
-
-TEST_F(WebFrameTest, GetCanonicalUrlForSharingNone) {
-  frame_test_helpers::WebViewHelper web_view_helper;
-  web_view_helper.InitializeAndLoad("about:blank");
-  WebLocalFrameImpl* frame = web_view_helper.LocalMainFrame();
-  EXPECT_TRUE(frame->GetDocument().CanonicalUrlForSharing().IsNull());
-}
-
-TEST_F(WebFrameTest, GetCanonicalUrlForSharingNotInHead) {
-  frame_test_helpers::WebViewHelper web_view_helper;
-  web_view_helper.Initialize();
-  WebLocalFrameImpl* frame = web_view_helper.LocalMainFrame();
-  frame_test_helpers::LoadHTMLString(
-      frame, R"(
-    <body>
-      <link rel="canonical" href="https://example.com/canonical.html">
-    </body>)",
-      ToKURL("https://example.com/test_page.html"));
-  EXPECT_TRUE(frame->GetDocument().CanonicalUrlForSharing().IsNull());
-}
-
-TEST_F(WebFrameTest, GetCanonicalUrlForSharing) {
-  frame_test_helpers::WebViewHelper web_view_helper;
-  web_view_helper.Initialize();
-  WebLocalFrameImpl* frame = web_view_helper.LocalMainFrame();
-  frame_test_helpers::LoadHTMLString(
-      frame, R"(
-    <head>
-      <link rel="canonical" href="https://example.com/canonical.html">
-    </head>)",
-      ToKURL("https://example.com/test_page.html"));
-  EXPECT_EQ(WebURL(ToKURL("https://example.com/canonical.html")),
-            frame->GetDocument().CanonicalUrlForSharing());
-}
-
-TEST_F(WebFrameTest, GetCanonicalUrlForSharingMultiple) {
-  frame_test_helpers::WebViewHelper web_view_helper;
-  web_view_helper.Initialize();
-  WebLocalFrameImpl* frame = web_view_helper.LocalMainFrame();
-  frame_test_helpers::LoadHTMLString(
-      frame, R"(
-    <head>
-      <link rel="canonical" href="https://example.com/canonical1.html">
-      <link rel="canonical" href="https://example.com/canonical2.html">
-    </head>)",
-      ToKURL("https://example.com/test_page.html"));
-  EXPECT_EQ(WebURL(ToKURL("https://example.com/canonical1.html")),
-            frame->GetDocument().CanonicalUrlForSharing());
 }
 
 TEST_F(WebFrameSimTest, EnterFullscreenResetScrollAndScaleState) {
@@ -14066,6 +14281,52 @@ TEST_F(WebFrameTest, LargeScaleRemoteFrameCompositingScaleFactor) {
   // The compositing scale factor is at most 5.0 irrespective of iframe scale.
   EXPECT_EQ(remote_frame->GetFrame()->View()->GetCompositingScaleFactor(),
             5.0f);
+}
+
+TEST_F(WebFrameTest, VerticalRLScrollOffset) {
+  frame_test_helpers::WebViewHelper web_view_helper;
+  web_view_helper.Initialize();
+
+  WebViewImpl* web_view = web_view_helper.GetWebView();
+  web_view->Resize(gfx::Size(800, 800));
+  auto* frame = web_view->MainFrameImpl()->GetFrame();
+  InitializeWithHTML(*frame, R"HTML(
+    <!DOCTYPE html>
+    <style>body { margin: 0; }</style>
+    <div style="width: 2000px; height: 2000px"></div>
+  )HTML");
+
+  frame->GetDocument()->documentElement()->setAttribute(
+      html_names::kStyleAttr, "writing-mode: vertical-rl");
+  frame->View()->UpdateAllLifecyclePhasesForTest();
+
+  auto* web_main_frame = web_view_helper.LocalMainFrame();
+  EXPECT_EQ(gfx::Vector2dF(1200, 0), web_main_frame->GetScrollOffset());
+  web_main_frame->SetScrollOffset(gfx::Vector2dF(-100, 100));
+  EXPECT_EQ(gfx::Vector2dF(0, 100), web_main_frame->GetScrollOffset());
+}
+
+TEST_F(WebFrameTest, FrameOwnerColorScheme) {
+  frame_test_helpers::WebViewHelper web_view_helper;
+  web_view_helper.InitializeAndLoad(
+      "data:text/html,<frameset><frame id=frame></frame></frameset>");
+
+  WebViewImpl* web_view = web_view_helper.GetWebView();
+
+  Document* document = web_view->MainFrameImpl()->GetFrame()->GetDocument();
+  HTMLFrameOwnerElement* frame =
+      To<HTMLFrameOwnerElement>(document->getElementById("frame"));
+  EXPECT_EQ(frame->GetColorScheme(), mojom::blink::ColorScheme::kLight);
+  EXPECT_EQ(frame->contentDocument()->GetStyleEngine().GetOwnerColorScheme(),
+            mojom::blink::ColorScheme::kLight);
+
+  frame->SetInlineStyleProperty(CSSPropertyID::kColorScheme, "dark");
+  EXPECT_EQ(frame->GetColorScheme(), mojom::blink::ColorScheme::kLight);
+
+  UpdateAllLifecyclePhases(web_view);
+  EXPECT_EQ(frame->GetColorScheme(), mojom::blink::ColorScheme::kDark);
+  EXPECT_EQ(frame->contentDocument()->GetStyleEngine().GetOwnerColorScheme(),
+            mojom::blink::ColorScheme::kDark);
 }
 
 }  // namespace blink

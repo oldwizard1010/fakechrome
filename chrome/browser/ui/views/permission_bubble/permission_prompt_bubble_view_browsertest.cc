@@ -79,8 +79,17 @@ class PermissionPromptBubbleViewBrowserTest
       public ::testing::WithParamInterface<bool> {
  public:
   PermissionPromptBubbleViewBrowserTest() {
-    feature_list_.InitWithFeatureState(permissions::features::kPermissionChip,
-                                       GetParam());
+    if (GetParam()) {
+      feature_list_.InitWithFeatures(
+          {permissions::features::kPermissionChip},
+          {permissions::features::kPermissionChipGestureSensitive,
+           permissions::features::kPermissionChipRequestTypeSensitive});
+    } else {
+      feature_list_.InitWithFeatures(
+          {}, {permissions::features::kPermissionChip,
+               permissions::features::kPermissionChipGestureSensitive,
+               permissions::features::kPermissionChipRequestTypeSensitive});
+    }
   }
 
   PermissionPromptBubbleViewBrowserTest(
@@ -225,52 +234,6 @@ class PermissionPromptBubbleViewBrowserTest
     }
   }
 
-  void ExpectQuietAbusiveChip() {
-    // PermissionChip lifetime is bound to a permission prompt view.
-    ASSERT_TRUE(test_api_->manager()->view_for_testing());
-    // The quiet chip will be shown even if the chip experiment is disabled.
-    PermissionChip* chip = GetChip();
-    ASSERT_TRUE(chip);
-
-    EXPECT_FALSE(chip->should_expand_for_testing());
-    EXPECT_FALSE(chip->get_chip_button_for_testing()->is_animating());
-    EXPECT_EQ(OmniboxChipButton::Theme::kGray,
-              chip->get_chip_button_for_testing()->get_theme_for_testing());
-  }
-
-  void ExpectQuietChip() {
-    // PermissionChip lifetime is bound to a permission prompt view.
-    ASSERT_TRUE(test_api_->manager()->view_for_testing());
-
-    // The quiet chip will be shown even if the chip experiment is disabled.
-    PermissionChip* chip = GetChip();
-    ASSERT_TRUE(chip);
-
-    EXPECT_TRUE(chip->should_expand_for_testing());
-    EXPECT_TRUE(chip->get_chip_button_for_testing()->is_animating());
-    EXPECT_EQ(OmniboxChipButton::Theme::kGray,
-              chip->get_chip_button_for_testing()->get_theme_for_testing());
-  }
-
-  void ExpectNormalChip() {
-    // PermissionChip lifetime is bound to a permission prompt view.
-    ASSERT_TRUE(test_api_->manager()->view_for_testing());
-    if (GetParam()) {
-      PermissionChip* chip = GetChip();
-      ASSERT_TRUE(chip);
-
-      EXPECT_TRUE(chip->should_expand_for_testing());
-      // TODO(crbug.com/1232460): Verify that OmniboxChipButton::is_animating is
-      // true. Right now the value is flaky.
-      EXPECT_EQ(OmniboxChipButton::Theme::kBlue,
-                chip->get_chip_button_for_testing()->get_theme_for_testing());
-
-    } else {
-      // Chip is disabled.
-      EXPECT_FALSE(GetChip());
-    }
-  }
-
   base::test::ScopedFeatureList feature_list_;
   std::unique_ptr<test::PermissionRequestManagerTestApi> test_api_;
 };
@@ -281,6 +244,10 @@ IN_PROC_BROWSER_TEST_P(PermissionPromptBubbleViewBrowserTest,
   EXPECT_EQ(0, counter.GetCount(ax::mojom::Event::kAlert));
   ShowUi("geolocation");
 
+// AnnounceText is called when permission requests are announced. But on Mac,
+// AnnounceText doesn't go through the path that uses Event::kAlert. Therefore
+// we can't test it.
+#if !defined(OS_MAC)
   PermissionChip* chip = GetChip();
   // If chip UI is used, two notifications will be announced: one that
   // permission was requested and second when bubble is opened.
@@ -289,6 +256,9 @@ IN_PROC_BROWSER_TEST_P(PermissionPromptBubbleViewBrowserTest,
   } else {
     EXPECT_EQ(1, counter.GetCount(ax::mojom::Event::kAlert));
   }
+#else
+  EXPECT_EQ(1, counter.GetCount(ax::mojom::Event::kAlert));
+#endif
 }
 
 // Test bubbles showing when tabs move between windows. Simulates a situation
@@ -786,94 +756,8 @@ IN_PROC_BROWSER_TEST_P(QuietChipPermissionPromptBubbleViewBrowserTest,
     // Chip experiment is disabled.
     EXPECT_EQ(
         test_api_->manager()->current_request_prompt_disposition_for_testing(),
-        permissions::PermissionPromptDisposition::LOCATION_BAR_LEFT_QUIET_CHIP);
-  }
-}
-
-// The quiet UI icon is verified to make sure that the quiet chip is not shown
-// when the quiet icon is shown.
-IN_PROC_BROWSER_TEST_P(QuietChipPermissionPromptBubbleViewBrowserTest,
-                       QuietChipIsNotShownForNonAbusiveRequests) {
-  SetCannedUiDecision(absl::nullopt, absl::nullopt);
-
-  ContentSettingImageView& quiet_ui_icon = GetContentSettingImageView(
-      ContentSettingImageModel::ImageType::NOTIFICATIONS_QUIET_PROMPT);
-  EXPECT_FALSE(quiet_ui_icon.GetVisible());
-  EXPECT_FALSE(GetChip());
-
-  ShowUi("geolocation");
-
-  EXPECT_FALSE(quiet_ui_icon.GetVisible());
-  ExpectNormalChip();
-
-  test_api_->manager()->Accept();
-  base::RunLoop().RunUntilIdle();
-
-  ShowUi("notifications");
-
-  EXPECT_FALSE(quiet_ui_icon.GetVisible());
-  ExpectNormalChip();
-
-  test_api_->manager()->Accept();
-  base::RunLoop().RunUntilIdle();
-}
-
-IN_PROC_BROWSER_TEST_P(QuietChipPermissionPromptBubbleViewBrowserTest,
-                       NotAnimatedQuietChipIsShownForAbusiveRequests) {
-  for (QuietUiReason reason : {QuietUiReason::kTriggeredByCrowdDeny,
-                               QuietUiReason::kTriggeredDueToAbusiveRequests,
-                               QuietUiReason::kTriggeredDueToAbusiveContent}) {
-    SetCannedUiDecision(reason, absl::nullopt);
-
-    ContentSettingImageView& quiet_ui_icon = GetContentSettingImageView(
-        ContentSettingImageModel::ImageType::NOTIFICATIONS_QUIET_PROMPT);
-    EXPECT_FALSE(quiet_ui_icon.GetVisible());
-    EXPECT_FALSE(GetChip());
-
-    ShowUi("geolocation");
-
-    EXPECT_FALSE(quiet_ui_icon.GetVisible());
-    ExpectNormalChip();
-
-    test_api_->manager()->Accept();
-    base::RunLoop().RunUntilIdle();
-
-    ShowUi("notifications");
-
-    EXPECT_FALSE(quiet_ui_icon.GetVisible());
-    ExpectQuietAbusiveChip();
-
-    test_api_->manager()->Accept();
-    base::RunLoop().RunUntilIdle();
-  }
-}
-
-IN_PROC_BROWSER_TEST_P(QuietChipPermissionPromptBubbleViewBrowserTest,
-                       AnimatedQuietChipIsShownForNonAbusiveRequests) {
-  for (QuietUiReason reason : {QuietUiReason::kEnabledInPrefs,
-                               QuietUiReason::kPredictedVeryUnlikelyGrant}) {
-    SetCannedUiDecision(reason, absl::nullopt);
-
-    ContentSettingImageView& quiet_ui_icon = GetContentSettingImageView(
-        ContentSettingImageModel::ImageType::NOTIFICATIONS_QUIET_PROMPT);
-    EXPECT_FALSE(quiet_ui_icon.GetVisible());
-    EXPECT_FALSE(GetChip());
-
-    ShowUi("geolocation");
-
-    EXPECT_FALSE(quiet_ui_icon.GetVisible());
-    ExpectNormalChip();
-
-    test_api_->manager()->Accept();
-    base::RunLoop().RunUntilIdle();
-
-    ShowUi("notifications");
-
-    EXPECT_FALSE(quiet_ui_icon.GetVisible());
-    ExpectQuietChip();
-
-    test_api_->manager()->Accept();
-    base::RunLoop().RunUntilIdle();
+        permissions::PermissionPromptDisposition::
+            LOCATION_BAR_LEFT_QUIET_ABUSIVE_CHIP);
   }
 }
 

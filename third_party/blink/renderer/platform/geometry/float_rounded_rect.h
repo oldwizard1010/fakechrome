@@ -41,6 +41,12 @@ namespace blink {
 
 class FloatQuad;
 
+// Represents a rect with rounded corners.
+// We don't use gfx::RRect in blink because gfx::RRect is based on SkRRect
+// which always keeps the radii constrained within the size of the rect, but
+// in blink sometimes we need to keep the unconstrained status of a rounded
+// rect. See ConstrainRadii(). This class also provides functions that are
+// uniquely needed by blink.
 class PLATFORM_EXPORT FloatRoundedRect {
   DISALLOW_NEW();
 
@@ -58,11 +64,12 @@ class PLATFORM_EXPORT FloatRoundedRect {
           top_right_(top_right),
           bottom_left_(bottom_left),
           bottom_right_(bottom_right) {}
-    explicit constexpr Radii(float radius)
-        : Radii(FloatSize(radius, radius),
-                FloatSize(radius, radius),
-                FloatSize(radius, radius),
-                FloatSize(radius, radius)) {}
+    explicit constexpr Radii(float radius) : Radii(radius, radius) {}
+    constexpr Radii(float radius_x, float radius_y)
+        : Radii(FloatSize(radius_x, radius_y),
+                FloatSize(radius_x, radius_y),
+                FloatSize(radius_x, radius_y),
+                FloatSize(radius_x, radius_y)) {}
 
     constexpr Radii(const Radii&) = default;
     constexpr Radii& operator=(const Radii&) = default;
@@ -85,9 +92,6 @@ class PLATFORM_EXPORT FloatRoundedRect {
     }
 
     void Scale(float factor);
-    // Multiply all radii by |factor| and floor the result to the nearest
-    // integer.
-    void ScaleAndFloor(float factor);
 
     void Expand(float top_width,
                 float bottom_width,
@@ -111,6 +115,9 @@ class PLATFORM_EXPORT FloatRoundedRect {
   };
 
   constexpr FloatRoundedRect() = default;
+  explicit FloatRoundedRect(const gfx::RectF& rect,
+                            const Radii& radii = Radii())
+      : FloatRoundedRect(FloatRect(rect), radii) {}
   explicit FloatRoundedRect(const FloatRect&, const Radii& = Radii());
   explicit FloatRoundedRect(const IntRect&, const Radii& = Radii());
   FloatRoundedRect(float x, float y, float width, float height);
@@ -119,6 +126,10 @@ class PLATFORM_EXPORT FloatRoundedRect {
                    const FloatSize& top_right,
                    const FloatSize& bottom_left,
                    const FloatSize& bottom_right);
+  FloatRoundedRect(const FloatRect& r, float radius)
+      : FloatRoundedRect(r, Radii(radius)) {}
+  FloatRoundedRect(const FloatRect& r, float radius_x, float radius_y)
+      : FloatRoundedRect(r, Radii(radius_x, radius_y)) {}
 
   constexpr const FloatRect& Rect() const { return rect_; }
   constexpr const Radii& GetRadii() const { return radii_; }
@@ -171,16 +182,14 @@ class PLATFORM_EXPORT FloatRoundedRect {
   // intersecting area is empty (i.e., the intersection is a line or a point).
   bool IntersectsQuad(const FloatQuad&) const;
 
-  void AdjustRadii();
+  // Whether the radii are constrained in the size of rect().
   bool IsRenderable() const;
 
-  // Constrains the radii to be no more than the size of rect(); radii outside
-  // of this range are not defined.  In addition, the radii of the corners are
-  // floored to the nearest integer.
-  // FIXME: the flooring should not be necessary. At the moment it causes
-  // background bleed in some cases.
-  // FIXME: this code is almost the same as adjustRadii()/isRenderable(). Get
-  // rid of one of them.
+  // Constrains the radii to be no bigger than the size of rect().
+  // This is not called automatically in this class because sometimes we want
+  // to keep the !IsRenderable() status, e.g. for a rounded inner border edge
+  // that is shrunk from a rounded outer border edge to keep uniform width of
+  // the rounded border.
   void ConstrainRadii();
 
   operator SkRRect() const;

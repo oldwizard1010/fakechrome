@@ -8,7 +8,7 @@
 
 #include "base/callback.h"
 #include "base/logging.h"
-#include "base/macros.h"
+#include "ui/events/devices/haptic_touchpad_effects.h"
 #include "ui/events/devices/stylus_state.h"
 
 namespace ui {
@@ -28,6 +28,7 @@ class StubInputController : public InputController {
   bool HasMouse() override { return false; }
   bool HasPointingStick() override { return false; }
   bool HasTouchpad() override { return false; }
+  bool HasHapticTouchpad() override { return false; }
   bool IsCapsLockEnabled() override { return false; }
   void SetCapsLockEnabled(bool enabled) override {}
   void SetNumLockEnabled(bool enabled) override {}
@@ -61,6 +62,7 @@ class StubInputController : public InputController {
   void SetTouchpadAcceleration(bool enabled) override {}
   void SetTouchpadScrollAcceleration(bool enabled) override {}
   void SetTouchpadHapticFeedback(bool enabled) override {}
+  void SetTouchpadHapticClickSensitivity(int value) override {}
   void SetTapToClickPaused(bool state) override {}
   void GetTouchDeviceStatus(GetTouchDeviceStatusReply reply) override {
     std::move(reply).Run(std::string());
@@ -84,6 +86,12 @@ class StubInputController : public InputController {
                            uint8_t amplitude,
                            uint16_t duration_millis) override {}
   void StopVibration(int id) override {}
+  void PlayHapticTouchpadEffect(
+      HapticTouchpadEffect effect_type,
+      HapticTouchpadEffectStrength strength) override {}
+  void SetHapticTouchpadEffectForNextButtonRelease(
+      HapticTouchpadEffect effect_type,
+      HapticTouchpadEffectStrength strength) override {}
 };
 
 }  // namespace

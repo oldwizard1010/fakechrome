@@ -6,9 +6,12 @@
 
 #include <utility>
 
+#include "ash/components/settings/cros_settings_names.h"
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
 #include "ash/public/cpp/wallpaper/online_wallpaper_params.h"
+#include "ash/webui/personalization_app/personalization_app_url_constants.h"
+#include "ash/webui/personalization_app/proto/backdrop_wallpaper.pb.h"
 #include "base/bind.h"
 #include "base/files/file_util.h"
 #include "base/hash/sha1.h"
@@ -39,9 +42,7 @@
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "chrome/common/pref_names.h"
-#include "chromeos/components/personalization_app/proto/backdrop_wallpaper.pb.h"
 #include "chromeos/cryptohome/system_salt_getter.h"
-#include "chromeos/settings/cros_settings_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/session_manager/core/session_manager.h"
 #include "components/sync/base/pref_names.h"
@@ -60,9 +61,9 @@
 #include "ui/display/screen.h"
 #include "url/gurl.h"
 
-using backdrop_wallpaper_handlers::SurpriseMeImageFetcher;
 using chromeos::ProfileHelper;
 using extension_misc::kWallpaperManagerId;
+using wallpaper_handlers::BackdropSurpriseMeImageFetcher;
 
 namespace {
 
@@ -212,7 +213,7 @@ WallpaperControllerClientImpl::WallpaperControllerClientImpl() {
   local_state_ = g_browser_process->local_state();
   show_user_names_on_signin_subscription_ =
       ash::CrosSettings::Get()->AddSettingsObserver(
-          chromeos::kAccountsPrefShowUserNamesOnSignIn,
+          ash::kAccountsPrefShowUserNamesOnSignIn,
           base::BindRepeating(
               &WallpaperControllerClientImpl::ShowWallpaperOnLoginScreen,
               weak_factory_.GetWeakPtr()));
@@ -613,13 +614,14 @@ void WallpaperControllerClientImpl::OpenWallpaperPicker() {
   DCHECK(profile);
   if (ash::features::IsWallpaperWebUIEnabled()) {
     web_app::SystemAppLaunchParams params;
+    params.url = GURL(ash::kChromeUIPersonalizationAppWallpaperSubpageURL);
     params.launch_source = apps::mojom::LaunchSource::kFromShelf;
     web_app::LaunchSystemWebAppAsync(
         profile, web_app::SystemAppType::PERSONALIZATION, params);
     return;
   }
 
-  apps::AppServiceProxyChromeOs* proxy =
+  apps::AppServiceProxy* proxy =
       apps::AppServiceProxyFactory::GetForProfile(profile);
   if (proxy->AppRegistryCache().GetAppType(kWallpaperManagerId) ==
       apps::mojom::AppType::kUnknown) {
@@ -686,7 +688,7 @@ void WallpaperControllerClientImpl::MigrateCollectionIdFromChromeApp(
 void WallpaperControllerClientImpl::FetchDailyRefreshWallpaper(
     const std::string& collection_id,
     DailyWallpaperUrlFetchedCallback callback) {
-  surprise_me_image_fetcher_ = std::make_unique<SurpriseMeImageFetcher>(
+  surprise_me_image_fetcher_ = std::make_unique<BackdropSurpriseMeImageFetcher>(
       collection_id, /*resume_token=*/std::string());
   surprise_me_image_fetcher_->Start(
       base::BindOnce(&WallpaperControllerClientImpl::OnDailyImageInfoFetched,
@@ -695,8 +697,8 @@ void WallpaperControllerClientImpl::FetchDailyRefreshWallpaper(
 
 bool WallpaperControllerClientImpl::ShouldShowUserNamesOnLogin() const {
   bool show_user_names = true;
-  ash::CrosSettings::Get()->GetBoolean(
-      chromeos::kAccountsPrefShowUserNamesOnSignIn, &show_user_names);
+  ash::CrosSettings::Get()->GetBoolean(ash::kAccountsPrefShowUserNamesOnSignIn,
+                                       &show_user_names);
   return show_user_names;
 }
 

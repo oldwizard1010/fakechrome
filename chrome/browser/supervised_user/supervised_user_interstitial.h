@@ -9,7 +9,6 @@
 #include <string>
 
 #include "base/callback_forward.h"
-#include "base/macros.h"
 #include "chrome/browser/supervised_user/supervised_user_error_page/supervised_user_error_page.h"
 #include "url/gurl.h"
 
@@ -46,7 +45,8 @@ class SupervisedUserInterstitial {
       bool is_main_frame);
 
   void GoBack();
-  void RequestPermission(base::OnceCallback<void(bool)> callback);
+  void RequestUrlAccessRemote(base::OnceCallback<void(bool)> callback);
+  void RequestUrlAccessLocal(base::OnceCallback<void(bool)> callback);
   void ShowFeedback();
 
   // Getter methods.

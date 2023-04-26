@@ -8,7 +8,6 @@
 #include <memory>
 #include <vector>
 
-#include "base/macros.h"
 #include "base/time/time.h"
 #include "components/page_load_metrics/browser/observers/core/largest_contentful_paint_handler.h"
 #include "components/page_load_metrics/browser/page_load_metrics_observer.h"
@@ -198,6 +197,9 @@ class PageLoadTracker : public PageLoadMetricsUpdateDispatcher::Client,
   void OnTimingChanged() override;
   void OnSubFrameTimingChanged(content::RenderFrameHost* rfh,
                                const mojom::PageLoadTiming& timing) override;
+  void OnSubFrameInputTimingChanged(
+      content::RenderFrameHost* rfh,
+      const mojom::InputTiming& input_timing_delta) override;
   void OnSubFrameRenderDataChanged(
       content::RenderFrameHost* rfh,
       const mojom::FrameRenderDataUpdate& render_data) override;
@@ -247,7 +249,8 @@ class PageLoadTracker : public PageLoadMetricsUpdateDispatcher::Client,
   const NormalizedResponsivenessMetrics& GetNormalizedResponsivenessMetrics()
       const override;
   const mojom::InputTiming& GetPageInputTiming() const override;
-  const blink::MobileFriendliness& GetMobileFriendliness() const override;
+  const absl::optional<blink::MobileFriendliness>& GetMobileFriendliness()
+      const override;
   const PageRenderData& GetMainFrameRenderData() const override;
   const ui::ScopedVisibilityTracker& GetVisibilityTracker() const override;
   const ResourceTracker& GetResourceTracker() const override;

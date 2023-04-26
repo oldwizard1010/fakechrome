@@ -35,13 +35,7 @@ const base::Feature kEditPasswordsInSettings = {
 // wasn't parsed as a new password field.
 // TODO(crbug/1181254): Remove once it's launched.
 const base::Feature kEnableManualPasswordGeneration = {
-    "EnableManualPasswordGeneration", base::FEATURE_DISABLED_BY_DEFAULT};
-
-// Enables UI in settings that allows the user to move multiple passwords to the
-// account storage.
-const base::Feature kEnableMovingMultiplePasswordsToAccount = {
-    "EnableMovingMultiplePasswordsToAccount",
-    base::FEATURE_DISABLED_BY_DEFAULT};
+    "EnableManualPasswordGeneration", base::FEATURE_ENABLED_BY_DEFAULT};
 
 // Enables the overwriting of prefilled username fields if the server predicted
 // the field to contain a placeholder value.
@@ -79,9 +73,19 @@ const base::Feature kFillOnAccountSelect = {"fill-on-account-select",
 const base::Feature kInferConfirmationPasswordField = {
     "InferConfirmationPasswordField", base::FEATURE_ENABLED_BY_DEFAULT};
 
+// Enables password leak detection for unauthenticated users.
+const base::Feature kLeakDetectionUnauthenticated = {
+    "LeakDetectionUnauthenticated", base::FEATURE_DISABLED_BY_DEFAULT};
+
 // Enables password change flow from leaked password dialog.
 const base::Feature kPasswordChange = {"PasswordChange",
                                        base::FEATURE_DISABLED_BY_DEFAULT};
+
+// Enables offering automated password change only for compromised credentials
+// that are recently used. Only has an effect if PasswordChangeInSettings is
+// also enabled.
+const base::Feature kPasswordChangeOnlyRecentCredentials = {
+    "PasswordChangeOnlyRecentCredentials", base::FEATURE_DISABLED_BY_DEFAULT};
 
 // Enables password change flow from bulk leak check in settings.
 const base::Feature kPasswordChangeInSettings = {
@@ -145,6 +149,14 @@ const base::Feature kUnifiedPasswordManagerMigration{
 // source of truth.
 const base::Feature kUnifiedPasswordManagerShadowAndroid{
     "UnifiedPasswordManagerShadowAndroid", base::FEATURE_DISABLED_BY_DEFAULT};
+
+// If enabled, the built-in sync functionality in PasswordSyncBridge becomes
+// unused, meaning that SyncService/SyncEngine will no longer download or
+// upload changes to/from the Sync server. Instead, an external Android-specific
+// backend will be used to achieve similar behavior.
+const base::Feature kUnifiedPasswordManagerSyncUsingAndroidBackendOnly{
+    "UnifiedPasswordManagerSyncUsingAndroidBackendOnly",
+    base::FEATURE_DISABLED_BY_DEFAULT};
 #endif
 
 // Enables support of sending votes on username first flow. The votes are sent

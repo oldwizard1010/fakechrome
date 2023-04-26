@@ -49,6 +49,7 @@
 #include "content/public/test/test_navigation_observer.h"
 #include "net/base/filename_util.h"
 #include "services/network/public/mojom/content_security_policy.mojom.h"
+#include "ui/base/resource/resource_bundle.h"
 #include "ui/base/resource/resource_handle.h"
 
 using content::RenderFrameHost;
@@ -114,11 +115,14 @@ class WebUITestMessageHandler : public content::WebUIMessageHandler,
     // To ensure this gets done, do this before ASSERT* calls.
     RunQuitClosure();
 
-    bool test_succeeded = false;
+    const auto& list = test_result->GetList();
+    ASSERT_FALSE(list.empty());
+    const bool test_succeeded = list[0].is_bool() && list[0].GetBool();
     std::string message;
-    ASSERT_TRUE(test_result->GetBoolean(0, &test_succeeded));
-    if (!test_succeeded)
-      ASSERT_TRUE(test_result->GetString(1, &message));
+    if (!test_succeeded) {
+      ASSERT_EQ(2U, list.size());
+      message = list[1].GetString();
+    }
 
     TestComplete(test_succeeded ? absl::optional<std::string>() : message);
   }
@@ -499,6 +503,12 @@ void BaseWebUIBrowserTest::SetUpCommandLine(base::CommandLine* command_line) {
 
 void BaseWebUIBrowserTest::SetUpOnMainThread() {
   JavaScriptBrowserTest::SetUpOnMainThread();
+
+  base::FilePath pak_path;
+  ASSERT_TRUE(base::PathService::Get(base::DIR_MODULE, &pak_path));
+  pak_path = pak_path.AppendASCII("browser_tests.pak");
+  ui::ResourceBundle::GetSharedInstance().AddDataPackFromPath(
+      pak_path, ui::kScaleFactorNone);
 
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   if (command_line->HasSwitch(switches::kDevtoolsCodeCoverage)) {

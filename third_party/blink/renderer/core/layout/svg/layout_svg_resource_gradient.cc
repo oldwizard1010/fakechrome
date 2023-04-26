@@ -67,7 +67,7 @@ bool LayoutSVGResourceGradient::RemoveClientFromCache(
 }
 
 std::unique_ptr<GradientData> LayoutSVGResourceGradient::BuildGradientData(
-    const FloatRect& object_bounding_box) {
+    const gfx::RectF& object_bounding_box) {
   NOT_DESTROYED();
   // Create gradient object
   auto gradient_data = std::make_unique<GradientData>();
@@ -106,7 +106,7 @@ std::unique_ptr<GradientData> LayoutSVGResourceGradient::BuildGradientData(
 
 bool LayoutSVGResourceGradient::ApplyShader(
     const SVGResourceClient& client,
-    const FloatRect& reference_box,
+    const gfx::RectF& reference_box,
     const AffineTransform* additional_transform,
     PaintFlags& flags) {
   NOT_DESTROYED();
@@ -124,6 +124,8 @@ bool LayoutSVGResourceGradient::ApplyShader(
   if (additional_transform)
     transform = *additional_transform * transform;
   ImageDrawOptions draw_options;
+  // TODO(linn): Using style of the SVGResourceClient should be more accurate
+  draw_options.apply_dark_mode = StyleRef().ForceDark();
   gradient_data->gradient->ApplyToFlags(
       flags, AffineTransformToSkMatrix(transform), draw_options);
   return true;

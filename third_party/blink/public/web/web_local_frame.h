@@ -171,6 +171,10 @@ class WebLocalFrame : public WebFrame {
   // correspond to a frame (e.g., workers).
   BLINK_EXPORT static WebLocalFrame* FrameForContext(v8::Local<v8::Context>);
 
+  // Returns the frame associated with the |frame_token|.
+  BLINK_EXPORT static WebLocalFrame* FromFrameToken(
+      const LocalFrameToken& frame_token);
+
   virtual WebLocalFrameClient* Client() const = 0;
 
   // Initialization ---------------------------------------------------------
@@ -402,6 +406,16 @@ class WebLocalFrame : public WebFrame {
     kAsynchronousBlockingOnload
   };
 
+  enum class PromiseBehavior {
+    // If the result of the executed script is a promise or other then-able,
+    // wait for it to settle and pass the result of the promise to the caller.
+    // If the promise (and any subsequent thenables) resolves, this passes the
+    // value. If the promise rejects, the corresponding value will be empty.
+    kAwait,
+    // Don't wait for any promise to settle.
+    kDontWait,
+  };
+
   // Executes the script in the main world of the page.
   // Use kMainDOMWorldId to execute in the main world; otherwise,
   // `world_id` must be a positive integer and less than kEmbedderWorldIdLimit.
@@ -410,7 +424,8 @@ class WebLocalFrame : public WebFrame {
                                     bool user_gesture,
                                     ScriptExecutionType,
                                     WebScriptExecutionCallback*,
-                                    BackForwardCacheAware) = 0;
+                                    BackForwardCacheAware,
+                                    PromiseBehavior) = 0;
 
   // Logs to the console associated with this frame. If |discard_duplicates| is
   // set, the message will only be added if it is unique (i.e. has not been
@@ -681,6 +696,11 @@ class WebLocalFrame : public WebFrame {
   // not be accurate if the page layout is out-of-date.
 
   // The scroll offset from the top-left corner of the frame in pixels.
+  // Note: This is actually corresponds to "scroll position" instead of
+  // "scroll offset" in blink renderer. We use the term "scroll offset" here
+  // because it is the term used throughout Chrome (except for blink renderer)
+  // where there is no concept of scroll origin.
+  // See renderer/core/scroll/scroll_area.h for details.
   virtual gfx::Vector2dF GetScrollOffset() const = 0;
   virtual void SetScrollOffset(const gfx::Vector2dF&) = 0;
 

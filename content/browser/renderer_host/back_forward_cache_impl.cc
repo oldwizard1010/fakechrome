@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/barrier_closure.h"
+#include "base/check.h"
 #include "base/containers/contains.h"
 #include "base/containers/cxx20_erase.h"
 #include "base/metrics/field_trial_params.h"
@@ -25,6 +26,8 @@
 #include "content/browser/renderer_host/render_frame_host_impl.h"
 #include "content/browser/renderer_host/render_frame_proxy_host.h"
 #include "content/browser/renderer_host/render_view_host_impl.h"
+#include "content/browser/renderer_host/render_widget_host_impl.h"
+#include "content/browser/renderer_host/visible_time_request_trigger.h"
 #include "content/common/content_navigation_policy.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_process_host.h"
@@ -358,11 +361,14 @@ void RequestRecordTimeToVisible(RenderFrameHostImpl* rfh,
   // cases like page navigating back with window.history.back(), while being
   // hidden.
   if (rfh->delegate()->GetVisibility() != Visibility::HIDDEN) {
-    rfh->GetView()->SetRecordContentToVisibleTimeRequest(
-        navigation_start, false /* destination_is_loaded */,
-        false /* show_reason_tab_switching */,
-        false /* show_reason_unoccluded */,
-        true /* show_reason_bfcache_restore */);
+    auto* trigger = rfh->GetRenderWidgetHost()->GetVisibleTimeRequestTrigger();
+    // The only way this should be null is if there is no RenderWidgetHostView.
+    DCHECK(rfh->GetView());
+    DCHECK(trigger);
+    trigger->UpdateRequest(navigation_start, false /* destination_is_loaded */,
+                           false /* show_reason_tab_switching */,
+                           false /* show_reason_unoccluded */,
+                           true /* show_reason_bfcache_restore */);
   }
 }
 
@@ -584,9 +590,9 @@ void BackForwardCacheImpl::UpdateCanStoreToIncludeCacheControlNoStore(
   }
 
   auto* matching_entry = FindMatchingEntry(render_frame_host->GetPage());
-  // |matching_entry| can be nullptr for tests because
-  // |GetBackForwardCanStoreNowDebugStringForTesting()| can be called after the
-  // entry is destroyed.
+  // |matching_entry| can be nullptr for tests because this can be called from
+  // |CanStorePageNow()|, at which point |rfh| may not have a matching entry
+  // yet.
   if (!matching_entry)
     return;
 
@@ -639,6 +645,9 @@ BackForwardCacheCanStoreDocumentResult BackForwardCacheImpl::CanStorePageNow(
   }
   DVLOG(1) << "CanStorePageNow: " << rfh->GetLastCommittedURL() << " : "
            << result.ToString();
+  TRACE_EVENT("navigation", "BackForwardCacheImpl::CanPotentiallyStorePageNow",
+              ChromeTrackEvent::kBackForwardCacheCanStoreDocumentResult,
+              result);
   return result;
 }
 
@@ -647,7 +656,7 @@ BackForwardCacheImpl::CanPotentiallyStorePageLater(RenderFrameHostImpl* rfh) {
   BackForwardCacheCanStoreDocumentResult result;
 
   // Use the BackForwardCache only for the main frame.
-  if (rfh->GetParent())
+  if (rfh->GetParentOrOuterDocument())
     result.No(BackForwardCacheMetrics::NotRestoredReason::kNotMainFrame);
 
   // If the the delegate doesn't support back forward cache, disable it.
@@ -660,7 +669,7 @@ BackForwardCacheImpl::CanPotentiallyStorePageLater(RenderFrameHostImpl* rfh) {
       rfh->lifecycle_state() ==
       RenderFrameHostImpl::LifecycleStateImpl::kPrerendering;
   if (!IsBackForwardCacheEnabled() || is_disabled_for_testing_ ||
-      is_prerendering) {
+      is_prerendering || rfh->IsFencedFrameRoot()) {
     result.No(
         BackForwardCacheMetrics::NotRestoredReason::kBackForwardCacheDisabled);
 
@@ -797,6 +806,9 @@ BackForwardCacheImpl::CanPotentiallyStorePageLater(RenderFrameHostImpl* rfh) {
 
   DVLOG(1) << "CanPotentiallyStorePageLater: " << rfh->GetLastCommittedURL()
            << " : " << result.ToString();
+  TRACE_EVENT(
+      "navigation", "BackForwardCacheImpl::CanPotentiallyStorePageLater",
+      ChromeTrackEvent::kBackForwardCacheCanStoreDocumentResult, result);
   return result;
 }
 
@@ -903,7 +915,8 @@ void BackForwardCacheImpl::CheckDynamicBlocklistedFeaturesOnSubtree(
   }
 
   // Do not cache if we have navigations in any of the subframes.
-  if (rfh->GetParent() && rfh->frame_tree_node()->HasNavigation()) {
+  if (rfh->GetParentOrOuterDocument() &&
+      rfh->frame_tree_node()->HasNavigation()) {
     result->No(
         BackForwardCacheMetrics::NotRestoredReason::kSubframeIsNavigating);
   }
@@ -1295,18 +1308,6 @@ bool BackForwardCacheImpl::IsBrowsingInstanceInBackForwardCacheForDebugging(
   return false;
 }
 
-bool BackForwardCacheImpl::IsSiteInstanceInBackForwardCacheForDebugging(
-    SiteInstanceId site_instance_id) {
-  for (std::unique_ptr<Entry>& entry : entries_) {
-    for (auto& proxy_map_entry : entry->proxy_hosts()) {
-      if (proxy_map_entry.first == site_instance_id) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 bool BackForwardCacheImpl::IsProxyInBackForwardCacheForDebugging(
     RenderFrameProxyHost* proxy) {
   for (std::unique_ptr<Entry>& entry : entries_) {
@@ -1327,10 +1328,6 @@ bool BackForwardCacheImpl::IsMediaSessionPlaybackStateChangedAllowed() {
 bool BackForwardCacheImpl::IsMediaSessionServiceAllowed() {
   return base::FeatureList::IsEnabled(
       features::kBackForwardCacheMediaSessionService);
-}
-
-bool BackForwardCacheImpl::IsMediaPlayAllowed() {
-  return base::FeatureList::IsEnabled(features::kBackForwardCacheMediaPlay);
 }
 
 bool BackForwardCache::DisabledReason::operator<(

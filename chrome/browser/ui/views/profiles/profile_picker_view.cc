@@ -9,9 +9,9 @@
 #include "base/callback_helpers.h"
 #include "base/containers/contains.h"
 #include "base/files/file_path.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_functions.h"
 #include "build/build_config.h"
+#include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/chrome_extension_web_contents_observer.h"
@@ -32,6 +32,7 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/chromium_strings.h"
+#include "chrome/grit/generated_resources.h"
 #include "chrome/grit/google_chrome_strings.h"
 #include "components/keep_alive_registry/keep_alive_types.h"
 #include "components/prefs/pref_service.h"
@@ -173,6 +174,18 @@ void ProfilePicker::SwitchToDiceSignIn(
   }
 }
 #endif
+
+// static
+void ProfilePicker::SwitchToSignedInFlow(absl::optional<SkColor> profile_color,
+                                         Profile* signed_in_profile) {
+  if (g_profile_picker_view) {
+    g_profile_picker_view->SwitchToSignedInFlow(
+        profile_color, signed_in_profile,
+        content::WebContents::Create(
+            content::WebContents::CreateParams(signed_in_profile)),
+        /*is_saml=*/false);
+  }
+}
 
 // static
 void ProfilePicker::CancelSignedInFlow() {
@@ -431,7 +444,7 @@ bool ProfilePickerView::HandleKeyboardEvent(
 }
 
 bool ProfilePickerView::HandleContextMenu(
-    content::RenderFrameHost* render_frame_host,
+    content::RenderFrameHost& render_frame_host,
     const content::ContextMenuParams& params) {
   // Ignores context menu.
   return true;
@@ -689,7 +702,11 @@ views::View* ProfilePickerView::GetContentsView() {
 std::u16string ProfilePickerView::GetAccessibleWindowTitle() const {
   if (!web_view_ || !web_view_->GetWebContents() ||
       web_view_->GetWebContents()->GetTitle().empty()) {
+#if BUILDFLAG(IS_CHROMEOS_LACROS)
+    return l10n_util::GetStringUTF16(IDS_PROFILE_PICKER_MAIN_VIEW_TITLE_LACROS);
+#else
     return l10n_util::GetStringUTF16(IDS_PROFILE_PICKER_MAIN_VIEW_TITLE);
+#endif
   }
   return web_view_->GetWebContents()->GetTitle();
 }

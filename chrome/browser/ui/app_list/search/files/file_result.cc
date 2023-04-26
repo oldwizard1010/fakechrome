@@ -17,7 +17,6 @@
 #include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/i18n/rtl.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/no_destructor.h"
@@ -93,6 +92,7 @@ FileResult::FileResult(const std::string& schema,
     : filepath_(filepath), type_(type), profile_(profile) {
   DCHECK(profile);
   set_id(schema + filepath.value());
+  SetCategory(Category::kFiles);
 
   SetResultType(result_type);
   switch (result_type) {

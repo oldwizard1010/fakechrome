@@ -64,6 +64,7 @@
 #include "ppapi/proxy/ppapi_messages.h"
 #include "ppapi/shared_impl/ppapi_constants.h"
 #include "ppapi/shared_impl/ppapi_nacl_plugin_args.h"
+#include "sandbox/policy/mojom/sandbox.mojom.h"
 #include "sandbox/policy/switches.h"
 
 #if BUILDFLAG(USE_ZYGOTE_HANDLE)
@@ -154,8 +155,7 @@ void* AllocateAddressSpaceASLR(base::ProcessHandle process, size_t size) {
 namespace {
 
 bool RunningOnWOW64() {
-  return (base::win::OSInfo::GetInstance()->wow64_status() ==
-          base::win::OSInfo::WOW64_ENABLED);
+  return base::win::OSInfo::GetInstance()->IsWowX86OnAMD64();
 }
 
 }  // namespace
@@ -198,8 +198,8 @@ class NaClSandboxedProcessLauncherDelegate
   }
 #endif  // BUILDFLAG(USE_ZYGOTE_HANDLE)
 
-  sandbox::policy::SandboxType GetSandboxType() override {
-    return sandbox::policy::SandboxType::kPpapi;
+  sandbox::mojom::Sandbox GetSandboxType() override {
+    return sandbox::mojom::Sandbox::kPpapi;
   }
 };
 

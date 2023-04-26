@@ -176,10 +176,14 @@ experimental domain Accessibility
       optional AXValue value
       # All other properties
       optional array of AXProperty properties
+      # ID for this node's parent.
+      optional AXNodeId parentId
       # IDs for each of this node's child nodes.
       optional array of AXNodeId childIds
       # The backend ID for the associated DOM node, if any.
       optional DOM.BackendNodeId backendDOMNodeId
+      # The frame ID for the frame associated with this nodes document.
+      optional Page.FrameId frameId
 
   # Disables the accessibility domain.
   command disable
@@ -215,6 +219,29 @@ experimental domain Accessibility
       # The frame for whose document the AX tree should be retrieved.
       # If omited, the root frame is used.
       optional Page.FrameId frameId
+    returns
+      array of AXNode nodes
+
+  # Fetches the root node.
+  # Requires `enable()` to have been called previously.
+  experimental command getRootAXNode
+    parameters
+      # The frame in whose document the node resides.
+      # If omitted, the root frame is used.
+      optional Page.FrameId frameId
+    returns
+      AXNode node
+
+  # Fetches a node and all ancestors up to and including the root.
+  # Requires `enable()` to have been called previously.
+  experimental command getAXNodeAndAncestors
+    parameters
+      # Identifier of the node to get.
+      optional DOM.NodeId nodeId
+      # Identifier of the backend node to get.
+      optional DOM.BackendNodeId backendNodeId
+      # JavaScript object id of the node wrapper to get.
+      optional Runtime.RemoteObjectId objectId
     returns
       array of AXNode nodes
 
@@ -709,6 +736,22 @@ experimental domain Audits
       GenericIssueErrorType errorType
       optional Page.FrameId frameId
 
+  # This issue tracks information needed to print a deprecation message.
+  # The formatting is inherited from the old console.log version, see more at:
+  # https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/frame/deprecation.cc
+  # TODO(crbug.com/1264960): Re-work format to add i18n support per:
+  # https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/public/devtools_protocol/README.md
+  type DeprecationIssueDetails extends object
+    properties
+      optional AffectedFrame affectedFrame
+      SourceCodeLocation sourceCodeLocation
+      # The content of the deprecation issue (this won't be translated),
+      # e.g. "window.inefficientLegacyStorageMethod will be removed in M97,
+      # around January 2022. Please use Web Storage or Indexed Database
+      # instead. This standard was abandoned in January, 1970. See
+      # https://www.chromestatus.com/feature/5684870116278272 for more details."
+      deprecated optional string message
+
   # A unique identifier for the type of issue. Each type may use one of the
   # optional fields in InspectorIssueDetails to convey more specific
   # information about the kind of issue.
@@ -728,6 +771,7 @@ experimental domain Audits
       NavigatorUserAgentIssue
       WasmCrossOriginModuleSharingIssue
       GenericIssue
+      DeprecationIssue
 
   # This struct holds a list of optional fields with additional information
   # specific to the kind of issue. When adding a new issue code, please also
@@ -748,6 +792,7 @@ experimental domain Audits
       optional NavigatorUserAgentIssueDetails navigatorUserAgentIssueDetails
       optional WasmCrossOriginModuleSharingIssueDetails wasmCrossOriginModuleSharingIssue
       optional GenericIssueDetails genericIssueDetails
+      optional DeprecationIssueDetails deprecationIssueDetails
 
   # A unique id for a DevTools inspector issue. Allows other entities (e.g.
   # exceptions, CDP message, console messages, etc.) to reference an issue.
@@ -2824,6 +2869,23 @@ domain DOMDebugger
       # Resource URL substring. All XHRs having this substring in the URL will get stopped upon.
       string url
 
+# EventBreakpoints permits setting breakpoints on particular operations and
+# events in targets that run JavaScript but do not have a DOM.
+# JavaScript execution will stop on these operations as if there was a regular
+# breakpoint set.
+experimental domain EventBreakpoints
+  # Sets breakpoint on particular native event.
+  command setInstrumentationBreakpoint
+    parameters
+      # Instrumentation name to stop on.
+      string eventName
+
+  # Removes breakpoint on particular native event.
+  command removeInstrumentationBreakpoint
+    parameters
+      # Instrumentation name to stop on.
+      string eventName
+
 # This domain facilitates obtaining document snapshots with DOM, layout, and style information.
 experimental domain DOMSnapshot
   depends on CSS
@@ -3321,7 +3383,8 @@ domain Emulation
   experimental type UserAgentMetadata extends object
     properties
       optional array of UserAgentBrandVersion brands
-      optional string fullVersion
+      optional array of UserAgentBrandVersion fullVersionList
+      deprecated optional string fullVersion
       string platform
       string platformVersion
       string architecture
@@ -4749,8 +4812,9 @@ domain Network
       string logDescription
       # Log ID.
       string logId
-      # Issuance date.
-      TimeSinceEpoch timestamp
+      # Issuance date. Unlike TimeSinceEpoch, this contains the number of
+      # milliseconds since January 1, 1970, UTC, not the number of seconds.
+      number timestamp
       # Hash algorithm.
       string hashAlgorithm
       # Signature algorithm.
@@ -5729,6 +5793,10 @@ domain Network
       TimeSinceEpoch wallTime
       # Request initiator.
       Initiator initiator
+      # In the case that redirectResponse is populated, this flag indicates whether
+      # requestWillBeSentExtraInfo and responseReceivedExtraInfo events will be or were emitted
+      # for the request which was just redirected.
+      experimental boolean redirectHasExtraInfo
       # Redirect response data.
       optional Response redirectResponse
       # Type of this resource.
@@ -5769,6 +5837,9 @@ domain Network
       ResourceType type
       # Response data.
       Response response
+      # Indicates whether requestWillBeSentExtraInfo and responseReceivedExtraInfo events will be
+      # or were emitted for this request.
+      experimental boolean hasExtraInfo
       # Frame identifier.
       optional Page.FrameId frameId
 
@@ -6697,6 +6768,7 @@ domain Page
       ch-ua-model
       ch-ua-mobile
       ch-ua-full-version
+      ch-ua-full-version-list
       ch-ua-platform-version
       ch-ua-reduced
       ch-viewport-height
@@ -6720,6 +6792,7 @@ domain Page
       hid
       idle-detection
       interest-cohort
+      join-ad-interest-group
       keyboard-map
       magnetometer
       microphone
@@ -6728,6 +6801,7 @@ domain Page
       payment
       picture-in-picture
       publickey-credentials-get
+      run-ad-auction
       screen-wake-lock
       serial
       shared-autofill
@@ -7602,6 +7676,15 @@ domain Page
   # Clears seeded compilation cache.
   experimental command clearCompilationCache
 
+  # Sets the Secure Payment Confirmation transaction mode.
+  # https://w3c.github.io/secure-payment-confirmation/#sctn-automation-set-spc-transaction-mode
+  experimental command setSPCTransactionMode
+    parameters
+      enum mode
+        none
+        autoaccept
+        autoreject
+
   # Generates a report for testing.
   experimental command generateTestReport
     parameters
@@ -7907,7 +7990,6 @@ domain Page
       ContentWebUSB
       ContentMediaSession
       ContentMediaSessionService
-      ContentMediaPlay
 
       # See components/back_forward_cache/back_forward_cache_disable.h for explanations.
       EmbedderPopupBlockerTabHelper
@@ -8294,20 +8376,20 @@ domain Security
       # Security state information about the page.
       VisibleSecurityState visibleSecurityState
 
-  # The security state of the page changed.
-  event securityStateChanged
+  # The security state of the page changed. No longer being sent.
+  deprecated event securityStateChanged
     parameters
       # Security state.
       SecurityState securityState
       # True if the page was loaded over cryptographic transport such as HTTPS.
       deprecated boolean schemeIsCryptographic
-      # List of explanations for the security state. If the overall security state is `insecure` or
-      # `warning`, at least one corresponding explanation should be included.
-      array of SecurityStateExplanation explanations
+      # Previously a list of explanations for the security state. Now always
+      # empty.
+      deprecated array of SecurityStateExplanation explanations
       # Information about insecure content on the page.
       deprecated InsecureContentStatus insecureContentStatus
-      # Overrides user-visible description of the state.
-      optional string summary
+      # Overrides user-visible description of the state. Always omitted.
+      deprecated optional string summary
 
 experimental domain ServiceWorker
   depends on Target

@@ -7,26 +7,28 @@
 
 #include <vector>
 
-#include "base/macros.h"
 #include "components/services/app_service/public/mojom/types.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/gfx/image/image_skia.h"
 
 namespace apps {
 
-struct COMPONENT_EXPORT(APP_UPDATE) IconKey {
+struct COMPONENT_EXPORT(ICON_TYPES) IconKey {
   IconKey();
   IconKey(uint64_t timeline, int32_t resource_id, uint32_t icon_effects);
 
   IconKey(const IconKey&) = delete;
   IconKey& operator=(const IconKey&) = delete;
+  IconKey(IconKey&&) = default;
+  IconKey& operator=(IconKey&&) = default;
+
+  bool operator==(const IconKey& other) const;
 
   ~IconKey();
 
   // A timeline value for icons that do not change.
-  constexpr static uint64_t kDoesNotChangeOverTime = 0;
+  static const uint64_t kDoesNotChangeOverTime;
 
-  constexpr static int32_t kInvalidResourceId = 0;
+  static const int32_t kInvalidResourceId;
 
   // A monotonically increasing number so that, after an icon update, a new
   // IconKey, one that is different in terms of field-by-field equality, can be
@@ -70,7 +72,10 @@ enum class IconType {
   kStandard,
 };
 
-struct COMPONENT_EXPORT(APP_UPDATE) IconValue {
+// The return value for the App Service LoadIcon method. The icon will be
+// provided in either an uncompressed representation (gfx::ImageSkia), or a
+// compressed representation (PNG-encoded bytes) depending on |icon_type|.
+struct COMPONENT_EXPORT(ICON_TYPES) IconValue {
   IconValue();
 
   IconValue(const IconValue&) = delete;
@@ -80,26 +85,52 @@ struct COMPONENT_EXPORT(APP_UPDATE) IconValue {
 
   IconType icon_type = IconType::kUnknown;
 
-  union {
-    gfx::ImageSkia uncompressed;
-    // PNG-encoded bytes for the icon
-    std::vector<uint8_t> compressed;
-  };
+  gfx::ImageSkia uncompressed;
+
+  // PNG-encoded bytes for the icon
+  std::vector<uint8_t> compressed;
 
   // Specifies whether the icon provided is a placeholder. That field should
   // only be true if the corresponding `LoadIcon` call had
-  // `allow_placeholder_icon` true, which states whether the caller will accept
-  // a placeholder if the real icon can not be provided quickly.
+  // `allow_placeholder_icon` set to true, which states whether the caller will
+  // accept a placeholder if the real icon can not be provided at this time.
   bool is_placeholder_icon = false;
 };
 
+using IconValuePtr = std::unique_ptr<IconValue>;
+using LoadIconCallback = base::OnceCallback<void(IconValuePtr)>;
+
 // TODO(crbug.com/1253250): Remove these functions after migrating to non-mojo
 // AppService.
-COMPONENT_EXPORT(APP_UPDATE)
+COMPONENT_EXPORT(ICON_TYPES)
+apps::mojom::IconKeyPtr ConvertIconKeyToMojomIconKey(const IconKey& icon_key);
+
+COMPONENT_EXPORT(ICON_TYPES)
+std::unique_ptr<IconKey> ConvertMojomIconKeyToIconKey(
+    const apps::mojom::IconKeyPtr& mojom_icon_key);
+
+COMPONENT_EXPORT(ICON_TYPES)
 apps::mojom::IconType ConvertIconTypeToMojomIconType(IconType icon_type);
 
-COMPONENT_EXPORT(APP_UPDATE)
+COMPONENT_EXPORT(ICON_TYPES)
 IconType ConvertMojomIconTypeToIconType(apps::mojom::IconType mojom_icon_type);
+
+COMPONENT_EXPORT(ICON_TYPES)
+apps::mojom::IconValuePtr ConvertIconValueToMojomIconValue(
+    IconValuePtr icon_value);
+
+COMPONENT_EXPORT(ICON_TYPES)
+IconValuePtr ConvertMojomIconValueToIconValue(
+    apps::mojom::IconValuePtr mojom_icon_value);
+
+COMPONENT_EXPORT(ICON_TYPES)
+base::OnceCallback<void(IconValuePtr)> IconValueToMojomIconValueCallback(
+    base::OnceCallback<void(apps::mojom::IconValuePtr)> callback);
+
+COMPONENT_EXPORT(ICON_TYPES)
+base::OnceCallback<void(apps::mojom::IconValuePtr)>
+MojomIconValueToIconValueCallback(
+    base::OnceCallback<void(IconValuePtr)> callback);
 
 }  // namespace apps
 

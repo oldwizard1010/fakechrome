@@ -8,7 +8,6 @@
 
 #include "base/bind.h"
 #include "base/feature_list.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/string_util.h"
@@ -357,11 +356,6 @@ CreateSimpleURLLoaderWithVariationsHeaderUnknownSignedIn(
     const net::NetworkTrafficAnnotationTag& annotation_tag) {
   return CreateSimpleURLLoaderWithVariationsHeader(
       std::move(request), incognito, SignedIn::kNo, annotation_tag);
-}
-
-bool IsVariationsHeader(const std::string& header_name) {
-  return header_name == kClientDataHeader ||
-         header_name == kOmniboxOnDeviceSuggestionsHeader;
 }
 
 bool HasVariationsHeader(const network::ResourceRequest& request) {

@@ -444,27 +444,79 @@ void MetricsService::ClearSavedStabilityMetrics() {
   delegating_provider_.ClearSavedStabilityMetrics();
 }
 
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS_ASH)
 void MetricsService::SetUserLogStore(
     std::unique_ptr<UnsentLogStore> user_log_store) {
-  // This should only be set after the service has finished initializing.
-  DCHECK_EQ(SENDING_LOGS, state_);
+  if (log_store()->has_alternate_ongoing_log_store())
+    return;
 
-  // Closes the current log so that a new log can be opened in the user log
-  // store.
-  PushPendingLogsToPersistentStorage();
-  log_store()->SetAlternateOngoingLogStore(std::move(user_log_store));
-  OpenNewLog();
+  if (state_ >= SENDING_LOGS) {
+    // Closes the current log so that a new log can be opened in the user log
+    // store.
+    PushPendingLogsToPersistentStorage();
+    log_store()->SetAlternateOngoingLogStore(std::move(user_log_store));
+    OpenNewLog();
+  } else {
+    // Initial log has not yet been created and flushing now would result in
+    // incomplete information in the current log.
+    //
+    // Logs recorded before a user login will be appended to user logs. This
+    // should not happen frequently.
+    //
+    // TODO(crbug/1264627): Look for a way to "pause" pre-login logs and flush
+    // when INIT_TASK is done.
+    // TODO(crbug/1264625): Add histogram before launch to monitor how
+    // frequently this happens.
+    log_store()->SetAlternateOngoingLogStore(std::move(user_log_store));
+  }
 }
 
 void MetricsService::UnsetUserLogStore() {
-  DCHECK_EQ(SENDING_LOGS, state_);
-  // Pushes all the existing logs to user log store before unbound.
-  PushPendingLogsToPersistentStorage();
-  log_store()->UnsetAlternateOngoingLogStore();
-  OpenNewLog();
+  if (!log_store()->has_alternate_ongoing_log_store())
+    return;
+
+  if (state_ >= SENDING_LOGS) {
+    PushPendingLogsToPersistentStorage();
+    log_store()->UnsetAlternateOngoingLogStore();
+    OpenNewLog();
+  } else {
+    // Fast startup and logout case. A call to |RecordCurrentHistograms()| is
+    // made to flush all histograms into the current log and the log is
+    // discarded. This is to prevent histograms captured during the user session
+    // from leaking into local state logs.
+    //
+    // TODO(crbug/1264625): Add histogram before launch to monitor how
+    // frequently this happens.
+    RecordCurrentHistograms();
+    log_manager_.DiscardCurrentLog();
+    log_store()->UnsetAlternateOngoingLogStore();
+  }
 }
-#endif
+
+bool MetricsService::HasUserLogStore() {
+  return log_store()->has_alternate_ongoing_log_store();
+}
+
+void MetricsService::InitPerUserMetrics() {
+  client_->InitPerUserMetrics();
+}
+
+void MetricsService::UpdateCurrentUserMetricsConsent(
+    bool user_metrics_consent) {
+  client_->UpdateCurrentUserMetricsConsent(user_metrics_consent);
+}
+
+void MetricsService::ResetClientId() {
+  // Pref must be cleared in order for ForceClientIdCreation to generate a new
+  // client ID.
+  //
+  // TODO(crbug/1264625): Add histogram to monitor how frequently this is called
+  // before launching per-user collection.
+  local_state_->ClearPref(prefs::kMetricsClientID);
+  state_manager_->ForceClientIdCreation();
+  client_->SetMetricsClientId(state_manager_->client_id());
+}
+#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 bool MetricsService::StageCurrentLogForTest() {
   CloseCurrentLog();
@@ -765,13 +817,10 @@ bool MetricsService::PrepareInitialStabilityLog(
   std::unique_ptr<MetricsLog> initial_stability_log(
       CreateLog(MetricsLog::INITIAL_STABILITY_LOG));
 
-  // Do not call OnDidCreateMetricsLog here because the stability
-  // log describes stats from the _previous_ session.
-  std::string system_profile_app_version;
-  if (!initial_stability_log->LoadSavedEnvironmentFromPrefs(
-          local_state_, &system_profile_app_version)) {
+  // Do not call OnDidCreateMetricsLog here because the stability log describes
+  // stats from the _previous_ session.
+  if (!initial_stability_log->LoadSavedEnvironmentFromPrefs(local_state_))
     return false;
-  }
 
   log_manager_.PauseCurrentLog();
   log_manager_.BeginLoggingWithLog(std::move(initial_stability_log));
@@ -781,7 +830,7 @@ bool MetricsService::PrepareInitialStabilityLog(
   log_manager_.current_log()->RecordPreviousSessionData(&delegating_provider_);
   RecordCurrentStabilityHistograms();
 
-  DVLOG(1) << "Generated an stability log.";
+  DVLOG(1) << "Generated a stability log.";
   log_manager_.FinishCurrentLog(log_store());
   log_manager_.ResumePausedLog();
 
@@ -883,11 +932,8 @@ void MetricsService::RecordCurrentEnvironment(MetricsLog* log, bool complete) {
 
 void MetricsService::RecordCurrentHistograms() {
   DCHECK(log_manager_.current_log());
-
-  // "true" indicates that StatisticsRecorder should include histograms held in
-  // persistent storage.
   base::StatisticsRecorder::PrepareDeltas(
-      true, base::Histogram::kNoFlags,
+      /*include_persistent=*/true, base::Histogram::kNoFlags,
       base::Histogram::kUmaTargetedHistogramFlag, &histogram_snapshot_manager_);
   delegating_provider_.RecordHistogramSnapshots(&histogram_snapshot_manager_);
 }

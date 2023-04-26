@@ -12,7 +12,6 @@
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
@@ -38,7 +37,7 @@
 #include "chrome/test/base/testing_profile.h"
 #include "components/account_id/account_id.h"
 #include "components/arc/arc_prefs.h"
-#include "components/arc/arc_service_manager.h"
+#include "components/arc/session/arc_service_manager.h"
 #include "components/arc/session/arc_session_runner.h"
 #include "components/arc/test/arc_util_test_support.h"
 #include "components/arc/test/fake_arc_session.h"
@@ -292,9 +291,10 @@ IN_PROC_BROWSER_TEST_F(ArcSessionManagerTest, ArcDisabledInLockedFullscreen) {
           .Build());
   function->set_extension(extension.get());
 
-  extension_function_test_utils::RunFunctionAndReturnSingleResult(
-      function.get(), base::StringPrintf(kStateLockedFullscreen, window_id),
-      browser());
+  std::unique_ptr<base::Value> value(
+      extension_function_test_utils::RunFunctionAndReturnSingleResult(
+          function.get(), base::StringPrintf(kStateLockedFullscreen, window_id),
+          browser()));
 
   ASSERT_EQ(ArcSessionManager::State::STOPPED,
             ArcSessionManager::Get()->state());

@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "ash/public/cpp/shell_window_ids.h"
-#include "base/macros.h"
 #include "chrome/browser/extensions/chrome_extension_web_contents_observer.h"
 #include "chrome/browser/ui/ash/ash_util.h"
 #include "content/public/browser/web_contents.h"
@@ -114,7 +113,7 @@ views::View* AccessibilityPanel::GetContentsView() {
 }
 
 bool AccessibilityPanel::HandleContextMenu(
-    content::RenderFrameHost* render_frame_host,
+    content::RenderFrameHost& render_frame_host,
     const content::ContextMenuParams& params) {
   // Eat all requests as context menus are disallowed.
   return true;

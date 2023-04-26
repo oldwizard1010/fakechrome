@@ -16,6 +16,18 @@
 #include "ui/views/widget/widget_delegate.h"
 
 namespace app_restore {
+namespace {
+
+// Always use the full restore ARC data if ARC apps for desks templates is not
+// enabled.
+bool ShouldUseFullRestoreArcData() {
+  return features::IsArcAppsForDesksTemplatesEnabled()
+             ? full_restore::FullRestoreReadHandler::GetInstance()
+                   ->IsFullRestoreRunning()
+             : true;
+}
+
+}  // namespace
 
 void ApplyProperties(app_restore::WindowInfo* window_info,
                      ui::PropertyHandler* property_handler) {
@@ -61,7 +73,9 @@ void ModifyWidgetParams(int32_t restore_window_id,
       full_restore::FullRestoreReadHandler::GetInstance();
   if (is_arc_app) {
     ArcReadHandler* arc_read_handler =
-        full_restore_read_handler->arc_read_handler();
+        ShouldUseFullRestoreArcData()
+            ? full_restore_read_handler->arc_read_handler()
+            : DeskTemplateReadHandler::Get()->arc_read_handler();
     window_info = arc_read_handler
                       ? arc_read_handler->GetWindowInfo(restore_window_id)
                       : nullptr;
@@ -107,6 +121,66 @@ void ModifyWidgetParams(int32_t restore_window_id,
         },
         delegate));
   }
+}
+
+int32_t FetchRestoreWindowId(const std::string& app_id) {
+  if (!full_restore::features::IsFullRestoreEnabled())
+    return 0;
+
+  // If full restore is not running, check if desk templates can get a viable
+  // window id, otherwise default to checking full restore.
+  auto* full_restore_read_handler =
+      full_restore::FullRestoreReadHandler::GetInstance();
+  if (!full_restore_read_handler->IsFullRestoreRunning()) {
+    const int32_t desk_template_restore_window_id =
+        DeskTemplateReadHandler::Get()->FetchRestoreWindowId(app_id);
+    if (desk_template_restore_window_id > 0)
+      return desk_template_restore_window_id;
+  }
+
+  return full_restore::FullRestoreReadHandler::GetInstance()
+      ->FetchRestoreWindowId(app_id);
+}
+
+int32_t GetArcSessionId() {
+  if (ShouldUseFullRestoreArcData()) {
+    return full_restore::FullRestoreReadHandler::GetInstance()
+        ->GetArcSessionId();
+  }
+  return DeskTemplateReadHandler::Get()->GetArcSessionId();
+}
+
+void SetArcSessionIdForWindowId(int32_t arc_session_id, int32_t window_id) {
+  if (ShouldUseFullRestoreArcData()) {
+    return full_restore::FullRestoreReadHandler::GetInstance()
+        ->SetArcSessionIdForWindowId(arc_session_id, window_id);
+  }
+  return DeskTemplateReadHandler::Get()->SetArcSessionIdForWindowId(
+      arc_session_id, window_id);
+}
+
+int32_t GetArcRestoreWindowIdForTaskId(int32_t task_id) {
+  if (!full_restore::features::IsFullRestoreEnabled())
+    return 0;
+
+  if (ShouldUseFullRestoreArcData()) {
+    return full_restore::FullRestoreReadHandler::GetInstance()
+        ->GetArcRestoreWindowIdForTaskId(task_id);
+  }
+  return DeskTemplateReadHandler::Get()->GetArcRestoreWindowIdForTaskId(
+      task_id);
+}
+
+int32_t GetArcRestoreWindowIdForSessionId(int32_t session_id) {
+  if (!full_restore::features::IsFullRestoreEnabled())
+    return 0;
+
+  if (ShouldUseFullRestoreArcData()) {
+    return full_restore::FullRestoreReadHandler::GetInstance()
+        ->GetArcRestoreWindowIdForSessionId(session_id);
+  }
+  return DeskTemplateReadHandler::Get()->GetArcRestoreWindowIdForSessionId(
+      session_id);
 }
 
 }  // namespace app_restore

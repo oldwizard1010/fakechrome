@@ -144,9 +144,8 @@ bool GetConfiguration(const std::string& json, SyncConfigInfo* config) {
 void ParseConfigurationArguments(const base::ListValue* args,
                                  SyncConfigInfo* config,
                                  const base::Value** callback_id) {
-  std::string json;
-  if ((*callback_id = &args->GetList()[0]) && args->GetString(1, &json) &&
-      !json.empty())
+  const std::string& json = args->GetList()[1].GetString();
+  if ((*callback_id = &args->GetList()[0]) && !json.empty())
     CHECK(GetConfiguration(json, config));
   else
     NOTREACHED();

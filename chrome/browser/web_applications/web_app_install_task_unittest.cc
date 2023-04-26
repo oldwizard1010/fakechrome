@@ -48,6 +48,7 @@
 #include "chrome/browser/web_applications/web_application_info.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/test/base/testing_browser_process.h"
+#include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/testing_profile_manager.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings.h"
@@ -65,10 +66,10 @@
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 #include "chrome/browser/ui/app_list/arc/arc_app_test.h"
-#include "components/arc/arc_service_manager.h"
 #include "components/arc/intent_helper/arc_intent_helper_bridge.h"
 #include "components/arc/mojom/intent_helper.mojom.h"
 #include "components/arc/session/arc_bridge_service.h"
+#include "components/arc/session/arc_service_manager.h"
 #include "components/arc/test/connection_holder_util.h"
 #include "components/arc/test/fake_app_instance.h"
 #include "components/arc/test/fake_intent_helper_instance.h"
@@ -92,6 +93,10 @@ class WebAppInstallTaskTest : public WebAppTest {
  public:
   void SetUp() override {
     WebAppTest::SetUp();
+
+#if BUILDFLAG(IS_CHROMEOS_LACROS)
+    profile()->SetIsMainProfile(true);
+#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
     fake_registry_controller_ =
         std::make_unique<FakeWebAppRegistryController>();
@@ -1558,9 +1563,8 @@ class WebAppInstallTaskTestWithShortcutsMenu : public WebAppInstallTaskTest {
 
     SetInstallFinalizerForTesting();
 
-    install_task_->UpdateWebAppFromInfo(
-        web_contents(), app_id, std::move(web_app_info),
-        /*redownload_app_icons=*/false,
+    fake_install_finalizer().FinalizeUpdate(
+        *web_app_info,
         base::BindLambdaForTesting([&](const AppId& installed_app_id,
                                        InstallResultCode code) {
           result.app_id = installed_app_id;
@@ -1776,17 +1780,15 @@ class WebAppInstallTaskTestWithFileHandlers : public WebAppInstallTaskTest {
     bool callback_called = false;
     InstallResult result;
 
-    install_task_->UpdateWebAppFromInfo(
-        web_contents(), app_id, std::move(app_info),
-        /*redownload_app_icons=*/false,
-        base::BindLambdaForTesting(
-            [&](const AppId& installed_app_id, InstallResultCode code) {
-              result.app_id = installed_app_id;
-              result.code = code;
+    install_finalizer_->FinalizeUpdate(
+        *app_info, base::BindLambdaForTesting([&](const AppId& installed_app_id,
+                                                  InstallResultCode code) {
+          result.app_id = installed_app_id;
+          result.code = code;
 
-              callback_called = true;
-              run_loop.Quit();
-            }));
+          callback_called = true;
+          run_loop.Quit();
+        }));
 
     run_loop.Run();
     EXPECT_TRUE(callback_called);

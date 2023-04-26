@@ -8,12 +8,14 @@
 #include <set>
 #include <string>
 
+#include "ash/components/settings/cros_settings_names.h"
 #include "ash/public/cpp/app_list/app_list_config.h"
 #include "ash/public/cpp/app_list/app_list_types.h"
 #include "base/files/file_path.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/test/bind.h"
 #include "base/test/scoped_command_line.h"
 #include "base/values.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
@@ -27,6 +29,7 @@
 #include "chrome/browser/ash/crostini/crostini_util.h"
 #include "chrome/browser/ash/guest_os/guest_os_registry_service.h"
 #include "chrome/browser/ash/guest_os/guest_os_registry_service_factory.h"
+#include "chrome/browser/ash/login/demo_mode/demo_mode_test_helper.h"
 #include "chrome/browser/ash/plugin_vm/plugin_vm_features.h"
 #include "chrome/browser/ash/plugin_vm/plugin_vm_test_helper.h"
 #include "chrome/browser/extensions/chrome_app_icon.h"
@@ -57,7 +60,6 @@
 #include "chromeos/dbus/concierge/concierge_client.h"
 #include "chromeos/dbus/dbus_thread_manager.h"
 #include "chromeos/dbus/seneschal/seneschal_client.h"
-#include "chromeos/settings/cros_settings_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/services/app_service/public/mojom/types.mojom-shared.h"
 #include "components/services/app_service/public/mojom/types.mojom.h"
@@ -71,6 +73,7 @@
 #include "extensions/browser/uninstall_reason.h"
 #include "extensions/common/extension_set.h"
 #include "extensions/common/manifest.h"
+#include "services/network/test/test_network_connection_tracker.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -143,7 +146,7 @@ scoped_refptr<extensions::Extension> MakeApp(const std::string& name,
 void RemoveApps(apps::mojom::AppType app_type,
                 Profile* profile,
                 FakeAppListModelUpdater* model_updater) {
-  apps::AppServiceProxyChromeOs* proxy =
+  apps::AppServiceProxy* proxy =
       apps::AppServiceProxyFactory::GetForProfile(profile);
   proxy->FlushMojoCallsForTesting();
   proxy->AppRegistryCache().ForEachApp(
@@ -213,7 +216,8 @@ class AppServiceAppModelBuilderTest : public AppListTestBase {
     app_service_test_.UninstallAllApps(profile());
     testing_profile()->SetGuestSession(guest_mode);
     app_service_test_.SetUp(testing_profile());
-    model_updater_ = std::make_unique<FakeAppListModelUpdater>();
+    model_updater_ = std::make_unique<FakeAppListModelUpdater>(
+        /*profile=*/nullptr, /*reorder_delegate=*/nullptr);
     controller_ = std::make_unique<test::TestAppListControllerDelegate>();
     builder_ = std::make_unique<AppServiceAppModelBuilder>(controller_.get());
     builder_->Initialize(nullptr, testing_profile(), model_updater_.get());
@@ -430,7 +434,8 @@ TEST_F(ExtensionAppTest, HideWebStore) {
   app_service_test_.SetUp(profile());
 
   // Web stores should be present in the model.
-  FakeAppListModelUpdater model_updater1;
+  FakeAppListModelUpdater model_updater1(/*profile=*/nullptr,
+                                         /*reorder_delegate=*/nullptr);
   AppServiceAppModelBuilder builder1(controller_.get());
   builder1.Initialize(nullptr, profile_.get(), &model_updater1);
   EXPECT_TRUE(model_updater1.FindItem(store->id()));
@@ -444,7 +449,8 @@ TEST_F(ExtensionAppTest, HideWebStore) {
   EXPECT_FALSE(model_updater1.FindItem(enterprise_store->id()));
 
   // Build a new model; web stores should NOT be present.
-  FakeAppListModelUpdater model_updater2;
+  FakeAppListModelUpdater model_updater2(/*profile=*/nullptr,
+                                         /*reorder_delegate=*/nullptr);
   AppServiceAppModelBuilder builder2(controller_.get());
   builder2.Initialize(nullptr, profile_.get(), &model_updater2);
   app_service_test_.FlushMojoCalls();
@@ -598,14 +604,11 @@ TEST_F(ExtensionAppTest, LoadCompressedIcon) {
       apps::IconType::kCompressed,
       ash::SharedAppListConfig::instance().default_grid_icon_dimension(),
       profile(), kPackagedApp1Id, icon_effects,
-      base::BindOnce(
-          [](apps::mojom::IconValuePtr* output_icon,
-             base::OnceClosure load_app_icon_callback,
-             apps::mojom::IconValuePtr icon) {
-            *output_icon = std::move(icon);
-            std::move(load_app_icon_callback).Run();
-          },
-          &dst_icon, run_loop.QuitClosure()));
+      apps::IconValueToMojomIconValueCallback(
+          base::BindLambdaForTesting([&](apps::mojom::IconValuePtr icon) {
+            dst_icon = std::move(icon);
+            run_loop.Quit();
+          })));
   run_loop.Run();
 
   ASSERT_FALSE(dst_icon.is_null());
@@ -644,6 +647,54 @@ TEST_F(WebAppBuilderTest, LoadGeneratedIcon) {
   WaitForIconUpdates(item);
 
   VerifyIcon(src_image_skia, item->icon());
+}
+
+class WebAppBuilderDemoModeTest : public WebAppBuilderTest {
+ protected:
+  ~WebAppBuilderDemoModeTest() override = default;
+
+  void SetUp() override {
+    WebAppBuilderTest::SetUp();
+    CreateBuilder();
+
+    // Fake Demo Mode.
+    demo_mode_test_helper_ = std::make_unique<ash::DemoModeTestHelper>();
+    demo_mode_test_helper_->InitializeSession();
+
+    app_service_test_.SetUp(profile_.get());
+    RemoveApps(apps::mojom::AppType::kWeb, profile(), model_updater_.get());
+  }
+
+  void TearDown() override {
+    demo_mode_test_helper_.reset();
+
+    WebAppBuilderTest::TearDown();
+  }
+
+ private:
+  std::unique_ptr<ash::DemoModeTestHelper> demo_mode_test_helper_;
+};
+
+// This test adds a web app to the app list for demo mode when online.
+TEST_F(WebAppBuilderDemoModeTest, WebAppListOnline) {
+  network::TestNetworkConnectionTracker::GetInstance()->SetConnectionType(
+      network::mojom::ConnectionType::CONNECTION_ETHERNET);
+
+  const std::string kAppName = "https://test.com";
+  CreateWebApp(kAppName);
+
+  EXPECT_EQ(1u, model_updater_->ItemCount());
+}
+
+// This test adds a web app to the app list for demo mode when offline.
+TEST_F(WebAppBuilderDemoModeTest, WebAppListOffline) {
+  network::TestNetworkConnectionTracker::GetInstance()->SetConnectionType(
+      network::mojom::ConnectionType::CONNECTION_NONE);
+
+  const std::string kAppName = "https://test.com";
+  CreateWebApp(kAppName);
+
+  EXPECT_EQ(0u, model_updater_->ItemCount());
 }
 
 class CrostiniAppTest : public AppServiceAppModelBuilderTest {
@@ -720,8 +771,11 @@ class CrostiniAppTest : public AppServiceAppModelBuilderTest {
     model_updater_factory_scope_ = std::make_unique<
         app_list::AppListSyncableService::ScopedModelUpdaterFactoryForTest>(
         base::BindRepeating(
-            [](Profile* profile) -> std::unique_ptr<AppListModelUpdater> {
-              return std::make_unique<FakeAppListModelUpdater>(profile);
+            [](Profile* profile,
+               app_list::AppListReorderDelegate* reorder_delegate)
+                -> std::unique_ptr<AppListModelUpdater> {
+              return std::make_unique<FakeAppListModelUpdater>(
+                  profile, reorder_delegate);
             },
             profile()));
     // The AppListSyncableService creates the CrostiniAppModelBuilder.
@@ -931,7 +985,8 @@ class PluginVmAppTest : public testing::Test {
     app_service_test_.UninstallAllApps(testing_profile_.get());
     testing_profile_->SetGuestSession(false);
     app_service_test_.SetUp(testing_profile_.get());
-    model_updater_ = std::make_unique<FakeAppListModelUpdater>();
+    model_updater_ = std::make_unique<FakeAppListModelUpdater>(
+        /*profile=*/nullptr, /*reorder_delegate=*/nullptr);
     controller_ = std::make_unique<test::TestAppListControllerDelegate>();
     builder_ = std::make_unique<AppServiceAppModelBuilder>(controller_.get());
     builder_->Initialize(nullptr, testing_profile_.get(), model_updater_.get());
@@ -976,7 +1031,7 @@ TEST_F(PluginVmAppTest, EnableAndDisablePluginVm) {
             GetModelContent(model_updater_.get()));
 
   testing_profile_->ScopedCrosSettingsTestHelper()->SetBoolean(
-      chromeos::kPluginVmAllowed, false);
+      ash::kPluginVmAllowed, false);
 
   app_service_test_.FlushMojoCalls();
   EXPECT_THAT(GetModelContent(model_updater_.get()), testing::IsEmpty());
@@ -1011,7 +1066,8 @@ class BorealisAppTest : public AppServiceAppModelBuilderTest {
     app_service_test_.UninstallAllApps(testing_profile_.get());
     testing_profile_->SetGuestSession(guest_mode);
     app_service_test_.SetUp(testing_profile_.get());
-    model_updater_ = std::make_unique<FakeAppListModelUpdater>();
+    model_updater_ = std::make_unique<FakeAppListModelUpdater>(
+        /*profile=*/nullptr, /*reorder_delegate=*/nullptr);
     controller_ = std::make_unique<test::TestAppListControllerDelegate>();
     builder_ = std::make_unique<AppServiceAppModelBuilder>(controller_.get());
     builder_->Initialize(nullptr, testing_profile_.get(), model_updater_.get());

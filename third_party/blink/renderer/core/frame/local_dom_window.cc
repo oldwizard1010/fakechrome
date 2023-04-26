@@ -910,6 +910,11 @@ void LocalDOMWindow::RegisterEventListenerObserver(
   event_listener_observers_.insert(event_listener_observer);
 }
 
+void LocalDOMWindow::RegisterUserActivationObserver(
+    UserActivationObserver* user_activation_observer) {
+  user_activation_observers_.insert(user_activation_observer);
+}
+
 void LocalDOMWindow::Reset() {
   DCHECK(document());
   FrameDestroyed();
@@ -1171,7 +1176,11 @@ Element* LocalDOMWindow::frameElement() const {
   if (!GetFrame())
     return nullptr;
 
-  return DynamicTo<HTMLFrameOwnerElement>(GetFrame()->Owner());
+  FrameOwner* owner = GetFrame()->Owner();
+  if (owner && owner->GetFramePolicy().is_fenced)
+    return nullptr;
+
+  return DynamicTo<HTMLFrameOwnerElement>(owner);
 }
 
 void LocalDOMWindow::blur() {}
@@ -1704,7 +1713,7 @@ void LocalDOMWindow::moveTo(int x, int y) const {
     return;
 
   IntRect window_rect = page->GetChromeClient().RootWindowRect(*frame);
-  window_rect.set_origin(IntPoint(x, y));
+  window_rect.set_origin(gfx::Point(x, y));
   // Security check (the spec talks about UniversalBrowserWrite to disable this
   // check...)
   page->GetChromeClient().SetWindowRectWithAdjustment(window_rect, *frame);
@@ -2120,6 +2129,7 @@ void LocalDOMWindow::Trace(Visitor* visitor) const {
   visitor->Trace(external_);
   visitor->Trace(visualViewport_);
   visitor->Trace(event_listener_observers_);
+  visitor->Trace(user_activation_observers_);
   visitor->Trace(current_event_);
   visitor->Trace(trusted_types_map_);
   visitor->Trace(input_method_controller_);
@@ -2156,6 +2166,12 @@ ukm::SourceId LocalDOMWindow::UkmSourceID() const {
 
 void LocalDOMWindow::SetStorageKey(const BlinkStorageKey& storage_key) {
   storage_key_ = storage_key;
+}
+
+void LocalDOMWindow::DidReceiveUserActivation() {
+  for (auto& it : user_activation_observers_) {
+    it->DidReceiveUserActivation();
+  }
 }
 
 }  // namespace blink

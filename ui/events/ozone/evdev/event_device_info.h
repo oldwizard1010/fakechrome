@@ -14,7 +14,6 @@
 #include <vector>
 
 #include "base/component_export.h"
-#include "base/macros.h"
 #include "ui/events/devices/input_device.h"
 #include "ui/events/ozone/evdev/event_device_util.h"
 
@@ -182,6 +181,9 @@ class COMPONENT_EXPORT(EVDEV) EventDeviceInfo {
   // on Chrome OS. The switch disables the internal microphone feed. The input
   // device is used to track the mute switch state.
   bool IsMicrophoneMuteSwitchDevice() const;
+
+  // Determine if this device uses libinput for touchpad.
+  bool UseLibinput() const;
 
   // The device type (internal or external.)
   InputDeviceType device_type() const { return device_type_; }

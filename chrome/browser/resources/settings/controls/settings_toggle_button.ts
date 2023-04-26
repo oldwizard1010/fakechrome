@@ -24,6 +24,7 @@ import {SettingsBooleanControlMixin} from './settings_boolean_control_mixin.js';
 export interface SettingsToggleButtonElement {
   $: {
     control: CrToggleElement,
+    labelWrapper: HTMLElement,
   }
 }
 
@@ -113,7 +114,7 @@ export class SettingsToggleButtonElement extends
   }
 
   private getAriaLabel_(): string {
-    return this.label || this.ariaLabel;
+    return this.ariaLabel || this.label;
   }
 
   private onDisableOrPrefChange_() {
@@ -162,6 +163,12 @@ export class SettingsToggleButtonElement extends
   private onChange_(e: CustomEvent<boolean>) {
     this.checked = e.detail;
     this.notifyChangedByUserInteraction();
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'settings-toggle-button': SettingsToggleButtonElement;
   }
 }
 

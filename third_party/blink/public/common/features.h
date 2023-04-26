@@ -17,6 +17,7 @@ namespace features {
 
 BLINK_COMMON_EXPORT extern const base::Feature
     kAutomaticLazyFrameLoadingToEmbeds;
+BLINK_COMMON_EXPORT extern const base::Feature kBackForwardCacheDedicatedWorker;
 BLINK_COMMON_EXPORT extern const base::Feature
     kBlockingDownloadsInAdFrameWithoutUserActivation;
 BLINK_COMMON_EXPORT extern const base::Feature kCOEPForSharedWorker;
@@ -54,6 +55,8 @@ BLINK_COMMON_EXPORT extern const base::Feature kPortals;
 BLINK_COMMON_EXPORT extern const base::Feature kPortalsCrossOrigin;
 BLINK_COMMON_EXPORT extern const base::Feature kFencedFrames;
 BLINK_COMMON_EXPORT extern const base::Feature kUserAgentClientHint;
+BLINK_COMMON_EXPORT extern const base::Feature
+    kUserAgentClientHintFullVersionList;
 BLINK_COMMON_EXPORT extern const base::Feature
     kPrefersColorSchemeClientHintHeader;
 BLINK_COMMON_EXPORT extern const base::Feature kViewportHeightClientHintHeader;
@@ -329,6 +332,8 @@ BLINK_COMMON_EXPORT extern const base::Feature kWebAppEnableLinkCapturing;
 
 BLINK_COMMON_EXPORT extern const base::Feature kWebAppEnableManifestId;
 
+BLINK_COMMON_EXPORT extern const base::Feature kWebAppEnableTranslations;
+
 BLINK_COMMON_EXPORT extern const base::Feature kWebAppEnableUrlHandlers;
 
 BLINK_COMMON_EXPORT extern const base::Feature kWebAppEnableProtocolHandlers;
@@ -361,6 +366,7 @@ BLINK_COMMON_EXPORT extern const base::Feature kScopeMemoryCachePerContext;
 BLINK_COMMON_EXPORT extern const base::Feature kEnablePenetratingImageSelection;
 
 BLINK_COMMON_EXPORT extern const base::Feature kDocumentTransition;
+BLINK_COMMON_EXPORT extern const base::Feature kDocumentTransitionRenderer;
 
 // Used to configure a per-origin allowlist of performance.mark events that are
 // permitted to be included in slow reports traces. See crbug.com/1181774.
@@ -368,8 +374,6 @@ BLINK_COMMON_EXPORT extern const base::Feature
     kBackgroundTracingPerformanceMark;
 BLINK_COMMON_EXPORT extern const base::FeatureParam<std::string>
     kBackgroundTracingPerformanceMark_AllowList;
-
-BLINK_COMMON_EXPORT extern const base::Feature kCompositeAfterPaint;
 
 BLINK_COMMON_EXPORT extern const base::Feature kSanitizerAPI;
 BLINK_COMMON_EXPORT extern const base::Feature kManagedConfiguration;
@@ -404,6 +408,10 @@ BLINK_COMMON_EXPORT extern const base::Feature kAdInterestGroupAPI;
 BLINK_COMMON_EXPORT extern const base::Feature kParakeet;
 // FLEDGE ad serving runtime flag/JS API.
 BLINK_COMMON_EXPORT extern const base::Feature kFledge;
+// Changes default Permissions Policy for features join-ad-interest-group and
+// run-ad-auction to a more restricted EnableForSelf.
+BLINK_COMMON_EXPORT extern const base::Feature
+    kAdInterestGroupAPIRestrictedPolicyByDefault;
 
 // Control switch for minimizing processing in the WebRTC APM when all audio
 // tracks are disabled.
@@ -441,10 +449,6 @@ BLINK_COMMON_EXPORT extern const base::Feature kAllowDropAlphaForMediaStream;
 BLINK_COMMON_EXPORT extern const base::Feature kThirdPartyStoragePartitioning;
 
 BLINK_COMMON_EXPORT extern const base::Feature kDesktopPWAsSubApps;
-
-// When enabled, we report all JavaScript frameworks via a manual traversal to
-// detect the properties and attributes required.
-BLINK_COMMON_EXPORT extern const base::Feature kReportAllJavaScriptFrameworks;
 
 // Suppresses console errors for CORS problems which report an associated
 // inspector issue anyway.
@@ -512,6 +516,30 @@ BLINK_COMMON_EXPORT extern const base::Feature
 
 // https://drafts.csswg.org/css-cascade-5/#layering
 BLINK_COMMON_EXPORT extern const base::Feature kCSSCascadeLayers;
+
+BLINK_COMMON_EXPORT extern const base::Feature kSetTimeoutWithoutClamp;
+BLINK_COMMON_EXPORT bool IsSetTimeoutWithoutClampEnabled();
+
+// If enabled, ContentToVisibleTimeReporter logs
+// Browser.Tabs.TotalSwitchDuration2.* instead of
+// Browser.Tabs.TotalSwitchDuration.*.
+BLINK_COMMON_EXPORT extern const base::Feature kTabSwitchMetrics2;
+
+BLINK_COMMON_EXPORT extern const base::Feature kLCPAnimatedImagesReporting;
+
+BLINK_COMMON_EXPORT extern const base::Feature
+    kWebSQLInThirdPartyContextThrowsWhenDisabled;
+
+// https://blog.whatwg.org/newline-normalizations-in-form-submission
+BLINK_COMMON_EXPORT extern const base::Feature kLateFormNewlineNormalization;
+
+// TODO(crbug.com/1185950): Remove this flag when the feature is fully launched
+// and released to stable with no issues.
+BLINK_COMMON_EXPORT extern const base::Feature kAutoExpandDetailsElement;
+
+BLINK_COMMON_EXPORT extern const base::Feature kEarlyCodeCache;
+
+BLINK_COMMON_EXPORT extern const base::Feature kClientHintThirdPartyDelegation;
 
 }  // namespace features
 }  // namespace blink

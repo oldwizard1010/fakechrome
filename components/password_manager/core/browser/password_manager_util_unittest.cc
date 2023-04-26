@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "base/callback_helpers.h"
-#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "components/autofill/core/common/password_generation_util.h"
@@ -542,6 +541,29 @@ TEST(PasswordManagerUtil, ConstructGURLWithScheme) {
       {"example", GURL("https://example")}};
   for (const auto& test_case : test_cases) {
     EXPECT_EQ(test_case.second, ConstructGURLWithScheme(test_case.first));
+  }
+}
+
+TEST(PasswordManagerUtil, IsValidPasswordURL) {
+  std::vector<std::pair<GURL, bool>> test_cases = {
+      {GURL("noscheme.com"), false},
+      {GURL("https://;/invalid"), false},
+      {GURL("scheme://unsupported"), false},
+      {GURL("http://example.com"), true},
+      {GURL("https://test.com/login"), true}};
+  for (const auto& test_case : test_cases) {
+    EXPECT_EQ(test_case.second, IsValidPasswordURL(test_case.first));
+  }
+}
+
+TEST(PasswordManagerUtil, GetSignonRealm) {
+  std::vector<std::pair<GURL, std::string>> test_cases = {
+      {GURL("http://example.com/"), "http://example.com/"},
+      {GURL("http://example.com/signup"), "http://example.com/"},
+      {GURL("https://google.com/auth?a=1#b"), "https://google.com/"},
+      {GURL("https://username:password@google.com/"), "https://google.com/"}};
+  for (const auto& test_case : test_cases) {
+    EXPECT_EQ(test_case.second, GetSignonRealm(test_case.first));
   }
 }
 

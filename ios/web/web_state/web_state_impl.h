@@ -118,10 +118,12 @@ class WebStateImpl : public WebState, public NavigationManagerDelegate {
   const WebFramesManagerImpl& GetWebFramesManagerImpl() const;
   WebFramesManagerImpl& GetWebFramesManagerImpl();
 
-  // Returns the SessionCertificatePolicyCacheImpl for this WebStateImpl.
-  const SessionCertificatePolicyCacheImpl&
+  // Returns/Sets the SessionCertificatePolicyCacheImpl for this WebStateImpl.
+  const SessionCertificatePolicyCacheImpl*
   GetSessionCertificatePolicyCacheImpl() const;
-  SessionCertificatePolicyCacheImpl& GetSessionCertificatePolicyCacheImpl();
+  void SetSessionCertificatePolicyCacheImpl(
+      std::unique_ptr<SessionCertificatePolicyCacheImpl>
+          certificate_policy_cache);
 
   // Creates a WebUI page for the given url, owned by this object.
   void CreateWebUI(const GURL& url);
@@ -187,6 +189,8 @@ class WebStateImpl : public WebState, public NavigationManagerDelegate {
   OnceGetter CreateDefaultOnceGetter() override;
   WebStateDelegate* GetDelegate() override;
   void SetDelegate(WebStateDelegate* delegate) override;
+  bool IsRealized() const final;
+  WebState* ForceRealized() final;
   bool IsWebUsageEnabled() const override;
   void SetWebUsageEnabled(bool enabled) override;
   UIView* GetView() override;

@@ -15,13 +15,12 @@
 #include <vector>
 
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "components/autofill/core/browser/autofill_field.h"
-#include "components/autofill/core/browser/autofill_metrics.h"
 #include "components/autofill/core/browser/autofill_type.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/form_types.h"
+#include "components/autofill/core/browser/metrics/autofill_metrics.h"
 #include "components/autofill/core/browser/proto/api_v1.pb.h"
 #include "components/autofill/core/common/dense_set.h"
 #include "components/autofill/core/common/language_code.h"
@@ -145,6 +144,10 @@ class FormStructure {
   // Returns true if heuristic autofill type detection should be attempted for
   // this form.
   bool ShouldRunHeuristics() const;
+
+  // Returns true if heuristic autofill type detection for promo codes should be
+  // attempted for this form.
+  bool ShouldRunPromoCodeHeuristics() const;
 
   // Returns true if we should query the crowd-sourcing server to determine this
   // form's field types. If the form includes author-specified types, this will

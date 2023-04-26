@@ -34,7 +34,6 @@
 #include "ui/gl/trace_util.h"
 
 #if defined(OS_LINUX) && defined(USE_OZONE) && BUILDFLAG(ENABLE_VULKAN)
-#include "ui/base/ui_base_features.h"  // nogncheck
 #include "ui/ozone/public/ozone_platform.h"
 #endif
 
@@ -52,6 +51,7 @@
 #endif
 
 #if defined(OS_WIN)
+#include "gpu/command_buffer/service/dxgi_shared_handle_manager.h"
 #include "gpu/command_buffer/service/shared_image_backing_factory_d3d.h"
 #include "ui/gfx/buffer_format_util.h"
 #include "ui/gl/gl_angle_util_win.h"
@@ -81,14 +81,9 @@ namespace {
 
 bool ShouldUseExternalVulkanImageFactory() {
 #if defined(USE_OZONE)
-  if (features::IsUsingOzonePlatform()) {
-    return ui::OzonePlatform::GetInstance()
-        ->GetPlatformProperties()
-        .uses_external_vulkan_image_factory;
-  }
-#endif
-#if defined(USE_X11)
-  return true;
+  return ui::OzonePlatform::GetInstance()
+      ->GetPlatformProperties()
+      .uses_external_vulkan_image_factory;
 #else
   return false;
 #endif
@@ -232,8 +227,9 @@ SharedImageFactory::SharedImageFactory(
   // TODO(sunnyps): Should we get the device from SharedContextState instead?
   auto d3d11_device = gl::QueryD3D11DeviceObjectFromANGLE();
   if (use_passthrough && is_skia_gl && d3d11_device) {
-    auto d3d_factory =
-        std::make_unique<SharedImageBackingFactoryD3D>(std::move(d3d11_device));
+    auto d3d_factory = std::make_unique<SharedImageBackingFactoryD3D>(
+        std::move(d3d11_device),
+        shared_image_manager_->dxgi_shared_handle_manager());
     d3d_backing_factory_ = d3d_factory.get();
     factories_.push_back(std::move(d3d_factory));
   }

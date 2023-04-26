@@ -5,7 +5,6 @@
 #ifndef COMPONENTS_INFOBARS_CONTENT_CONTENT_INFOBAR_MANAGER_H_
 #define COMPONENTS_INFOBARS_CONTENT_CONTENT_INFOBAR_MANAGER_H_
 
-#include "base/macros.h"
 #include "build/build_config.h"
 #include "components/infobars/core/infobar_manager.h"
 #include "content/public/browser/reload_type.h"
@@ -65,7 +64,8 @@ class ContentInfoBarManager
   int GetActiveEntryID() override;
 
   // content::WebContentsObserver:
-  void RenderProcessGone(base::TerminationStatus status) override;
+  void PrimaryMainFrameRenderProcessGone(
+      base::TerminationStatus status) override;
   void DidStartNavigation(
       content::NavigationHandle* navigation_handle) override;
   void NavigationEntryCommitted(

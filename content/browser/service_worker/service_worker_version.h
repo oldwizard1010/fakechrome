@@ -19,7 +19,6 @@
 #include "base/cancelable_callback.h"
 #include "base/containers/id_map.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/observer_list.h"
 #include "base/threading/thread_task_runner_handle.h"
@@ -201,6 +200,9 @@ class CONTENT_EXPORT ServiceWorkerVersion
       mojo::PendingRemote<storage::mojom::ServiceWorkerLiveVersionRef>
           remote_reference,
       base::WeakPtr<ServiceWorkerContextCore> context);
+
+  ServiceWorkerVersion(const ServiceWorkerVersion&) = delete;
+  ServiceWorkerVersion& operator=(const ServiceWorkerVersion&) = delete;
 
   int64_t version_id() const { return version_id_; }
   int64_t registration_id() const { return registration_id_; }
@@ -636,6 +638,9 @@ class CONTENT_EXPORT ServiceWorkerVersion
           script_loader_factories,
       std::unique_ptr<blink::PendingURLLoaderFactoryBundle>
           subresource_loader_factories);
+
+  // Returns true if |process_id| is a controllee process ID of this version.
+  bool IsControlleeProcessID(int process_id) const;
 
  private:
   friend class base::RefCounted<ServiceWorkerVersion>;
@@ -1149,8 +1154,6 @@ class CONTENT_EXPORT ServiceWorkerVersion
   base::UnguessableToken reporting_source_;
 
   base::WeakPtrFactory<ServiceWorkerVersion> weak_factory_{this};
-
-  DISALLOW_COPY_AND_ASSIGN(ServiceWorkerVersion);
 };
 
 }  // namespace content

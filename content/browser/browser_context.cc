@@ -21,7 +21,6 @@
 #include "base/containers/contains.h"
 #include "base/files/file_path.h"
 #include "base/lazy_instance.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/field_trial_params.h"
@@ -39,6 +38,7 @@
 #include "content/browser/child_process_security_policy_impl.h"
 #include "content/browser/media/browser_feature_provider.h"
 #include "content/browser/push_messaging/push_messaging_router.h"
+#include "content/browser/site_info.h"
 #include "content/browser/storage_partition_impl_map.h"
 #include "content/common/child_process_host_impl.h"
 #include "content/public/browser/blob_handle.h"
@@ -69,10 +69,6 @@ namespace {
 
 using perfetto::protos::pbzero::ChromeBrowserContext;
 using perfetto::protos::pbzero::ChromeTrackEvent;
-
-void SaveSessionStateOnIOThread(AppCacheServiceImpl* appcache_service) {
-  appcache_service->set_force_keep_session_state();
-}
 
 base::WeakPtr<storage::BlobStorageContext> BlobStorageContextGetterForBrowser(
     scoped_refptr<ChromeBlobStorageContext> blob_context) {
@@ -265,16 +261,6 @@ void BrowserContext::SaveSessionState() {
       FROM_HERE,
       base::BindOnce(&storage::DatabaseTracker::SetForceKeepSessionState,
                      base::WrapRefCounted(database_tracker)));
-
-  if (BrowserThread::IsThreadInitialized(BrowserThread::IO)) {
-    auto* appcache_service = static_cast<AppCacheServiceImpl*>(
-        storage_partition->GetAppCacheService());
-    if (appcache_service) {
-      GetIOThreadTaskRunner({})->PostTask(
-          FROM_HERE,
-          base::BindOnce(&SaveSessionStateOnIOThread, appcache_service));
-    }
-  }
 
   storage_partition->GetCookieManagerForBrowserProcess()
       ->SetForceKeepSessionState();

@@ -13,10 +13,12 @@
 #include <type_traits>
 #include <utility>
 
+#include "base/allocator/buildflags.h"
 #include "base/bind.h"
 #include "base/callback_internal.h"
 #include "base/check.h"
 #include "base/compiler_specific.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/raw_scoped_refptr_mismatch_checker.h"
 #include "base/memory/weak_ptr.h"
 #include "base/notreached.h"
@@ -664,22 +666,17 @@ struct StorageTraits {
 // raw_ptr<T>, transitively providing safety.
 //
 // There is a bit of additional complexity here because raw_ptr<T> does not
-// support pointers to functions or pointers to Objective-C objects.
+// support pointers to functions or pointers to Objective-C objects - this is
+// why the raw_ptr_traits::IsSupportedType needs to be consulted.
 //
 // TODO(dcheng): It should not be possible to instantiate raw_ptr<T> for
 // unsupported types, as that would allow this trait to be significantly
 // simplified.
 template <typename T>
-struct StorageTraits<T*, std::enable_if_t<!std::is_function<T>::value>> {
-  // In theory, this could be part of the std::enable_if_t expression as well,
-  // but due to the conditional define, it's easier to write it this way.
-#if __OBJC__
-  using Type = std::conditional_t<std::is_convertible<T*, id>::value,
-                                  T*,
-                                  UnretainedWrapper<T>>;
-#else
+struct StorageTraits<
+    T*,
+    std::enable_if_t<raw_ptr_traits::IsSupportedType<T>::value>> {
   using Type = UnretainedWrapper<T>;
-#endif  // __OBJC__
 };
 
 // Unwrap std::reference_wrapper and store it in a custom wrapper so that

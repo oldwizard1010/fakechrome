@@ -11,10 +11,11 @@ along with a detailed description for each histogram.
 For best practices on writing histogram descriptions, see
 https://chromium.googlesource.com/chromium/src.git/+/HEAD/tools/metrics/histograms/README.md
 
-Please send CLs to chromium-metrics-reviews@google.com rather than to specific
-individuals. These CLs will be automatically reassigned to a reviewer within
-about 5 minutes. This approach helps the metrics team to load-balance incoming
-reviews. Googlers can read more about this at go/gwsq-gerrit.
+Please follow the instructions in the OWNERS file in this directory to find a
+reviewer. If no OWNERS file exists, please consider signing up at
+go/reviewing-metrics (Googlers only), as all subdirectories are expected to
+have an OWNERS file. As a last resort you can send the CL to
+chromium-metrics-reviews@google.com.
 -->
 
 <histogram-configuration>
@@ -349,6 +350,18 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
   </summary>
 </histogram>
 
+<histogram name="V8.ContextSnapshotDecompress" units="microseconds"
+    expires_after="2022-02-01">
+  <owner>sky@chromium.org</owner>
+  <owner>yukishiino@chromium.org</owner>
+  <summary>
+    Total time spent decompressing snapshots for a context. This is emitted
+    immediately after decompressing the snapshots.
+
+    This histogram only records metrics on machines with high-resolution clocks.
+  </summary>
+</histogram>
+
 <histogram name="V8.DebugFeatureUsage" enum="V8DebugFeature"
     expires_after="2022-04-24">
   <owner>yangguo@chromium.org</owner>
@@ -391,7 +404,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
   </summary>
 </histogram>
 
-<histogram name="V8.GC.Cycle.CollectionRate.Full.Cpp" units="KB/ms"
+<histogram name="V8.GC.Cycle.CollectionRate.Full.Cpp" units="%"
     expires_after="M100">
   <owner>omerkatz@chromium.org</owner>
   <owner>v8-memory-sheriffs@google.com</owner>
@@ -399,6 +412,17 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
     The percentage of managed C++ memory that has been collected by a garbage
     collection of the managed C++ heap. Reported at the end of the garbage
     collection cycle.
+  </summary>
+</histogram>
+
+<histogram name="V8.GC.Cycle.CollectionRate.Young" units="%"
+    expires_after="M100">
+  <owner>nikolaos@chromium.org</owner>
+  <owner>v8-memory-sheriffs@google.com</owner>
+  <summary>
+    The percentage of managed JavaScript memory that has been collected by a
+    young generation garbage collection of the managed JavaScript heap. Reported
+    at the end of the garbage collection cycle.
   </summary>
 </histogram>
 
@@ -420,6 +444,29 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
     The speed at which garbage collection of the managed C++ heap reclaims
     unused memory on the main thread only. This histogram ignores concurrent
     garbage collection. Reported at the end of the garbage collection cycle.
+  </summary>
+</histogram>
+
+<histogram name="V8.GC.Cycle.Efficiency.MainThread.Young" units="KB/ms"
+    expires_after="M100">
+  <owner>nikolaos@chromium.org</owner>
+  <owner>v8-memory-sheriffs@google.com</owner>
+  <summary>
+    The speed at which a young generation garbage collection of the managed
+    JavaScript heap reclaims unused memory on the main thread only. This
+    histogram ignores concurrent garbage collection. Reported at the end of the
+    garbage collection cycle.
+  </summary>
+</histogram>
+
+<histogram name="V8.GC.Cycle.Efficiency.Young" units="KB/ms"
+    expires_after="M100">
+  <owner>nikolaos@chromium.org</owner>
+  <owner>v8-memory-sheriffs@google.com</owner>
+  <summary>
+    The speed at which a young generation garbage collection of the managed
+    JavaScript heap reclaims unused memory. Reported at the end of the garbage
+    collection cycle.
   </summary>
 </histogram>
 
@@ -472,7 +519,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="V8.GC.Cycle.MainThread.Full.Atomic.Compact.Cpp" units="ms"
-    expires_after="M100">
+    expires_after="2022-04-24">
   <owner>omerkatz@chromium.org</owner>
   <owner>v8-memory-sheriffs@google.com</owner>
   <summary>
@@ -543,7 +590,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="V8.GC.Cycle.MainThread.Full.Cpp" units="ms"
-    expires_after="M100">
+    expires_after="2022-04-24">
   <owner>omerkatz@chromium.org</owner>
   <owner>v8-memory-sheriffs@google.com</owner>
   <summary>
@@ -585,6 +632,15 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
   </summary>
 </histogram>
 
+<histogram name="V8.GC.Cycle.MainThread.Young" units="ms" expires_after="M100">
+  <owner>nikolaos@chromium.org</owner>
+  <owner>v8-memory-sheriffs@google.com</owner>
+  <summary>
+    Main-thread only duration of a young generation garbage collection of the
+    JavaScript heap. Reported at the end of the garbage collection cycle.
+  </summary>
+</histogram>
+
 <histogram name="V8.GC.Cycle.Memory.Freed.Full.Cpp" units="KB"
     expires_after="2022-04-24">
   <owner>omerkatz@chromium.org</owner>
@@ -622,6 +678,15 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
   <summary>
     Amount of used memory freed by a garbage collection of the managed C++ heap.
     Reported at the end of the garbage collection cycle.
+  </summary>
+</histogram>
+
+<histogram name="V8.GC.Cycle.Young" units="ms" expires_after="M100">
+  <owner>nikolaos@chromium.org</owner>
+  <owner>v8-memory-sheriffs@google.com</owner>
+  <summary>
+    Overall duration of a young generation garbage collection of the JavaScript
+    heap. Reported at the end of the garbage collection cycle.
   </summary>
 </histogram>
 
@@ -691,7 +756,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="V8.GC.Event.MainThread.Full.Incremental.Cpp" units="ms"
-    expires_after="M100">
+    expires_after="2022-05-01">
   <owner>omerkatz@chromium.org</owner>
   <owner>v8-memory-sheriffs@google.com</owner>
   <summary>
@@ -701,7 +766,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="V8.GC.Event.MainThread.Full.Incremental.Mark.Cpp" units="ms"
-    expires_after="M100">
+    expires_after="2022-05-01">
   <owner>omerkatz@chromium.org</owner>
   <owner>v8-memory-sheriffs@google.com</owner>
   <summary>
@@ -836,7 +901,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="V8.GCFinalizeMC.Evacuate" units="ms"
-    expires_after="2021-12-05">
+    expires_after="2022-08-09">
   <owner>mlippautz@chromium.org</owner>
   <owner>hpayer@chromium.org</owner>
   <owner>v8-memory-sheriffs@google.com</owner>
@@ -1206,6 +1271,18 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
   <owner>ulan@chromium.org</owner>
   <summary>
     Number of megabytes requested in shared array buffer allocations.
+  </summary>
+</histogram>
+
+<histogram name="V8.SnapshotDecompress" units="microseconds"
+    expires_after="2022-02-01">
+  <owner>sky@chromium.org</owner>
+  <owner>yukishiino@chromium.org</owner>
+  <summary>
+    Total time spent decompressing snapshots for the isolate. This is emitted
+    immediately after decompressing the snapshots (from Snapshot::Initialize()).
+
+    This histogram only records metrics on machines with high-resolution clocks.
   </summary>
 </histogram>
 
@@ -1803,7 +1880,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="V8.WasmTierUpModuleMicroSeconds" units="microseconds"
-    expires_after="2022-02-06">
+    expires_after="2022-04-17">
   <owner>ecmziegler@chromium.org</owner>
   <owner>adamk@chromium.org</owner>
   <owner>clemensb@chromium.org</owner>

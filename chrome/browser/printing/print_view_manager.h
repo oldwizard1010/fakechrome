@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_PRINTING_PRINT_VIEW_MANAGER_H_
 #define CHROME_BROWSER_PRINTING_PRINT_VIEW_MANAGER_H_
 
-#include "base/macros.h"
 #include "chrome/browser/printing/print_view_manager_base.h"
 #include "components/printing/common/print.mojom-forward.h"
 #include "content/public/browser/web_contents_user_data.h"
@@ -76,7 +75,6 @@ class PrintViewManager : public PrintViewManagerBase,
                       CheckForCancelCallback callback) override;
 
   // content::WebContentsObserver implementation.
-  void RenderFrameCreated(content::RenderFrameHost* render_frame_host) override;
   void RenderFrameDeleted(content::RenderFrameHost* render_frame_host) override;
 
   content::RenderFrameHost* print_preview_rfh() { return print_preview_rfh_; }

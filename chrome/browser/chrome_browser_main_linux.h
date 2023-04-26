@@ -8,12 +8,11 @@
 #define CHROME_BROWSER_CHROME_BROWSER_MAIN_LINUX_H_
 
 #include "base/compiler_specific.h"
-#include "base/macros.h"
 #include "chrome/browser/chrome_browser_main_posix.h"
 
 class ChromeBrowserMainPartsLinux : public ChromeBrowserMainPartsPosix {
  public:
-  ChromeBrowserMainPartsLinux(const content::MainFunctionParams& parameters,
+  ChromeBrowserMainPartsLinux(content::MainFunctionParams parameters,
                               StartupData* startup_data);
 
   ChromeBrowserMainPartsLinux(const ChromeBrowserMainPartsLinux&) = delete;

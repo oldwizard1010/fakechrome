@@ -18,6 +18,7 @@ import './reimaging_device_information_page.js';
 import './reimaging_firmware_update_page.js';
 import './reimaging_provisioning_page.js';
 import './shimless_rma_shared_css.js';
+import './splash_screen.js';
 import './wrapup_finalize_page.js';
 import './wrapup_repair_complete_page.js';
 import './wrapup_restock_page.js';
@@ -28,7 +29,7 @@ import {assert} from 'chrome://resources/js/assert.m.js';
 import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {getShimlessRmaService, rmadErrorString} from './mojo_interface_provider.js';
-import {RmadErrorCode, RmaState, ShimlessRmaServiceInterface, StateResult} from './shimless_rma_types.js'
+import {RmadErrorCode, RmaState, ShimlessRmaServiceInterface, StateResult} from './shimless_rma_types.js';
 
 /**
  * Enum for button states.
@@ -220,7 +221,13 @@ export class ShimlessRmaElement extends PolymerElement {
       currentPage_: {
         reflectToAttribute: true,
         type: Object,
-        value: {},
+        value: {
+          componentIs: 'splash-screen',
+          requiresReloadWhenShown: false,
+          buttonNext: ButtonState.HIDDEN,
+          buttonCancel: ButtonState.HIDDEN,
+          buttonBack: ButtonState.HIDDEN,
+        },
       },
 
       /** @private {ShimlessRmaServiceInterface} */
@@ -296,20 +303,13 @@ export class ShimlessRmaElement extends PolymerElement {
     super.ready();
     this.shimlessRmaService_ = getShimlessRmaService();
 
+    const splashComponent = this.loadComponent_(this.currentPage_.componentIs);
+    splashComponent.hidden = false;
+
     // Get the initial state.
-    this.fetchState_().then((stateResult) => {
+    this.shimlessRmaService_.getCurrentState().then((stateResult) => {
       this.processStateResult_(stateResult);
     });
-  }
-
-  /** @private */
-  fetchState_() {
-    return this.shimlessRmaService_.getCurrentState();
-  }
-
-  /** @private */
-  fetchPrevState_() {
-    return this.shimlessRmaService_.transitionPreviousState();
   }
 
   /**
@@ -381,12 +381,14 @@ export class ShimlessRmaElement extends PolymerElement {
 
   /**
    * @param {string} componentIs
+   * @return {!Element}
    * @private
    */
   loadComponent_(componentIs) {
     const shimlessBody = this.shadowRoot.querySelector('#contentContainer');
 
-    let component = document.createElement(componentIs);
+    /** @type {!Element} */
+    const component = document.createElement(componentIs);
     component.setAttribute('id', componentIs);
     component.setAttribute('class', 'shimless-content');
     component.hidden = true;
@@ -420,7 +422,7 @@ export class ShimlessRmaElement extends PolymerElement {
   /** @protected */
   onBackButtonClicked_() {
     this.allButtonsDisabled_ = true;
-    this.fetchPrevState_().then(
+    this.shimlessRmaService_.transitionPreviousState().then(
         (stateResult) => this.processStateResult_(stateResult));
   }
 
@@ -438,7 +440,8 @@ export class ShimlessRmaElement extends PolymerElement {
     this.allButtonsDisabled_ = true;
     page.onNextButtonClick()
         .then((stateResult) => this.processStateResult_(stateResult))
-        .catch((err) => void 0);
+        // TODO(gavindodd): Better error handling.
+        .catch((err) => this.allButtonsDisabled_ = false);
   }
 
   /** @protected */
@@ -447,6 +450,6 @@ export class ShimlessRmaElement extends PolymerElement {
     this.shimlessRmaService_.abortRma().then(
         (result) => this.handleError_(result.error));
   }
-};
+}
 
 customElements.define(ShimlessRmaElement.is, ShimlessRmaElement);

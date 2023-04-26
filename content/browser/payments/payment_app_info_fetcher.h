@@ -8,7 +8,6 @@
 #include <memory>
 #include <string>
 
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "content/browser/service_worker/service_worker_context_wrapper.h"
 #include "content/public/browser/global_routing_id.h"
@@ -33,6 +32,10 @@ class PaymentAppInfoFetcher {
   };
   using PaymentAppInfoFetchCallback =
       base::OnceCallback<void(std::unique_ptr<PaymentAppInfo> app_info)>;
+
+  PaymentAppInfoFetcher() = delete;
+  PaymentAppInfoFetcher(const PaymentAppInfoFetcher&) = delete;
+  PaymentAppInfoFetcher& operator=(const PaymentAppInfoFetcher&) = delete;
 
   static void Start(
       const GURL& context_url,
@@ -81,8 +84,6 @@ class PaymentAppInfoFetcher {
     PaymentAppInfoFetchCallback callback_;
     base::WeakPtrFactory<SelfDeleteFetcher> weak_ptr_factory_{this};
   };
-
-  DISALLOW_IMPLICIT_CONSTRUCTORS(PaymentAppInfoFetcher);
 };
 
 }  // namespace content

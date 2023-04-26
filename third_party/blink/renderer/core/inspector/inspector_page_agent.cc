@@ -62,7 +62,6 @@
 #include "third_party/blink/renderer/core/inspector/inspected_frames.h"
 #include "third_party/blink/renderer/core/inspector/inspector_css_agent.h"
 #include "third_party/blink/renderer/core/inspector/inspector_resource_content_loader.h"
-#include "third_party/blink/renderer/core/inspector/protocol/Page.h"
 #include "third_party/blink/renderer/core/inspector/v8_inspector_string.h"
 #include "third_party/blink/renderer/core/layout/adjust_for_absolute_zoom.h"
 #include "third_party/blink/renderer/core/loader/document_loader.h"
@@ -1549,7 +1548,7 @@ Response InspectorPageAgent::getLayoutMetrics(
   // pixels. Details: https://crbug.com/1181313
   IntRect css_content_size =
       main_frame->GetPage()->GetChromeClient().ViewportToScreen(
-          IntRect(IntPoint(0, 0), content_size), main_frame->View());
+          IntRect(gfx::Point(0, 0), content_size), main_frame->View());
   *out_css_content_size = protocol::DOM::Rect::create()
                               .setX(css_content_size.x())
                               .setY(css_content_size.y())

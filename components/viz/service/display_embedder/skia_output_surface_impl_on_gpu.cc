@@ -48,6 +48,7 @@
 #include "skia/ext/rgba_to_yuva.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/libyuv/include/libyuv/planar_functions.h"
+#include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkDeferredDisplayList.h"
 #include "third_party/skia/include/core/SkPixelRef.h"
 #include "third_party/skia/include/core/SkYUVAInfo.h"
@@ -703,23 +704,13 @@ void SkiaOutputSurfaceImplOnGpu::CopyOutputRGBA(
       // Grab the mailbox before we transfer `representation`'s ownership:
       gpu::Mailbox mailbox = representation->mailbox();
 
-      auto gpu_callback = std::make_unique<ReleaseCallback>(base::BindOnce(
-          &SkiaOutputSurfaceImplOnGpu::DestroyCopyOutputResourcesOnGpuThread,
-          weak_ptr_factory_.GetWeakPtr(), std::move(representation),
-          context_state_));
-      release_on_gpu_callbacks_.push_back(std::move(gpu_callback));
-      auto run_gpu_callback = base::BindOnce(
-          &SkiaOutputSurfaceImplOnGpu::RunDestroyCopyOutputResourcesOnGpuThread,
-          weak_ptr_factory_.GetWeakPtr(),
-          release_on_gpu_callbacks_.back().get());
-      auto viz_callback = base::BindPostTask(
-          base::ThreadTaskRunnerHandle::Get(), std::move(run_gpu_callback));
-
       CopyOutputResult::ReleaseCallbacks release_callbacks;
-      release_callbacks.push_back(std::move(viz_callback));
+      release_callbacks.push_back(
+          CreateDestroyCopyOutputResourcesOnGpuThreadCallback(
+              std::move(representation)));
 
       request->SendResult(std::make_unique<CopyOutputTextureResult>(
-          geometry.result_bounds,
+          CopyOutputResult::Format::RGBA, geometry.result_bounds,
           CopyOutputResult::TextureResult(mailbox, gpu::SyncToken(),
                                           color_space),
           std::move(release_callbacks)));
@@ -814,10 +805,54 @@ bool SkiaOutputSurfaceImplOnGpu::CreateSurfacesForNV12Planes(
     dest_surface->wait(plane_data.begin_semaphores.size(),
                        plane_data.begin_semaphores.data());
 
+    // Semaphores have already been populated in `plane_data`.
+    // Set the remaining fields.
     plane_data.mailbox = representation->mailbox();
     plane_data.representation = std::move(representation);
     plane_data.scoped_write = std::move(scoped_write);
     plane_data.size = plane_size;
+  }
+
+  return true;
+}
+
+bool SkiaOutputSurfaceImplOnGpu::ImportSurfacesForNV12Planes(
+    const BlitRequest& blit_request,
+    std::array<PlaneAccessData, CopyOutputResult::kNV12MaxPlanes>&
+        plane_access_datas) {
+  for (size_t i = 0; i < CopyOutputResult::kNV12MaxPlanes; ++i) {
+    const gpu::MailboxHolder& mailbox_holder = blit_request.mailboxes[i];
+
+    // Should never happen, maiboxes are validated when setting blit request on
+    // a CopyOutputResult.
+    DCHECK(!mailbox_holder.mailbox.IsZero());
+
+    PlaneAccessData& plane_data = plane_access_datas[i];
+
+    auto representation = dependency_->GetSharedImageManager()->ProduceSkia(
+        mailbox_holder.mailbox, context_state_->memory_type_tracker(),
+        context_state_);
+    if (!representation) {
+      return false;
+    }
+
+    SkSurfaceProps surface_props{0, kUnknown_SkPixelGeometry};
+
+    std::unique_ptr<gpu::SharedImageRepresentationSkia::ScopedWriteAccess>
+        scoped_write = representation->BeginScopedWriteAccess(
+            /*final_msaa_count=*/0, surface_props, &plane_data.begin_semaphores,
+            &plane_data.end_semaphores,
+            gpu::SharedImageRepresentation::AllowUnclearedAccess::kYes);
+    SkSurface* dest_surface = scoped_write->surface();
+    dest_surface->wait(plane_data.begin_semaphores.size(),
+                       plane_data.begin_semaphores.data());
+
+    // Semaphores have already been populated in `plane_data`.
+    // Set the remaining fields.
+    plane_data.size = gfx::SizeToSkISize(representation->size());
+    plane_data.mailbox = representation->mailbox();
+    plane_data.representation = std::move(representation);
+    plane_data.scoped_write = std::move(scoped_write);
   }
 
   return true;
@@ -831,9 +866,17 @@ void SkiaOutputSurfaceImplOnGpu::CopyOutputNV12(
     SkSurface::RescaleMode rescale_mode,
     bool is_downscale_or_identity_in_both_dimensions,
     std::unique_ptr<CopyOutputRequest> request) {
+  DCHECK(!request->has_blit_request() ||
+         request->result_destination() ==
+             CopyOutputRequest::ResultDestination::kNativeTextures)
+      << "Only CopyOutputRequests that hand out native textures support blit "
+         "requests!";
+
   // Overview:
   // 1. Try to create surfaces for NV12 planes (we know the needed size in
-  // advance). If this fails, send an empty result.
+  // advance). If this fails, send an empty result. For requests that have a
+  // blit request appended, the surfaces should be backed by caller-provided
+  // textures.
   // 2. Render the desired region into a new SkSurface, taking into account
   // desired scaling and clipping.
   // 3. Grab an SkImage and convert it into multiple SkSurfaces created by
@@ -846,17 +889,49 @@ void SkiaOutputSurfaceImplOnGpu::CopyOutputNV12(
   // The size of the destination is passed in via `geometry.result_selection` -
   // it already takes into account the rect of the render pass that is being
   // copied, as well as area, scaling & result_selection of the `request`.
+  // This represents the size of the intermediate texture that will be then
+  // blitted to the textures.
   const gfx::Size destination_size = geometry.result_selection.size();
-
-  SkYUVAInfo yuva_info(
-      gfx::SizeToSkISize(destination_size), SkYUVAInfo::PlaneConfig::kY_UV,
-      SkYUVAInfo::Subsampling::k420, kRec709_Limited_SkYUVColorSpace);
 
   std::array<PlaneAccessData, CopyOutputResult::kNV12MaxPlanes>
       plane_access_datas;
-  if (!CreateSurfacesForNV12Planes(yuva_info, color_space,
-                                   plane_access_datas)) {
-    // Send an empty result.
+
+  SkYUVAInfo yuva_info;
+
+  bool destination_surfaces_created = false;
+  if (request->has_blit_request()) {
+    destination_surfaces_created = ImportSurfacesForNV12Planes(
+        request->blit_request(), plane_access_datas);
+
+    // The entire destination image size is the same as the size of the luma
+    // plane of the image that was just imported:
+    yuva_info = SkYUVAInfo(
+        plane_access_datas[0].size, SkYUVAInfo::PlaneConfig::kY_UV,
+        SkYUVAInfo::Subsampling::k420, kRec709_Limited_SkYUVColorSpace);
+
+    // Check if the destination will fit in the blit target:
+    const gfx::Rect blit_destination_rect(
+        request->blit_request().destination_region_offset, destination_size);
+    const gfx::Rect blit_target_image_rect(
+        gfx::SkISizeToSize(plane_access_datas[0].size));
+
+    if (!blit_target_image_rect.Contains(blit_destination_rect)) {
+      // Send empty result, the blit target image is not large enough to fit the
+      // results.
+      return;
+    }
+  } else {
+    yuva_info = SkYUVAInfo(
+        gfx::SizeToSkISize(destination_size), SkYUVAInfo::PlaneConfig::kY_UV,
+        SkYUVAInfo::Subsampling::k420, kRec709_Limited_SkYUVColorSpace);
+
+    destination_surfaces_created =
+        CreateSurfacesForNV12Planes(yuva_info, color_space, plane_access_datas);
+  }
+
+  if (!destination_surfaces_created) {
+    DVLOG(1) << "failed to create destination surfaces";
+    // Send empty result.
     return;
   }
 
@@ -864,6 +939,9 @@ void SkiaOutputSurfaceImplOnGpu::CopyOutputNV12(
   auto representation = CreateSharedImageRepresentationSkia(
       ResourceFormat::RGBA_8888, destination_size, color_space);
   if (!representation) {
+    DVLOG(1) << "failed to create shared image representation for the "
+                "intermediate surface";
+    // Send empty result.
     return;
   }
 
@@ -907,7 +985,20 @@ void SkiaOutputSurfaceImplOnGpu::CopyOutputNV12(
       plane_access_datas[0].scoped_write->surface(),
       plane_access_datas[1].scoped_write->surface(), nullptr, nullptr};
 
-  skia::BlitRGBAToYUVA(source_image.get(), plane_surfaces.data(), yuva_info);
+  // The region to be populated in caller's textures is derived from blit
+  // request's |destination_region_offset|, and from COR's |result_selection|.
+  // If we have a blit request, use it. Otherwise, use an
+  // empty rect (which means that entire image will be used as the target of the
+  // blit - this will not result in rescaling since w/o blit request present,
+  // the image size matches the |result_selection|).
+  SkRect dst_region =
+      request->has_blit_request()
+          ? gfx::RectToSkRect(
+                gfx::Rect(request->blit_request().destination_region_offset,
+                          destination_size))
+          : SkRect::MakeEmpty();
+  skia::BlitRGBAToYUVA(source_image.get(), plane_surfaces.data(), yuva_info,
+                       dst_region);
 
   for (size_t i = 0; i < CopyOutputResult::kNV12MaxPlanes; ++i) {
     plane_access_datas[i].representation->SetCleared();
@@ -930,10 +1021,29 @@ void SkiaOutputSurfaceImplOnGpu::CopyOutputNV12(
   }
 
   switch (request->result_destination()) {
-    case CopyOutputRequest::ResultDestination::kNativeTextures:
-      NOTREACHED()
-          << "Not yet supported, should be blocked by CopyOutputRequest ctor!";
+    case CopyOutputRequest::ResultDestination::kNativeTextures: {
+      CopyOutputResult::ReleaseCallbacks release_callbacks;
+      std::array<gpu::MailboxHolder, CopyOutputResult::kMaxPlanes> planes;
+
+      for (size_t i = 0; i < CopyOutputResult::kNV12MaxPlanes; ++i) {
+        if (!request->has_blit_request()) {
+          // In blit requests, we are not responsible for releasing the textures
+          // (the issuer of the request owns them), do not create the callbacks.
+          release_callbacks.push_back(
+              CreateDestroyCopyOutputResourcesOnGpuThreadCallback(
+                  std::move(plane_access_datas[i].representation)));
+        }
+
+        planes[i].mailbox = plane_access_datas[i].mailbox;
+      }
+
+      request->SendResult(std::make_unique<CopyOutputTextureResult>(
+          CopyOutputResult::Format::NV12_PLANES, geometry.result_selection,
+          CopyOutputResult::TextureResult(planes, color_space),
+          std::move(release_callbacks)));
+
       break;
+    }
     case CopyOutputRequest::ResultDestination::kSystemMemory: {
       auto nv12_readback = base::MakeRefCounted<NV12PlanesReadbackContext>(
           weak_ptr_, std::move(request), geometry.result_selection);
@@ -956,8 +1066,27 @@ void SkiaOutputSurfaceImplOnGpu::CopyOutputNV12(
             &CopyOutputResultSkiaNV12::OnNV12PlaneReadbackDone,
             context.release());
       }
-    } break;
+
+      break;
+    }
   }
+}
+
+ReleaseCallback
+SkiaOutputSurfaceImplOnGpu::CreateDestroyCopyOutputResourcesOnGpuThreadCallback(
+    std::unique_ptr<gpu::SharedImageRepresentationSkia> representation) {
+  auto gpu_callback = std::make_unique<ReleaseCallback>(base::BindOnce(
+      &SkiaOutputSurfaceImplOnGpu::DestroyCopyOutputResourcesOnGpuThread,
+      weak_ptr_factory_.GetWeakPtr(), std::move(representation),
+      context_state_));
+  release_on_gpu_callbacks_.push_back(std::move(gpu_callback));
+
+  auto run_gpu_callback = base::BindOnce(
+      &SkiaOutputSurfaceImplOnGpu::RunDestroyCopyOutputResourcesOnGpuThread,
+      weak_ptr_factory_.GetWeakPtr(), release_on_gpu_callbacks_.back().get());
+
+  return base::BindPostTask(base::ThreadTaskRunnerHandle::Get(),
+                            std::move(run_gpu_callback));
 }
 
 void SkiaOutputSurfaceImplOnGpu::CopyOutput(
@@ -990,7 +1119,7 @@ void SkiaOutputSurfaceImplOnGpu::CopyOutput(
         mailbox, context_state_.get());
     DCHECK(backing_representation);
 
-    // TODO(crbug.com/1226672): Use BeginScopedReadAccess instead
+    // TODO(https://crbug.com/1226672): Use BeginScopedReadAccess instead
     scoped_access = backing_representation->BeginScopedWriteAccess(
         /*final_msaa_count=*/0, skia::LegacyDisplayGlobals::GetSkSurfaceProps(),
         &begin_semaphores, &end_semaphores,
@@ -1223,53 +1352,57 @@ void SkiaOutputSurfaceImplOnGpu::ScheduleOverlays(
   if (context_is_lost_)
     return;
 
-  if (!image_contexts.empty()) {
+  bool have_image_contexts = !image_contexts.empty();
+  if (have_image_contexts) {
     DCHECK(context_state_->GrContextIsGL());
 
     // GL doesn't use semaphores.
     promise_image_access_helper_.BeginAccess(std::move(image_contexts),
                                              /*begin_semaphores=*/nullptr,
                                              /*end_semaphores=*/nullptr);
-    using ScopedWriteAccess =
-        std::unique_ptr<gpu::SharedImageRepresentationSkia::ScopedWriteAccess>;
-    std::vector<ScopedWriteAccess> scoped_write_accesses;
-    for (auto& overlay : overlays) {
-      if (!overlay.ddl)
-        continue;
-      const auto& characterization = overlay.ddl->characterization();
-      auto backing = GetOrCreateRenderPassOverlayBacking(characterization);
-      if (!backing)
-        break;
-      DCHECK(overlay.mailbox.IsZero());
-      overlay.mailbox = backing->mailbox();
-      auto scoped_access = backing->BeginScopedWriteAccess(
-          /*final_msaa_count=*/0, characterization.surfaceProps(),
-          /*begin_semaphores=*/nullptr,
-          /*end_semaphores=*/nullptr,
-          gpu::SharedImageRepresentation::AllowUnclearedAccess::kYes);
-      bool result = scoped_access->surface()->draw(overlay.ddl);
-      DCHECK(result);
-      scoped_write_accesses.push_back(std::move(scoped_access));
-      backing->SetCleared();
-      in_flight_render_pass_overlay_backings_.insert(std::move(backing));
-    }
-
-    if (!scoped_write_accesses.empty()) {
-      absl::optional<gpu::raster::GrShaderCache::ScopedCacheUse> cache_use;
-      if (dependency_->GetGrShaderCache()) {
-        cache_use.emplace(dependency_->GetGrShaderCache(),
-                          gpu::kDisplayCompositorClientId);
-      }
-
-      GrFlushInfo flush_info = {};
-      if (on_finished)
-        gpu::AddCleanupTaskForSkiaFlush(std::move(on_finished), &flush_info);
-      context_state_->gr_context()->flush(flush_info);
-      context_state_->gr_context()->submit();
-      scoped_write_accesses.clear();
-    }
-    promise_image_access_helper_.EndAccess();
   }
+
+  using ScopedWriteAccess =
+      std::unique_ptr<gpu::SharedImageRepresentationSkia::ScopedWriteAccess>;
+  std::vector<ScopedWriteAccess> scoped_write_accesses;
+  for (auto& overlay : overlays) {
+    if (!overlay.ddl)
+      continue;
+    const auto& characterization = overlay.ddl->characterization();
+    auto backing = GetOrCreateRenderPassOverlayBacking(characterization);
+    if (!backing)
+      break;
+    DCHECK(overlay.mailbox.IsZero());
+    overlay.mailbox = backing->mailbox();
+    auto scoped_access = backing->BeginScopedWriteAccess(
+        /*final_msaa_count=*/0, characterization.surfaceProps(),
+        /*begin_semaphores=*/nullptr,
+        /*end_semaphores=*/nullptr,
+        gpu::SharedImageRepresentation::AllowUnclearedAccess::kYes);
+    bool result = scoped_access->surface()->draw(overlay.ddl);
+    DCHECK(result);
+    scoped_write_accesses.push_back(std::move(scoped_access));
+    backing->SetCleared();
+    in_flight_render_pass_overlay_backings_.insert(std::move(backing));
+  }
+
+  if (!scoped_write_accesses.empty()) {
+    absl::optional<gpu::raster::GrShaderCache::ScopedCacheUse> cache_use;
+    if (dependency_->GetGrShaderCache()) {
+      cache_use.emplace(dependency_->GetGrShaderCache(),
+                        gpu::kDisplayCompositorClientId);
+    }
+
+    GrFlushInfo flush_info = {};
+    if (on_finished)
+      gpu::AddCleanupTaskForSkiaFlush(std::move(on_finished), &flush_info);
+    context_state_->gr_context()->flush(flush_info);
+    context_state_->gr_context()->submit();
+    scoped_write_accesses.clear();
+  }
+
+  if (have_image_contexts)
+    promise_image_access_helper_.EndAccess();
 
   output_device_->ScheduleOverlays(std::move(overlays));
 #else
@@ -1372,8 +1505,13 @@ bool SkiaOutputSurfaceImplOnGpu::InitializeForGL() {
         bool needs_background_image = ui::OzonePlatform::GetInstance()
                                           ->GetPlatformProperties()
                                           .needs_background_image;
+        bool supports_non_backed_solid_color_images =
+            ui::OzonePlatform::GetInstance()
+                ->GetPlatformRuntimeProperties()
+                .supports_non_backed_solid_color_buffers;
 #else   // defined(USE_OZONE)
         bool needs_background_image = false;
+        bool supports_non_backed_solid_color_images = false;
 #endif  // !defined(USE_OZONE)
 
 #if !defined(OS_WIN)
@@ -1383,10 +1521,12 @@ bool SkiaOutputSurfaceImplOnGpu::InitializeForGL() {
                 shared_image_representation_factory_.get()),
             dependency_, shared_image_representation_factory_.get(),
             shared_gpu_deps_->memory_tracker(),
-            GetDidSwapBuffersCompleteCallback(), needs_background_image);
+            GetDidSwapBuffersCompleteCallback(), needs_background_image,
+            supports_non_backed_solid_color_images);
 #else   // !defined(OS_WIN)
         NOTIMPLEMENTED();
-        (void)needs_background_image;
+        ALLOW_UNUSED_LOCAL(needs_background_image);
+        ALLOW_UNUSED_LOCAL(supports_non_backed_solid_color_images);
 #endif  // defined(OS_WIN)
       } else {
         if (dependency_->NeedsSupportForExternalStencil()) {
@@ -1445,8 +1585,13 @@ bool SkiaOutputSurfaceImplOnGpu::InitializeForVulkan() {
   bool needs_background_image = ui::OzonePlatform::GetInstance()
                                     ->GetPlatformProperties()
                                     .needs_background_image;
+  bool supports_non_backed_solid_color_images =
+      ui::OzonePlatform::GetInstance()
+          ->GetPlatformRuntimeProperties()
+          .supports_non_backed_solid_color_buffers;
 #else   // defined(USE_OZONE)
   bool needs_background_image = false;
+  bool supports_non_backed_solid_color_images = false;
 #endif  // !defined(USE_OZONE)
 
 #if !defined(OS_WIN)
@@ -1468,11 +1613,12 @@ bool SkiaOutputSurfaceImplOnGpu::InitializeForVulkan() {
         std::move(output_presenter), dependency_,
         shared_image_representation_factory_.get(),
         shared_gpu_deps_->memory_tracker(), GetDidSwapBuffersCompleteCallback(),
-        needs_background_image);
+        needs_background_image, supports_non_backed_solid_color_images);
     return true;
   }
 #endif  // !defined(OS_WIN)
-  (void)needs_background_image;
+  ALLOW_UNUSED_LOCAL(needs_background_image);
+  ALLOW_UNUSED_LOCAL(supports_non_backed_solid_color_images);
 
   std::unique_ptr<SkiaOutputDeviceVulkan> output_device;
   if (!gpu_preferences_.disable_vulkan_surface) {
@@ -1915,19 +2061,17 @@ SkiaOutputSurfaceImplOnGpu::GetAsyncReadResultLock() const {
   return async_read_result_lock_;
 }
 
-void SkiaOutputSurfaceImplOnGpu::AddAsyncReadResultHelper(
+void SkiaOutputSurfaceImplOnGpu::AddAsyncReadResultHelperWithLock(
     AsyncReadResultHelper* helper) {
+  async_read_result_lock_->lock().AssertAcquired();
   DCHECK(helper);
-
-  base::AutoLock auto_lock(async_read_result_lock_->lock());
   async_read_result_helpers_.insert(helper);
 }
 
-void SkiaOutputSurfaceImplOnGpu::RemoveAsyncReadResultHelper(
+void SkiaOutputSurfaceImplOnGpu::RemoveAsyncReadResultHelperWithLock(
     AsyncReadResultHelper* helper) {
+  async_read_result_lock_->lock().AssertAcquired();
   DCHECK(helper);
-
-  base::AutoLock auto_lock(async_read_result_lock_->lock());
   DCHECK(async_read_result_helpers_.count(helper));
   async_read_result_helpers_.erase(helper);
 }

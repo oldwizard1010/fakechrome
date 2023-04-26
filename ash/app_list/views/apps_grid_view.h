@@ -51,6 +51,7 @@ class AppListItemList;
 class AppListItemView;
 class AppListModel;
 class AppListViewDelegate;
+class AppsGridContextMenu;
 class AppsGridViewFocusDelegate;
 class AppsGridViewFolderDelegate;
 class PulsingBlockView;
@@ -120,8 +121,10 @@ class ASH_EXPORT AppsGridView : public views::View,
   void SetFixedTilePadding(int horizontal_tile_padding,
                            int vertical_tile_padding);
 
-  // Returns the size of a tile view including its padding.
-  gfx::Size GetTotalTileSize() const;
+  // Returns the size of a tile view including its padding. For paged apps grid,
+  // padding can be different between tiles on the first page and tiles on other
+  // pages.
+  gfx::Size GetTotalTileSize(int page) const;
 
   // Returns the minimum size of the entire tile grid.
   gfx::Size GetMinimumTileGridSize(int cols, int rows_per_page) const;
@@ -260,11 +263,9 @@ class ASH_EXPORT AppsGridView : public views::View,
   // AshTestBase.
   bool IsTabletMode() const;
 
-  // Returns the expected bounds rect in grid coordinates for the item with the
-  // provided id, if the item is in the first page.
-  // If the item is not in the current page (or cannot be found), this will
-  // return 1x1 rectangle in the apps grid center.
-  gfx::Rect GetExpectedItemBoundsInFirstPage(const std::string& id) const;
+  // Whether the provided view is hidden to facilitate drag operation (for
+  // example, the drag view for which a drag icon proxy has been created).
+  bool IsViewHiddenForDrag(const views::View* view) const;
 
   // Passes scroll information from a parent view, so that subclasses may scroll
   // or switch pages.
@@ -311,6 +312,8 @@ class ASH_EXPORT AppsGridView : public views::View,
 
   base::OneShotTimer* reorder_timer_for_test() { return &reorder_timer_; }
 
+  AppsGridContextMenu* context_menu_for_test() { return context_menu_.get(); }
+
  protected:
   // The cardified apps grid should be scaled down by this factor.
   static constexpr float kCardifiedScale = 0.84f;
@@ -322,7 +325,7 @@ class ASH_EXPORT AppsGridView : public views::View,
   virtual gfx::Size GetTileViewSize() const = 0;
 
   // Returns the padding around a tile view.
-  virtual gfx::Insets GetTilePadding() const = 0;
+  virtual gfx::Insets GetTilePadding(int page) const = 0;
 
   // Returns the size of the entire tile grid.
   virtual gfx::Size GetTileGridSize() const = 0;
@@ -393,10 +396,6 @@ class ASH_EXPORT AppsGridView : public views::View,
 
   // Calculates the item views' bounds for both folder and non-folder.
   void CalculateIdealBounds();
-
-  // Whether the provided view is hidden to facilitate drag operation (for
-  // example, the drag view for which a drag icon proxy has been created).
-  bool IsViewHiddenForDrag(const views::View* view) const;
 
   // Gets the bounds of the tile located at |index|, where |index| contains the
   // page/slot info.
@@ -499,6 +498,9 @@ class ASH_EXPORT AppsGridView : public views::View,
   // of last page with intention to put it in a new page. This is only used for
   // non-folder.
   bool extra_page_opened_ = false;
+
+  GhostImageView* current_ghost_view_ = nullptr;
+  GhostImageView* last_ghost_view_ = nullptr;
 
  private:
   friend class test::AppsGridViewTestApi;
@@ -897,8 +899,7 @@ class ASH_EXPORT AppsGridView : public views::View,
   // The location when |current_ghost_view_| was shown.
   GridIndex current_ghost_location_;
 
-  GhostImageView* current_ghost_view_ = nullptr;
-  GhostImageView* last_ghost_view_ = nullptr;
+  std::unique_ptr<AppsGridContextMenu> context_menu_;
 };
 
 }  // namespace ash

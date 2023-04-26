@@ -13,13 +13,13 @@
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/style/ash_color_provider.h"
+#include "ash/style/style_util.h"
 #include "base/containers/cxx20_erase_vector.h"
 #include "base/ranges/algorithm.h"
+#include "ui/accessibility/ax_enums.mojom-shared.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/accessibility/view_accessibility.h"
-#include "ui/views/animation/ink_drop.h"
-#include "ui/views/animation/ink_drop_highlight.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/highlight_path_generator.h"
 #include "ui/views/controls/image_view.h"
@@ -60,24 +60,9 @@ views::BoxLayout* CreateAndInitBoxLayoutForView(views::View* view) {
 }
 
 void SetInkDropForButton(views::Button* button) {
-  auto* ink_drop = views::InkDrop::Get(button);
-  ink_drop->SetMode(views::InkDropHost::InkDropMode::ON);
-  button->SetHasInkDropActionOnClick(true);
-  ink_drop->SetVisibleOpacity(capture_mode::kInkDropVisibleOpacity);
-  views::InkDrop::UseInkDropForFloodFillRipple(ink_drop,
-                                               /*highlight_on_hover=*/false,
-                                               /*highlight_on_focus=*/false);
-  ink_drop->SetCreateHighlightCallback(base::BindRepeating(
-      [](views::Button* host) {
-        const AshColorProvider::RippleAttributes ripple_attributes =
-            AshColorProvider::Get()->GetRippleAttributes();
-        auto highlight = std::make_unique<views::InkDropHighlight>(
-            gfx::SizeF(host->size()), ripple_attributes.base_color);
-        highlight->set_visible_opacity(ripple_attributes.highlight_opacity);
-        return highlight;
-      },
-      button));
-  ink_drop->SetBaseColor(capture_mode::kInkDropBaseColor);
+  StyleUtil::SetUpInkDropForButton(button, gfx::Insets(),
+                                   /*highlight_on_hover=*/false,
+                                   /*highlight_on_focus=*/false);
   views::InstallRectHighlightPathGenerator(button);
 }
 
@@ -125,7 +110,9 @@ END_METADATA
 
 // A button which has a text label. Its behavior on click can be customized.
 // For selecting folder, a folder window will be opened on click.
-class CaptureModeMenuItem : public views::Button {
+class CaptureModeMenuItem
+    : public views::Button,
+      public CaptureModeSessionFocusCycler::HighlightableView {
  public:
   METADATA_HEADER(CaptureModeMenuItem);
 
@@ -146,6 +133,9 @@ class CaptureModeMenuItem : public views::Button {
   CaptureModeMenuItem& operator=(const CaptureModeMenuItem&) = delete;
   ~CaptureModeMenuItem() override = default;
 
+  // CaptureModeSessionFocusCycler::HighlightableView:
+  views::View* GetView() override { return this; }
+
  private:
   views::Label* label_view_;
 };
@@ -160,14 +150,17 @@ END_METADATA
 // and a checked icon. The checked icon will be shown on button click and any
 // other option's checked icon will be set to invisible in the meanwhile. One
 // and only one checked icon is visible in the menu group.
-class CaptureModeOption : public views::Button {
+class CaptureModeOption
+    : public views::Button,
+      public CaptureModeSessionFocusCycler::HighlightableView {
  public:
   METADATA_HEADER(CaptureModeOption);
 
   CaptureModeOption(views::Button::PressedCallback callback,
                     std::u16string option_label,
                     int option_id,
-                    bool checked)
+                    bool checked,
+                    bool enabled)
       : views::Button(callback),
         label_view_(AddChildView(
             std::make_unique<views::Label>(std::move(option_label)))),
@@ -179,7 +172,6 @@ class CaptureModeOption : public views::Button {
         kHollowCheckCircleIcon,
         AshColorProvider::Get()->GetContentLayerColor(
             AshColorProvider::ContentLayerType::kButtonLabelColorBlue)));
-    checked_icon_view_->SetVisible(checked);
 
     SetBorder(views::CreateEmptyBorder(kOptionPadding));
     ConfigLabelView(label_view_);
@@ -188,6 +180,9 @@ class CaptureModeOption : public views::Button {
     SetInkDropForButton(this);
     GetViewAccessibility().OverrideIsLeaf(true);
     SetAccessibleName(GetOptionLabel());
+
+    checked_icon_view_->SetVisible(checked);
+    SetEnabled(enabled);
   }
 
   CaptureModeOption(const CaptureModeOption&) = delete;
@@ -210,6 +205,28 @@ class CaptureModeOption : public views::Button {
   }
 
   bool IsOptionChecked() { return checked_icon_view_->GetVisible(); }
+
+  // views::Button:
+  void StateChanged(ButtonState old_state) override {
+    auto* provider = AshColorProvider::Get();
+    const auto enabled_color = provider->GetContentLayerColor(
+        AshColorProvider::ContentLayerType::kTextColorPrimary);
+    label_view_->SetEnabledColor(GetState() == STATE_DISABLED
+                                     ? provider->GetDisabledColor(enabled_color)
+                                     : enabled_color);
+  }
+
+  void GetAccessibleNodeData(ui::AXNodeData* node_data) override {
+    Button::GetAccessibleNodeData(node_data);
+    node_data->SetName(GetOptionLabel());
+    node_data->role = ax::mojom::Role::kRadioButton;
+    node_data->SetCheckedState(IsOptionChecked()
+                                   ? ax::mojom::CheckedState::kTrue
+                                   : ax::mojom::CheckedState::kFalse);
+  }
+
+  // CaptureModeSessionFocusCycler::HighlightableView:
+  views::View* GetView() override { return this; }
 
  private:
   views::Label* label_view_;
@@ -246,7 +263,8 @@ void CaptureModeMenuGroup::AddOption(std::u16string option_label,
           base::BindRepeating(&CaptureModeMenuGroup::HandleOptionClick,
                               base::Unretained(this), option_id),
           std::move(option_label), option_id,
-          /*checked=*/delegate_->IsOptionChecked(option_id))));
+          /*checked=*/delegate_->IsOptionChecked(option_id),
+          /*enabled=*/delegate_->IsOptionEnabled(option_id))));
 }
 
 void CaptureModeMenuGroup::AddOrUpdateExistingOption(
@@ -263,8 +281,10 @@ void CaptureModeMenuGroup::AddOrUpdateExistingOption(
 }
 
 void CaptureModeMenuGroup::RefreshOptionsSelections() {
-  for (auto* option : options_)
+  for (auto* option : options_) {
     option->SetOptionChecked(delegate_->IsOptionChecked(option->id()));
+    option->SetEnabled(delegate_->IsOptionEnabled(option->id()));
+  }
 }
 
 void CaptureModeMenuGroup::RemoveOptionIfAny(int option_id) {
@@ -285,6 +305,17 @@ void CaptureModeMenuGroup::AddMenuItem(views::Button::PressedCallback callback,
 bool CaptureModeMenuGroup::IsOptionChecked(int option_id) const {
   auto* option = GetOptionById(option_id);
   return option && option->IsOptionChecked();
+}
+
+void CaptureModeMenuGroup::AppendHighlightableItems(
+    std::vector<CaptureModeSessionFocusCycler::HighlightableView*>&
+        highlightable_items) {
+  for (auto* option : options_) {
+    if (option->GetEnabled())
+      highlightable_items.push_back(option);
+  }
+  for (auto* menu_item : menu_items_)
+    highlightable_items.push_back(menu_item);
 }
 
 views::View* CaptureModeMenuGroup::GetOptionForTesting(int option_id) {

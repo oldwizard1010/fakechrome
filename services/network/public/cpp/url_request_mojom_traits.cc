@@ -180,7 +180,8 @@ bool StructTraits<
       !data.ReadDevtoolsAcceptedStreamTypes(
           &out->devtools_accepted_stream_types) ||
       !data.ReadNetLogCreateInfo(&out->net_log_create_info) ||
-      !data.ReadNetLogReferenceInfo(&out->net_log_reference_info)) {
+      !data.ReadNetLogReferenceInfo(&out->net_log_reference_info) ||
+      !data.ReadNavigationRedirectChain(&out->navigation_redirect_chain)) {
     // Note that data.ReadTrustTokenParams is temporarily handled below.
     return false;
   }
@@ -218,6 +219,7 @@ bool StructTraits<
   out->is_fetch_like_api = data.is_fetch_like_api();
   out->is_favicon = data.is_favicon();
   out->obey_origin_policy = data.obey_origin_policy();
+  out->original_destination = data.original_destination();
   out->target_ip_address_space = data.target_ip_address_space();
   return true;
 }

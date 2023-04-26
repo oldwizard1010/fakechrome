@@ -775,6 +775,12 @@ interface CSSKeywordValue : CSSStyleValue
     getter value
     method constructor
     setter value
+interface CSSLayerBlockRule : CSSGroupingRule
+    attribute @@toStringTag
+    method constructor
+interface CSSLayerStatementRule : CSSRule
+    attribute @@toStringTag
+    method constructor
 interface CSSMathInvert : CSSMathValue
     attribute @@toStringTag
     getter value
@@ -1153,7 +1159,6 @@ interface CanvasRenderingContext2D
     method lineTo
     method measureText
     method moveTo
-    method perspective
     method putImageData
     method quadraticCurveTo
     method rect
@@ -1161,8 +1166,6 @@ interface CanvasRenderingContext2D
     method resetTransform
     method restore
     method rotate
-    method rotate3d
-    method rotateAxis
     method roundRect
     method save
     method scale
@@ -1209,6 +1212,11 @@ interface ChannelMergerNode : AudioNode
     method constructor
 interface ChannelSplitterNode : AudioNode
     attribute @@toStringTag
+    method constructor
+interface CharacterBoundsUpdateEvent : Event
+    attribute @@toStringTag
+    getter rangeEnd
+    getter rangeStart
     method constructor
 interface CharacterData : Node
     attribute @@toStringTag
@@ -1739,6 +1747,11 @@ interface DevicePosture : EventTarget
     getter type
     method constructor
     setter onchange
+interface Directive
+    attribute @@toStringTag
+    getter type
+    method constructor
+    method toString
 interface Document : Node
     attribute @@toStringTag
     attribute @@unscopables
@@ -2147,9 +2160,11 @@ interface DynamicsCompressorNode : AudioNode
     method constructor
 interface EditContext : EventTarget
     attribute @@toStringTag
+    getter characterBoundsRangeStart
     getter enterKeyHint
     getter inputMode
     getter inputPanelPolicy
+    getter oncharacterboundsupdate
     getter oncompositionend
     getter oncompositionstart
     getter ontextformatupdate
@@ -2158,13 +2173,16 @@ interface EditContext : EventTarget
     getter selectionStart
     getter text
     method attachedElements
+    method characterBounds
     method constructor
     method updateBounds
+    method updateCharacterBounds
     method updateSelection
     method updateText
     setter enterKeyHint
     setter inputMode
     setter inputPanelPolicy
+    setter oncharacterboundsupdate
     setter oncompositionend
     setter oncompositionstart
     setter ontextformatupdate
@@ -2750,7 +2768,9 @@ interface FormDataEvent : Event
     method constructor
 interface FragmentDirective
     attribute @@toStringTag
+    getter items
     method constructor
+    method createSelectorDirective
 interface GainNode : AudioNode
     attribute @@toStringTag
     getter gain
@@ -3242,6 +3262,7 @@ interface HTMLElement : Element
     getter onresize
     getter onscroll
     getter onscrollend
+    getter onsecuritypolicyviolation
     getter onseeked
     getter onseeking
     getter onselect
@@ -3363,6 +3384,7 @@ interface HTMLElement : Element
     setter onresize
     setter onscroll
     setter onscrollend
+    setter onsecuritypolicyviolation
     setter onseeked
     setter onseeking
     setter onselect
@@ -3730,6 +3752,7 @@ interface HTMLInputElement : HTMLElement
     method setCustomValidity
     method setRangeText
     method setSelectionRange
+    method showPicker
     method stepDown
     method stepUp
     setter accept
@@ -4214,9 +4237,13 @@ interface HTMLSelectElement : HTMLElement
     setter value
 interface HTMLSelectMenuElement : HTMLElement
     attribute @@toStringTag
+    getter form
+    getter name
     getter open
+    getter type
     getter value
     method constructor
+    setter name
     setter value
 interface HTMLSlotElement : HTMLElement
     attribute @@toStringTag
@@ -4925,6 +4952,7 @@ interface KeyframeEffect : AnimationEffect
 interface LargestContentfulPaint : PerformanceEntry
     attribute @@toStringTag
     getter element
+    getter firstAnimatedFrameTime
     getter id
     getter loadTime
     getter renderTime
@@ -4935,6 +4963,7 @@ interface LargestContentfulPaint : PerformanceEntry
 interface LaunchParams
     attribute @@toStringTag
     getter files
+    getter targetURL
     method constructor
 interface LaunchQueue
     attribute @@toStringTag
@@ -5113,6 +5142,7 @@ interface MathMLElement : Element
     getter onresize
     getter onscroll
     getter onscrollend
+    getter onsecuritypolicyviolation
     getter onseeked
     getter onseeking
     getter onselect
@@ -5216,6 +5246,7 @@ interface MathMLElement : Element
     setter onresize
     setter onscroll
     setter onscrollend
+    setter onsecuritypolicyviolation
     setter onseeked
     setter onseeking
     setter onselect
@@ -6013,7 +6044,6 @@ interface OffscreenCanvasRenderingContext2D
     method lineTo
     method measureText
     method moveTo
-    method perspective
     method putImageData
     method quadraticCurveTo
     method rect
@@ -6021,8 +6051,6 @@ interface OffscreenCanvasRenderingContext2D
     method resetTransform
     method restore
     method rotate
-    method rotate3d
-    method rotateAxis
     method roundRect
     method save
     method scale
@@ -7240,6 +7268,7 @@ interface SVGElement : Element
     getter onresize
     getter onscroll
     getter onscrollend
+    getter onsecuritypolicyviolation
     getter onseeked
     getter onseeking
     getter onselect
@@ -7345,6 +7374,7 @@ interface SVGElement : Element
     setter onresize
     setter onscroll
     setter onscrollend
+    setter onsecuritypolicyviolation
     setter onseeked
     setter onseeking
     setter onselect
@@ -8188,6 +8218,15 @@ interface Screen
     method dispatchEvent
     method removeEventListener
     setter onchange
+interface ScreenDetails : EventTarget
+    attribute @@toStringTag
+    getter currentScreen
+    getter oncurrentscreenchange
+    getter onscreenschange
+    getter screens
+    method constructor
+    setter oncurrentscreenchange
+    setter onscreenschange
 interface ScreenOrientation : EventTarget
     attribute @@toStringTag
     getter angle
@@ -8197,15 +8236,6 @@ interface ScreenOrientation : EventTarget
     method lock
     method unlock
     setter onchange
-interface Screens : EventTarget
-    attribute @@toStringTag
-    getter currentScreen
-    getter oncurrentscreenchange
-    getter onscreenschange
-    getter screens
-    method constructor
-    setter oncurrentscreenchange
-    setter onscreenschange
 interface ScriptProcessorNode : AudioNode
     attribute @@toStringTag
     getter bufferSize
@@ -8216,7 +8246,7 @@ interface ScrollTimeline : AnimationTimeline
     attribute @@toStringTag
     getter orientation
     getter scrollOffsets
-    getter scrollSource
+    getter source
     method constructor
 interface SecurityPolicyViolationEvent : Event
     attribute @@toStringTag
@@ -8263,6 +8293,10 @@ interface Selection
     method setBaseAndExtent
     method setPosition
     method toString
+interface SelectorDirective : Directive
+    attribute @@toStringTag
+    method constructor
+    method getMatchingRange
 interface Sensor : EventTarget
     attribute @@toStringTag
     getter activated
@@ -8630,6 +8664,13 @@ interface TextDetector
     attribute @@toStringTag
     method constructor
     method detect
+interface TextDirective : SelectorDirective
+    attribute @@toStringTag
+    getter prefix
+    getter suffix
+    getter textEnd
+    getter textStart
+    method constructor
 interface TextEncoder
     attribute @@toStringTag
     getter encoding
@@ -8647,17 +8688,20 @@ interface TextEvent : UIEvent
     getter data
     method constructor
     method initTextEvent
-interface TextFormatUpdateEvent : Event
+interface TextFormat
     attribute @@toStringTag
     getter backgroundColor
-    getter formatRangeEnd
-    getter formatRangeStart
-    getter suggestionHighlightColor
+    getter rangeEnd
+    getter rangeStart
     getter textColor
     getter underlineColor
     getter underlineStyle
     getter underlineThickness
     method constructor
+interface TextFormatUpdateEvent : Event
+    attribute @@toStringTag
+    method constructor
+    method getTextFormats
 interface TextMetrics
     attribute @@toStringTag
     getter actualBoundingBoxAscent
@@ -11434,6 +11478,7 @@ namespace CSS
     getter onscroll
     getter onscrollend
     getter onsearch
+    getter onsecuritypolicyviolation
     getter onseeked
     getter onseeking
     getter onselect
@@ -11519,7 +11564,7 @@ namespace CSS
     method getComputedStyle
     method getDigitalGoodsService
     method getLockScreenData
-    method getScreens
+    method getScreenDetails
     method getSelection
     method matchMedia
     method moveBy
@@ -11545,6 +11590,7 @@ namespace CSS
     method showOpenFilePicker
     method showSaveFilePicker
     method stop
+    method structuredClone
     method webkitCancelAnimationFrame
     method webkitRequestAnimationFrame
     method webkitRequestFileSystem
@@ -11650,6 +11696,7 @@ namespace CSS
     setter onscroll
     setter onscrollend
     setter onsearch
+    setter onsecuritypolicyviolation
     setter onseeked
     setter onseeking
     setter onselect

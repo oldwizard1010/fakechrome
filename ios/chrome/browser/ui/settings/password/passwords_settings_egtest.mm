@@ -179,6 +179,13 @@ id<GREYMatcher> ShowPasswordButton() {
                     grey_interactable(), nullptr);
 }
 
+// Matcher for the Hide password button in Password Details view.
+id<GREYMatcher> HidePasswordButton() {
+  return grey_allOf(ButtonWithAccessibilityLabel(l10n_util::GetNSString(
+                        IDS_IOS_SETTINGS_PASSWORD_HIDE_BUTTON)),
+                    grey_interactable(), nullptr);
+}
+
 // Matcher for the Delete button in Password Details view.
 id<GREYMatcher> DeleteButton() {
   return grey_allOf(
@@ -213,6 +220,15 @@ id<GREYMatcher> EditConfirmationButton() {
   return grey_allOf(ButtonWithAccessibilityLabel(
                         l10n_util::GetNSString(IDS_IOS_CONFIRM_PASSWORD_EDIT)),
                     grey_interactable(), nullptr);
+}
+
+// Matcher for the "View Password" Button presented when a duplicated credential
+// is found in the add credential flow.
+id<GREYMatcher> DuplicateCredentialViewPasswordButton() {
+  return grey_allOf(grey_accessibilityLabel(l10n_util::GetNSString(
+                        IDS_IOS_PASSWORD_SETTINGS_VIEW_PASSWORD_BUTTON)),
+                    grey_accessibilityTrait(UIAccessibilityTraitButton),
+                    nullptr);
 }
 
 // Matches the pop-up (call-out) menu item with accessibility label equal to the
@@ -337,7 +353,8 @@ void CopyPasswordDetailWithID(int detail_id) {
       [self isRunningTest:@selector(testAddNewPasswordCredential)] ||
       [self isRunningTest:@selector(testAutoScroll)] ||
       [self isRunningTest:@selector(testAddNewDuplicatedPasswordCredential)] ||
-      [self isRunningTest:@selector(testTLDMissingMessage)]) {
+      [self isRunningTest:@selector(testTLDMissingMessage)] ||
+      [self isRunningTest:@selector(testDuplicatedCredentialWithNoUsername)]) {
     config.features_enabled.push_back(
         password_manager::features::kSupportForAddPasswordsInSettings);
   }
@@ -1419,9 +1436,7 @@ void CopyPasswordDetailWithID(int detail_id) {
 }
 
 // Checks that attempts to edit a password provide appropriate feedback.
-// Disabled test due to multiple builder failulres.
-// TODO(crbug.com/1245004): re-enable the test with fix.
-- (void)DISABLED_testEditPassword {
+- (void)testEditPassword {
   SaveExamplePasswordForm();
 
   OpenPasswordSettings();
@@ -1441,7 +1456,7 @@ void CopyPasswordDetailWithID(int detail_id) {
 
   // Check that empty password is not allowed, and done button is disabled.
   [[EarlGrey selectElementWithMatcher:PasswordDetailPassword()]
-      performAction:grey_clearText()];
+      performAction:grey_replaceText(@"")];
 
   [[EarlGrey selectElementWithMatcher:NavigationBarDoneButton()]
       assertWithMatcher:grey_allOf(grey_sufficientlyVisible(),
@@ -1708,23 +1723,6 @@ void CopyPasswordDetailWithID(int detail_id) {
 - (void)testAddNewPasswordCredential {
   OpenPasswordSettings();
 
-  BOOL isSwitchEnabled =
-      [PasswordSettingsAppInterface isCredentialsServiceEnabled];
-
-  // Enable switch if it is disabled.
-  if (!isSwitchEnabled) {
-    [GetInteractionForListItem(
-        chrome_test_util::SettingsSwitchCell(kSavePasswordSwitchTableViewId,
-                                             isSwitchEnabled),
-        kGREYDirectionUp) performAction:TurnSettingsSwitchOn(!isSwitchEnabled)];
-
-    // Check that the switch has been modified.
-    [GetInteractionForListItem(
-        chrome_test_util::SettingsSwitchCell(kSavePasswordSwitchTableViewId,
-                                             !isSwitchEnabled),
-        kGREYDirectionUp) assertWithMatcher:grey_sufficientlyVisible()];
-  }
-
   // Press "Add".
   [[EarlGrey selectElementWithMatcher:AddPasswordButton()]
       performAction:grey_tap()];
@@ -1781,23 +1779,6 @@ void CopyPasswordDetailWithID(int detail_id) {
 
   OpenPasswordSettings();
 
-  BOOL isSwitchEnabled =
-      [PasswordSettingsAppInterface isCredentialsServiceEnabled];
-
-  // Enable switch if it is disabled.
-  if (!isSwitchEnabled) {
-    [GetInteractionForListItem(
-        chrome_test_util::SettingsSwitchCell(kSavePasswordSwitchTableViewId,
-                                             isSwitchEnabled),
-        kGREYDirectionUp) performAction:TurnSettingsSwitchOn(!isSwitchEnabled)];
-
-    // Check that the switch has been modified.
-    [GetInteractionForListItem(
-        chrome_test_util::SettingsSwitchCell(kSavePasswordSwitchTableViewId,
-                                             !isSwitchEnabled),
-        kGREYDirectionUp) assertWithMatcher:grey_sufficientlyVisible()];
-  }
-
   // Press "Add".
   [[EarlGrey selectElementWithMatcher:AddPasswordButton()]
       performAction:grey_tap()];
@@ -1838,23 +1819,6 @@ void CopyPasswordDetailWithID(int detail_id) {
   [PasswordSettingsAppInterface mockReauthenticationModuleExpectedResult:
                                     ReauthenticationResult::kSuccess];
 
-  BOOL isSwitchEnabled =
-      [PasswordSettingsAppInterface isCredentialsServiceEnabled];
-
-  // Enable switch if it is disabled.
-  if (!isSwitchEnabled) {
-    [GetInteractionForListItem(
-        chrome_test_util::SettingsSwitchCell(kSavePasswordSwitchTableViewId,
-                                             isSwitchEnabled),
-        kGREYDirectionUp) performAction:TurnSettingsSwitchOn(!isSwitchEnabled)];
-
-    // Check that the switch has been modified.
-    [GetInteractionForListItem(
-        chrome_test_util::SettingsSwitchCell(kSavePasswordSwitchTableViewId,
-                                             !isSwitchEnabled),
-        kGREYDirectionUp) assertWithMatcher:grey_sufficientlyVisible()];
-  }
-
   // Press "Add".
   [[EarlGrey selectElementWithMatcher:AddPasswordButton()]
       performAction:grey_tap()];
@@ -1876,12 +1840,8 @@ void CopyPasswordDetailWithID(int detail_id) {
   [PasswordSettingsAppInterface mockReauthenticationModuleExpectedResult:
                                     ReauthenticationResult::kSuccess];
 
-  [[EarlGrey
-      selectElementWithMatcher:grey_allOf(grey_accessibilityLabel(
-                                              @"Test View Password"),
-                                          grey_accessibilityTrait(
-                                              UIAccessibilityTraitButton),
-                                          nullptr)] performAction:grey_tap()];
+  [[EarlGrey selectElementWithMatcher:DuplicateCredentialViewPasswordButton()]
+      performAction:grey_tap()];
 
   [[EarlGrey selectElementWithMatcher:PasswordDetailUsername()]
       performAction:grey_replaceText(@"new username")];
@@ -1907,6 +1867,65 @@ void CopyPasswordDetailWithID(int detail_id) {
       performAction:grey_tap()];
 }
 
+// Tests that the duplicate credential section alert is shown when the user adds
+// a credential that has the same website as that of an existing credential
+// (does not contain username).
+- (void)testDuplicatedCredentialWithNoUsername {
+  OpenPasswordSettings();
+
+  [[EarlGrey selectElementWithMatcher:AddPasswordButton()]
+      performAction:grey_tap()];
+
+  // Fill form.
+  [[EarlGrey selectElementWithMatcher:PasswordDetailWebsite()]
+      performAction:grey_replaceText(@"https://www.example.com")];
+
+  [[EarlGrey selectElementWithMatcher:PasswordDetailUsername()]
+      performAction:grey_replaceText(@"")];
+
+  [[EarlGrey selectElementWithMatcher:PasswordDetailPassword()]
+      performAction:grey_replaceText(@"new password")];
+
+  [[EarlGrey selectElementWithMatcher:AddPasswordSaveButton()]
+      performAction:grey_tap()];
+
+  // Add another credential.
+  [[EarlGrey selectElementWithMatcher:AddPasswordButton()]
+      performAction:grey_tap()];
+
+  [[EarlGrey selectElementWithMatcher:PasswordDetailWebsite()]
+      performAction:grey_replaceText(@"https://www.example.com")];
+
+  // Test that the section alert for duplicated credential is shown.
+  [[EarlGrey selectElementWithMatcher:DuplicateCredentialViewPasswordButton()]
+      assertWithMatcher:grey_enabled()];
+
+  [[EarlGrey selectElementWithMatcher:PasswordDetailUsername()]
+      performAction:grey_replaceText(@"new username")];
+
+  // Test that the section alert for duplicated credential is removed.
+  [[EarlGrey selectElementWithMatcher:DuplicateCredentialViewPasswordButton()]
+      assertWithMatcher:grey_not(grey_sufficientlyVisible())];
+
+  [[EarlGrey selectElementWithMatcher:PasswordDetailPassword()]
+      performAction:grey_replaceText(@"znew password")];
+
+  [[EarlGrey selectElementWithMatcher:AddPasswordSaveButton()]
+      performAction:grey_tap()];
+
+  [GetInteractionForPasswordEntry(@"example.com, new username")
+      performAction:grey_tap()];
+
+  [PasswordSettingsAppInterface setUpMockReauthenticationModule];
+  [PasswordSettingsAppInterface mockReauthenticationModuleExpectedResult:
+                                    ReauthenticationResult::kSuccess];
+
+  TapEdit();
+
+  [[EarlGrey selectElementWithMatcher:PasswordDetailPassword()]
+      assertWithMatcher:grey_textFieldValue(@"znew password")];
+}
+
 // Tests that the error message is shown when the top-level domain is missing
 // when adding a new credential.
 - (void)testTLDMissingMessage {
@@ -1914,23 +1933,6 @@ void CopyPasswordDetailWithID(int detail_id) {
   [PasswordSettingsAppInterface setUpMockReauthenticationModuleForExport];
   [PasswordSettingsAppInterface mockReauthenticationModuleExpectedResult:
                                     ReauthenticationResult::kSuccess];
-
-  BOOL isSwitchEnabled =
-      [PasswordSettingsAppInterface isCredentialsServiceEnabled];
-
-  // Enable switch if it is disabled.
-  if (!isSwitchEnabled) {
-    [GetInteractionForListItem(
-        chrome_test_util::SettingsSwitchCell(kSavePasswordSwitchTableViewId,
-                                             isSwitchEnabled),
-        kGREYDirectionUp) performAction:TurnSettingsSwitchOn(!isSwitchEnabled)];
-
-    // Check that the switch has been modified.
-    [GetInteractionForListItem(
-        chrome_test_util::SettingsSwitchCell(kSavePasswordSwitchTableViewId,
-                                             !isSwitchEnabled),
-        kGREYDirectionUp) assertWithMatcher:grey_sufficientlyVisible()];
-  }
 
   // Press "Add".
   [[EarlGrey selectElementWithMatcher:AddPasswordButton()]
@@ -1946,8 +1948,10 @@ void CopyPasswordDetailWithID(int detail_id) {
   [[EarlGrey selectElementWithMatcher:PasswordDetailUsername()]
       performAction:grey_replaceText(@"concrete username")];
 
-  [[EarlGrey selectElementWithMatcher:grey_accessibilityLabel(
-                                          @"Did you mean website.com?")]
+  [[EarlGrey selectElementWithMatcher:
+                 grey_text(l10n_util::GetNSStringF(
+                     IDS_IOS_SETTINGS_PASSWORDS_MISSING_TLD_DESCRIPTION,
+                     u"example.com"))]
       assertWithMatcher:grey_sufficientlyVisible()];
 }
 
@@ -1998,6 +2002,29 @@ void CopyPasswordDetailWithID(int detail_id) {
       assertWithMatcher:grey_nil()];
 
   [[EarlGrey selectElementWithMatcher:SettingsDoneButton()]
+      performAction:grey_tap()];
+}
+
+- (void)testShowHidePassword {
+  SaveExamplePasswordForm();
+
+  OpenPasswordSettings();
+
+  [GetInteractionForPasswordEntry(@"example.com, concrete username")
+      performAction:grey_tap()];
+
+  // Check the snackbar in case of successful reauthentication.
+  [PasswordSettingsAppInterface setUpMockReauthenticationModule];
+  [PasswordSettingsAppInterface mockReauthenticationModuleExpectedResult:
+                                    ReauthenticationResult::kSuccess];
+
+  [GetInteractionForPasswordDetailItem(ShowPasswordButton())
+      assertWithMatcher:grey_sufficientlyVisible()];
+  [GetInteractionForPasswordDetailItem(ShowPasswordButton())
+      performAction:grey_tap()];
+  [GetInteractionForPasswordDetailItem(HidePasswordButton())
+      assertWithMatcher:grey_sufficientlyVisible()];
+  [GetInteractionForPasswordDetailItem(HidePasswordButton())
       performAction:grey_tap()];
 }
 

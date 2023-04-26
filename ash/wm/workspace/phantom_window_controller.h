@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "ash/ash_export.h"
-#include "base/macros.h"
 #include "ui/gfx/geometry/rect.h"
 
 namespace aura {
@@ -51,6 +50,9 @@ class ASH_EXPORT PhantomWindowController {
   // Returns the target snapped or maximized window bounds which is the phantom
   // bounds |target_bounds_in_screen_| with offsets |kPhantomWindowInsets|.
   gfx::Rect GetTargetWindowBoundsForTesting() const;
+
+  // Returns |maximize_cue_widget_|.
+  views::Widget* GetMaximizeCueForTesting() const;
 
  private:
   // Creates, shows and returns a phantom widget at |bounds|

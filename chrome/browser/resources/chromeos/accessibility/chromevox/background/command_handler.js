@@ -634,6 +634,17 @@ CommandHandler.onCommand = function(command) {
       const useNode = node || originalNode;
       pred = AutomationPredicate.roles([node.role]);
     } break;
+    case 'previousInvalidItem': {
+      dir = Dir.BACKWARD;
+      rootPred = AutomationPredicate.root;
+      pred = AutomationPredicate.isInvalid;
+      predErrorMsg = 'no_invalid_item';
+    } break;
+    case 'nextInvalidItem': {
+      pred = AutomationPredicate.isInvalid;
+      rootPred = AutomationPredicate.root;
+      predErrorMsg = 'no_invalid_item';
+    } break;
     case 'nextList':
       pred = AutomationPredicate.makeListPredicate(current.start.node);
       predErrorMsg = 'no_next_list';
@@ -882,6 +893,8 @@ CommandHandler.onCommand = function(command) {
       return false;
     // Table commands.
     case 'previousRow': {
+      skipSync = true;
+      shouldSetSelection = true;
       dir = Dir.BACKWARD;
       const tableOpts = {row: true, dir};
       pred = AutomationPredicate.makeTableCellPredicate(
@@ -891,6 +904,8 @@ CommandHandler.onCommand = function(command) {
       shouldWrap = false;
     } break;
     case 'previousCol': {
+      skipSync = true;
+      shouldSetSelection = true;
       dir = Dir.BACKWARD;
       const tableOpts = {col: true, dir};
       pred = AutomationPredicate.makeTableCellPredicate(
@@ -900,6 +915,8 @@ CommandHandler.onCommand = function(command) {
       shouldWrap = false;
     } break;
     case 'nextRow': {
+      skipSync = true;
+      shouldSetSelection = true;
       const tableOpts = {row: true, dir};
       pred = AutomationPredicate.makeTableCellPredicate(
           current.start.node, tableOpts);
@@ -908,6 +925,8 @@ CommandHandler.onCommand = function(command) {
       shouldWrap = false;
     } break;
     case 'nextCol': {
+      skipSync = true;
+      shouldSetSelection = true;
       const tableOpts = {col: true, dir};
       pred = AutomationPredicate.makeTableCellPredicate(
           current.start.node, tableOpts);
@@ -917,6 +936,8 @@ CommandHandler.onCommand = function(command) {
     } break;
     case 'goToRowFirstCell':
     case 'goToRowLastCell': {
+      skipSync = true;
+      shouldSetSelection = true;
       while (node && node.role !== RoleType.ROW) {
         node = node.parent;
       }
@@ -931,6 +952,8 @@ CommandHandler.onCommand = function(command) {
       }
     } break;
     case 'goToColFirstCell': {
+      skipSync = true;
+      shouldSetSelection = true;
       while (node && node.role !== RoleType.TABLE) {
         node = node.parent;
       }
@@ -947,6 +970,8 @@ CommandHandler.onCommand = function(command) {
       shouldWrap = false;
     } break;
     case 'goToColLastCell': {
+      skipSync = true;
+      shouldSetSelection = true;
       dir = Dir.BACKWARD;
       while (node && node.role !== RoleType.TABLE) {
         node = node.parent;
@@ -975,6 +1000,8 @@ CommandHandler.onCommand = function(command) {
     } break;
     case 'goToFirstCell':
     case 'goToLastCell': {
+      skipSync = true;
+      shouldSetSelection = true;
       while (node && node.role !== RoleType.TABLE) {
         node = node.parent;
       }
@@ -1280,7 +1307,6 @@ CommandHandler.onCommand = function(command) {
     if (current.wrapped) {
       ChromeVox.earcons.playEarcon(Earcon.WRAP);
     }
-
 
     ChromeVoxState.instance.navigateToRange(
         current, undefined, speechProps, shouldSetSelection);

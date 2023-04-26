@@ -23,6 +23,7 @@
 #include "ash/app_list/views/apps_grid_view_test_api.h"
 #include "ash/app_list/views/search_box_view.h"
 #include "ash/constants/ash_features.h"
+#include "ash/public/cpp/app_list/app_list_config.h"
 #include "ash/public/cpp/shelf_item_delegate.h"
 #include "ash/public/cpp/shelf_model.h"
 #include "ash/public/cpp/test/test_shelf_item_delegate.h"
@@ -66,10 +67,10 @@ class ScrollableAppsGridViewTest : public AshTestBase {
   void SetUp() override {
     AshTestBase::SetUp();
 
-    auto model = std::make_unique<test::AppListTestModel>();
-    app_list_test_model_ = model.get();
-    Shell::Get()->app_list_controller()->SetAppListModelForTest(
-        std::move(model));
+    app_list_test_model_ = std::make_unique<test::AppListTestModel>();
+    search_model_ = std::make_unique<SearchModel>();
+    Shell::Get()->app_list_controller()->SetActiveModel(
+        /*profile_id=*/1, app_list_test_model_.get(), search_model_.get());
 
     shelf_item_factory_ = std::make_unique<ShelfItemFactoryFake>();
     ShelfModel::Get()->SetShelfItemFactory(shelf_item_factory_.get());
@@ -151,7 +152,8 @@ class ScrollableAppsGridViewTest : public AshTestBase {
   void AddPageBreakItem() { GetAppListTestHelper()->AddPageBreakItem(); }
 
   base::test::ScopedFeatureList scoped_feature_list_;
-  test::AppListTestModel* app_list_test_model_ = nullptr;
+  std::unique_ptr<test::AppListTestModel> app_list_test_model_;
+  std::unique_ptr<SearchModel> search_model_;
   std::unique_ptr<ShelfItemFactoryFake> shelf_item_factory_;
 
   // Cache some view pointers to make the tests more concise.
@@ -169,10 +171,10 @@ TEST_F(ScrollableAppsGridViewTest, PageBreaksDoNotCauseExtraRowsInLayout) {
   ShowAppList();
 
   ScrollableAppsGridView* view = GetScrollableAppsGridView();
-  const gfx::Size tile_size = view->GetTotalTileSize();
+  const int tile_height = view->app_list_config()->grid_tile_height();
   const gfx::Size grid_size = view->GetTileGridSize();
   // The layout is one tile tall because it has only one row.
-  EXPECT_EQ(grid_size.height(), tile_size.height());
+  EXPECT_EQ(grid_size.height(), tile_height);
 }
 
 TEST_F(ScrollableAppsGridViewTest, ClickOnApp) {
@@ -201,7 +203,7 @@ TEST_F(ScrollableAppsGridViewTest, DragApp) {
   StartDragOnItemViewAt(0);
 
   // Drag to the right of the second item.
-  gfx::Size tile_size = apps_grid_view_->GetTileViewSize();
+  gfx::Size tile_size = apps_grid_view_->GetTotalTileSize(/*page=*/0);
   auto* generator = GetEventGenerator();
   generator->MoveMouseBy(tile_size.width() * 2, 0);
   generator->ReleaseLeftButton();
@@ -210,8 +212,7 @@ TEST_F(ScrollableAppsGridViewTest, DragApp) {
   EXPECT_EQ(0, GetTestAppListClient()->activate_item_count());
 
   // Items were reordered.
-  AppListItemList* item_list =
-      Shell::Get()->app_list_controller()->GetModel()->top_level_item_list();
+  AppListItemList* item_list = app_list_test_model_->top_level_item_list();
   ASSERT_EQ(2u, item_list->item_count());
   EXPECT_EQ("id2", item_list->item_at(0)->id());
   EXPECT_EQ("id1", item_list->item_at(1)->id());
@@ -291,8 +292,7 @@ TEST_F(ScrollableAppsGridViewTest, DragAppAfterScrollingDown) {
   ShowAppList();
 
   // "aaa" and "bbb" are the last two items.
-  AppListItemList* item_list =
-      Shell::Get()->app_list_controller()->GetModel()->top_level_item_list();
+  AppListItemList* item_list = app_list_test_model_->top_level_item_list();
   ASSERT_EQ(23u, item_list->item_count());
   ASSERT_EQ("aaa", item_list->item_at(21)->id());
   ASSERT_EQ("bbb", item_list->item_at(22)->id());
@@ -308,7 +308,7 @@ TEST_F(ScrollableAppsGridViewTest, DragAppAfterScrollingDown) {
   generator->MoveMouseTo(item->GetBoundsInScreen().CenterPoint());
   generator->PressLeftButton();
   item->FireMouseDragTimerForTest();
-  gfx::Size tile_size = apps_grid_view->GetTileViewSize();
+  gfx::Size tile_size = apps_grid_view->GetTotalTileSize(/*page=*/0);
   generator->MoveMouseBy(tile_size.width() * 2, 0);
   generator->ReleaseLeftButton();
 
@@ -468,14 +468,13 @@ TEST_F(ScrollableAppsGridViewTest, DragItemIntoEmptySpaceWillReorderToEnd) {
 
   // Drag and drop the first item straight down below the first row.
   StartDragOnItemViewAt(0);
-  gfx::Size tile_size = apps_grid_view_->GetTileViewSize();
+  gfx::Size tile_size = apps_grid_view_->GetTotalTileSize(/*page=*/0);
   auto* generator = GetEventGenerator();
   generator->MoveMouseBy(0, tile_size.height());
   generator->ReleaseLeftButton();
 
   // The first item was reordered to the end.
-  AppListItemList* item_list =
-      Shell::Get()->app_list_controller()->GetModel()->top_level_item_list();
+  AppListItemList* item_list = app_list_test_model_->top_level_item_list();
   ASSERT_EQ(3u, item_list->item_count());
   EXPECT_EQ("id2", item_list->item_at(0)->id());
   EXPECT_EQ("id3", item_list->item_at(1)->id());
@@ -498,6 +497,30 @@ TEST_F(ScrollableAppsGridViewTest, ChangingAppListModelUpdatesAppsGridHeight) {
   DeleteApps(5);
   apps_grid_view_->GetWidget()->LayoutRootViewIfNecessary();
   EXPECT_LT(apps_grid_view_->height(), height_before_removing);
+}
+
+TEST_F(ScrollableAppsGridViewTest, SmallFolderHasCorrectWidth) {
+  CreateAndPopulateFolderWithApps(2);
+  ShowAppList();
+
+  // Enter the folder view.
+  auto* generator = GetEventGenerator();
+  SimulateMouseClickAt(generator, apps_grid_view_->GetItemViewAt(0));
+  ASSERT_TRUE(GetAppListTestHelper()->IsInFolderView());
+
+  auto* folder_view = GetAppListTestHelper()->GetBubbleFolderView();
+  auto* items_grid_view = folder_view->items_grid_view();
+  const int tile_width = items_grid_view->app_list_config()->grid_tile_width();
+
+  // Spec calls for 8 dips of padding at edges and between tiles.
+  EXPECT_EQ(folder_view->width(), 8 + tile_width + 8 + tile_width + 8);
+
+  // The leftmost item is flush to the left of the grid.
+  EXPECT_EQ(items_grid_view->GetItemViewAt(0)->bounds().x(), 0);
+
+  // The rightmost item is flush to the right of the grid.
+  EXPECT_EQ(items_grid_view->GetItemViewAt(1)->bounds().right(),
+            items_grid_view->GetLocalBounds().right());
 }
 
 TEST_F(ScrollableAppsGridViewTest, DragItemToReorderInFolderRecordsHistogram) {
@@ -577,8 +600,7 @@ TEST_F(ScrollableAppsGridViewTest, DragItemOutOfFolderRecordsHistogram) {
 
   // The dragged item is now in the top level item list and the reordering is
   // recorded.
-  AppListItemList* item_list =
-      Shell::Get()->app_list_controller()->GetModel()->top_level_item_list();
+  AppListItemList* item_list = app_list_test_model_->top_level_item_list();
   EXPECT_EQ(2u, item_list->item_count());
   EXPECT_EQ(item_list->item_at(1)->id(), item_id);
   EXPECT_EQ(2u, folder_item->item_list()->item_count());

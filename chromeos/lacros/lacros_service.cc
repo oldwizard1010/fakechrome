@@ -17,6 +17,7 @@
 #include "chromeos/crosapi/cpp/crosapi_constants.h"
 #include "chromeos/crosapi/mojom/app_service.mojom.h"
 #include "chromeos/crosapi/mojom/app_window_tracker.mojom.h"
+#include "chromeos/crosapi/mojom/authentication.mojom.h"
 #include "chromeos/crosapi/mojom/automation.mojom.h"
 #include "chromeos/crosapi/mojom/browser_app_instance_registry.mojom.h"
 #include "chromeos/crosapi/mojom/browser_version.mojom.h"
@@ -39,10 +40,12 @@
 #include "chromeos/crosapi/mojom/keystore_service.mojom.h"
 #include "chromeos/crosapi/mojom/kiosk_session_service.mojom.h"
 #include "chromeos/crosapi/mojom/local_printer.mojom.h"
+#include "chromeos/crosapi/mojom/login_state.mojom.h"
 #include "chromeos/crosapi/mojom/message_center.mojom.h"
 #include "chromeos/crosapi/mojom/metrics_reporting.mojom.h"
 #include "chromeos/crosapi/mojom/network_settings_service.mojom.h"
 #include "chromeos/crosapi/mojom/networking_attributes.mojom.h"
+#include "chromeos/crosapi/mojom/policy_service.mojom.h"
 #include "chromeos/crosapi/mojom/power.mojom.h"
 #include "chromeos/crosapi/mojom/prefs.mojom.h"
 #include "chromeos/crosapi/mojom/remoting.mojom.h"
@@ -200,6 +203,8 @@ LacrosService::LacrosService()
   ConstructRemote<crosapi::mojom::AppServiceProxy,
                   &Crosapi::BindAppServiceProxy,
                   Crosapi::MethodMinVersions::kBindAppServiceProxyMinVersion>();
+  ConstructRemote<crosapi::mojom::Authentication, &Crosapi::BindAuthentication,
+                  Crosapi::MethodMinVersions::kBindAuthenticationMinVersion>();
   ConstructRemote<
       crosapi::mojom::AppWindowTracker, &Crosapi::BindChromeAppWindowTracker,
       Crosapi::MethodMinVersions::kBindChromeAppWindowTrackerMinVersion>();
@@ -281,6 +286,9 @@ LacrosService::LacrosService()
   ConstructRemote<crosapi::mojom::LocalPrinter,
                   &crosapi::mojom::Crosapi::BindLocalPrinter,
                   Crosapi::MethodMinVersions::kBindLocalPrinterMinVersion>();
+  ConstructRemote<crosapi::mojom::LoginState,
+                  &crosapi::mojom::Crosapi::BindLoginState,
+                  Crosapi::MethodMinVersions::kBindLoginStateMinVersion>();
   ConstructRemote<
       chromeos::machine_learning::mojom::MachineLearningService,
       &crosapi::mojom::Crosapi::BindMachineLearningService,
@@ -303,6 +311,8 @@ LacrosService::LacrosService()
       crosapi::mojom::NetworkSettingsService,
       &crosapi::mojom::Crosapi::BindNetworkSettingsService,
       Crosapi::MethodMinVersions::kBindNetworkSettingsServiceMinVersion>();
+  ConstructRemote<crosapi::mojom::PolicyService, &Crosapi::BindPolicyService,
+                  Crosapi::MethodMinVersions::kBindPolicyServiceMinVersion>();
   ConstructRemote<crosapi::mojom::Remoting,
                   &crosapi::mojom::Crosapi::BindRemoting,
                   Crosapi::MethodMinVersions::kBindRemotingMinVersion>();

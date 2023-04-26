@@ -199,10 +199,8 @@ void ComponentExtensionIMEManagerDelegateImpl::Load(
     // IME extension when the feature 'ImeMojoDecoder' is enabled.
     // See http://b/181170189 for more details.
     // TODO(http://b/170278753): Remove this once NaCl decoder is removed.
-    if (base::FeatureList::IsEnabled(features::kImeMojoDecoder)) {
-      base::ReplaceFirstSubstringAfterOffset(manifest_cp, 0, "background.html",
-                                             "background_mojo.html");
-    }
+    base::ReplaceFirstSubstringAfterOffset(manifest_cp, 0, "background.html",
+                                           "background_mojo.html");
     DoLoadExtension(profile, extension_id, *manifest_cp, file_path);
     return;
   }
@@ -400,13 +398,14 @@ void ComponentExtensionIMEManagerDelegateImpl::ReadComponentExtensionsInfo(
       continue;
     }
 
-    for (size_t i = 0; i < component_list->GetList().size(); ++i) {
-      const base::DictionaryValue* dictionary;
-      if (!component_list->GetDictionary(i, &dictionary))
+    for (const base::Value& value : component_list->GetList()) {
+      if (!value.is_dict())
         continue;
 
+      const base::DictionaryValue& dictionary =
+          base::Value::AsDictionaryValue(value);
       ComponentExtensionEngine engine;
-      ReadEngineComponent(component_ime, *dictionary, &engine);
+      ReadEngineComponent(component_ime, dictionary, &engine);
 
       if (base::StartsWith(engine.engine_id, "experimental_",
                            base::CompareCase::SENSITIVE) &&

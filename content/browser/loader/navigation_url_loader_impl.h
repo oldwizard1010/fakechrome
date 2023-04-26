@@ -5,7 +5,6 @@
 #ifndef CONTENT_BROWSER_LOADER_NAVIGATION_URL_LOADER_IMPL_H_
 #define CONTENT_BROWSER_LOADER_NAVIGATION_URL_LOADER_IMPL_H_
 
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "content/browser/loader/navigation_url_loader.h"
@@ -53,7 +52,6 @@ class CONTENT_EXPORT NavigationURLLoaderImpl
       std::unique_ptr<NavigationRequestInfo> request_info,
       std::unique_ptr<NavigationUIData> navigation_ui_data,
       ServiceWorkerMainResourceHandle* service_worker_handle,
-      AppCacheNavigationHandle* appcache_handle,
       scoped_refptr<PrefetchedSignedExchangeCache>
           prefetched_signed_exchange_cache,
       NavigationURLLoaderDelegate* delegate,
@@ -96,15 +94,12 @@ class CONTENT_EXPORT NavigationURLLoaderImpl
   // This is called only once (while Restart can be called multiple times).
   // Sets `started_` true.
   void StartImpl(
-      scoped_refptr<network::SharedURLLoaderFactory> network_loader_factory,
-      AppCacheNavigationHandle* appcache_handle,
       scoped_refptr<PrefetchedSignedExchangeCache>
           prefetched_signed_exchange_cache,
       scoped_refptr<SignedExchangePrefetchMetricRecorder>
           signed_exchange_prefetch_metric_recorder,
       mojo::PendingRemote<network::mojom::URLLoaderFactory> factory_for_webui,
-      std::string accept_langs,
-      bool needs_loader_factory_interceptor);
+      std::string accept_langs);
 
   void BindNonNetworkURLLoaderFactoryReceiver(
       const GURL& url,
@@ -113,8 +108,7 @@ class CONTENT_EXPORT NavigationURLLoaderImpl
       const GURL& url,
       mojo::PendingReceiver<network::mojom::URLLoaderFactory> factory_receiver);
 
-  void CreateInterceptors(AppCacheNavigationHandle* appcache_handle,
-                          scoped_refptr<PrefetchedSignedExchangeCache>
+  void CreateInterceptors(scoped_refptr<PrefetchedSignedExchangeCache>
                               prefetched_signed_exchange_cache,
                           scoped_refptr<SignedExchangePrefetchMetricRecorder>
                               signed_exchange_prefetch_metric_recorder,
@@ -248,8 +242,6 @@ class CONTENT_EXPORT NavigationURLLoaderImpl
   net::HttpRequestHeaders url_loader_modified_headers_;
   net::HttpRequestHeaders url_loader_modified_cors_exempt_headers_;
 
-  // Currently used by the AppCache loader to pass its factory to the
-  // renderer which enables it to handle subresources.
   absl::optional<SubresourceLoaderParams> subresource_loader_params_;
 
   std::vector<std::unique_ptr<NavigationLoaderInterceptor>> interceptors_;

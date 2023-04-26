@@ -15,7 +15,6 @@
 #include "ash/public/cpp/shelf_types.h"
 #include "ash/wm/system_modal_container_event_filter_delegate.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "ui/aura/window.h"
@@ -88,6 +87,7 @@ class AccessibilityDelegate;
 class AccessibilityFocusRingControllerImpl;
 class AmbientController;
 class AppListControllerImpl;
+class AppListFeatureUsageMetrics;
 class AshColorProvider;
 class AshDBusServices;
 class AshFocusRules;
@@ -141,6 +141,7 @@ class LogoutConfirmationController;
 class LoginScreenController;
 class LoginUnlockThroughputRecorder;
 class MarkerController;
+class MediaNotificationProviderImpl;
 class TabClusterUIController;
 class TabletModeController;
 class MediaControllerImpl;
@@ -169,7 +170,6 @@ class PowerPrefs;
 class PrivacyScreenController;
 class ProjectingObserver;
 class ProjectorControllerImpl;
-class QuickAnswersController;
 class ResizeShadowController;
 class ResolutionNotificationController;
 class RootWindowController;
@@ -487,6 +487,9 @@ class ASH_EXPORT Shell : public SessionObserver,
   PowerEventObserver* power_event_observer() {
     return power_event_observer_.get();
   }
+  quick_pair::Mediator* quick_pair_mediator() {
+    return quick_pair_mediator_.get();
+  }
   ResizeShadowController* resize_shadow_controller() {
     return resize_shadow_controller_.get();
   }
@@ -711,6 +714,7 @@ class ASH_EXPORT Shell : public SessionObserver,
       accessibility_focus_ring_controller_;
   std::unique_ptr<AmbientController> ambient_controller_;
   std::unique_ptr<AppListControllerImpl> app_list_controller_;
+  std::unique_ptr<AppListFeatureUsageMetrics> app_list_feature_usage_metrics_;
   // May be null in tests or when running on linux-chromeos.
   scoped_refptr<dbus::Bus> dbus_bus_;
   std::unique_ptr<AshDBusServices> ash_dbus_services_;
@@ -743,6 +747,7 @@ class ASH_EXPORT Shell : public SessionObserver,
   std::unique_ptr<TabletModeController> tablet_mode_controller_;
   std::unique_ptr<MessageCenterAshImpl> message_center_ash_impl_;
   std::unique_ptr<MediaControllerImpl> media_controller_;
+  std::unique_ptr<MediaNotificationProviderImpl> media_notification_provider_;
   std::unique_ptr<MruWindowTracker> mru_window_tracker_;
   std::unique_ptr<MultiDeviceNotificationPresenter>
       multidevice_notification_presenter_;
@@ -753,7 +758,6 @@ class ASH_EXPORT Shell : public SessionObserver,
       pcie_peripheral_notification_controller_;
   std::unique_ptr<PersistentDesksBarController>
       persistent_desks_bar_controller_;
-  std::unique_ptr<QuickAnswersController> quick_answers_controller_;
   std::unique_ptr<ResizeShadowController> resize_shadow_controller_;
   std::unique_ptr<SessionControllerImpl> session_controller_;
   std::unique_ptr<AshColorProvider> ash_color_provider_;

@@ -85,6 +85,10 @@ static_library("core") {
     "optimization_metadata.cc",
     "optimization_metadata.h",
     "optimization_target_model_observer.h",
+    "page_content_annotation_job.cc",
+    "page_content_annotation_job.h",
+    "page_content_annotations_common.cc",
+    "page_content_annotations_common.h",
     "prediction_model.cc",
     "prediction_model.h",
     "prediction_model_fetcher.cc",
@@ -103,20 +107,27 @@ static_library("core") {
       "base_model_executor_helpers.h",
       "bert_model_executor.cc",
       "bert_model_executor.h",
+      "bert_model_handler.cc",
+      "bert_model_handler.h",
       "model_executor.h",
+      "model_handler.h",
       "model_validator.cc",
       "model_validator.h",
+      "page_content_annotation_job_executor.cc",
+      "page_content_annotation_job_executor.h",
       "page_entities_model_executor.h",
+      "page_topics_model_executor.cc",
+      "page_topics_model_executor.h",
     ]
   }
 
   public_deps = [
+    ":entities",
     "//components/optimization_guide:machine_learning_tflite_buildflags",
     "//third_party/re2",
   ]
   if (build_with_tflite_lib) {
     public_deps += [
-      ":entities",
       "//components/optimization_guide/core:machine_learning",
       "//third_party/tflite",
       "//third_party/tflite:tflite_public_headers",
@@ -228,6 +239,7 @@ source_set("unit_tests") {
     "optimization_guide_util_unittest.cc",
     "optimization_hints_component_update_listener_unittest.cc",
     "optimization_metadata_unittest.cc",
+    "page_content_annotation_job_unittest.cc",
     "prediction_model_fetcher_unittest.cc",
     "prediction_model_unittest.cc",
     "store_update_data_unittest.cc",
@@ -237,7 +249,13 @@ source_set("unit_tests") {
     sources += [
       "bert_model_executor_unittest.cc",
       "model_executor_unittest.cc",
+      "model_handler_unittest.cc",
       "model_validator_unittest.cc",
+      "page_content_annotation_job_executor_unittest.cc",
+      "page_topics_model_executor_unittest.cc",
+      "test_model_executor.cc",
+      "test_model_executor.h",
+      "test_model_handler.h",
     ]
   }
 

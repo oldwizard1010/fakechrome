@@ -38,7 +38,7 @@ AttributionReport GetReport(base::Time conversion_time,
   // Construct impressions with a null impression time as it is not used for
   // reporting.
   return AttributionReport(SourceBuilder(base::Time()).Build(),
-                           /*conversion_data=*/0, conversion_time, report_time,
+                           /*trigger_data=*/0, conversion_time, report_time,
                            /*priority=*/0, conversion_id);
 }
 
@@ -178,17 +178,18 @@ TEST_F(AttributionReporterImplTest,
   EXPECT_EQ(1u, sender_->num_reports_sent());
 }
 
-TEST_F(AttributionReporterImplTest, DuplicateReportScheduled_Ignored) {
+TEST_F(AttributionReporterImplTest, DuplicateReportScheduled_Sent) {
   reporter_->AddReportsToQueue(
       {GetReport(clock().Now(), clock().Now() + base::Minutes(1),
                  AttributionReport::Id(1))});
 
-  // A duplicate report should not be scheduled.
+  // A duplicate report should be scheduled, as it is up to the manager to
+  // perform deduplication.
   reporter_->AddReportsToQueue(
       {GetReport(clock().Now(), clock().Now() + base::Minutes(1),
                  AttributionReport::Id(1))});
   task_environment_.FastForwardBy(base::Minutes(1));
-  EXPECT_EQ(1u, sender_->num_reports_sent());
+  EXPECT_EQ(2u, sender_->num_reports_sent());
 }
 
 TEST_F(AttributionReporterImplTest,
@@ -301,7 +302,7 @@ TEST_F(AttributionReporterImplTest, EmbedderDisallowedContext_ReportNotSent) {
             .Build();
     std::vector<AttributionReport> reports{
         AttributionReport(std::move(impression),
-                          /*conversion_data=*/0, clock().Now(), clock().Now(),
+                          /*trigger_data=*/0, clock().Now(), clock().Now(),
                           /*priority=*/0, AttributionReport::Id(1))};
     reporter_->AddReportsToQueue(std::move(reports));
 

@@ -14,8 +14,10 @@
 #include "base/containers/contains.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/rand_util.h"
 #include "base/strings/abseil_string_conversions.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
@@ -528,24 +530,12 @@ SpdyProtocolErrorDetails MapFramerErrorToProtocolError(
       return SPDY_ERROR_INVALID_CONTROL_FRAME;
     case http2::Http2DecoderAdapter::SPDY_CONTROL_PAYLOAD_TOO_LARGE:
       return SPDY_ERROR_CONTROL_PAYLOAD_TOO_LARGE;
-    case http2::Http2DecoderAdapter::SPDY_ZLIB_INIT_FAILURE:
-      return SPDY_ERROR_ZLIB_INIT_FAILURE;
-    case http2::Http2DecoderAdapter::SPDY_UNSUPPORTED_VERSION:
-      return SPDY_ERROR_UNSUPPORTED_VERSION;
     case http2::Http2DecoderAdapter::SPDY_DECOMPRESS_FAILURE:
       return SPDY_ERROR_DECOMPRESS_FAILURE;
-    case http2::Http2DecoderAdapter::SPDY_COMPRESS_FAILURE:
-      return SPDY_ERROR_COMPRESS_FAILURE;
-    case http2::Http2DecoderAdapter::SPDY_GOAWAY_FRAME_CORRUPT:
-      return SPDY_ERROR_GOAWAY_FRAME_CORRUPT;
-    case http2::Http2DecoderAdapter::SPDY_RST_STREAM_FRAME_CORRUPT:
-      return SPDY_ERROR_RST_STREAM_FRAME_CORRUPT;
     case http2::Http2DecoderAdapter::SPDY_INVALID_PADDING:
       return SPDY_ERROR_INVALID_PADDING;
     case http2::Http2DecoderAdapter::SPDY_INVALID_DATA_FRAME_FLAGS:
       return SPDY_ERROR_INVALID_DATA_FRAME_FLAGS;
-    case http2::Http2DecoderAdapter::SPDY_INVALID_CONTROL_FRAME_FLAGS:
-      return SPDY_ERROR_INVALID_CONTROL_FRAME_FLAGS;
     case http2::Http2DecoderAdapter::SPDY_UNEXPECTED_FRAME:
       return SPDY_ERROR_UNEXPECTED_FRAME;
     case http2::Http2DecoderAdapter::SPDY_INTERNAL_FRAMER_ERROR:
@@ -610,10 +600,6 @@ Error MapFramerErrorToNetError(
       return ERR_HTTP2_PROTOCOL_ERROR;
     case http2::Http2DecoderAdapter::SPDY_CONTROL_PAYLOAD_TOO_LARGE:
       return ERR_HTTP2_FRAME_SIZE_ERROR;
-    case http2::Http2DecoderAdapter::SPDY_ZLIB_INIT_FAILURE:
-      return ERR_HTTP2_COMPRESSION_ERROR;
-    case http2::Http2DecoderAdapter::SPDY_UNSUPPORTED_VERSION:
-      return ERR_HTTP2_PROTOCOL_ERROR;
     case http2::Http2DecoderAdapter::SPDY_DECOMPRESS_FAILURE:
     case http2::Http2DecoderAdapter::SPDY_HPACK_INDEX_VARINT_ERROR:
     case http2::Http2DecoderAdapter::SPDY_HPACK_NAME_LENGTH_VARINT_ERROR:
@@ -639,17 +625,9 @@ Error MapFramerErrorToNetError(
       return ERR_HTTP2_COMPRESSION_ERROR;
     case http2::Http2DecoderAdapter::SPDY_STOP_PROCESSING:
       return ERR_HTTP2_COMPRESSION_ERROR;
-    case http2::Http2DecoderAdapter::SPDY_COMPRESS_FAILURE:
-      return ERR_HTTP2_COMPRESSION_ERROR;
-    case http2::Http2DecoderAdapter::SPDY_GOAWAY_FRAME_CORRUPT:
-      return ERR_HTTP2_PROTOCOL_ERROR;
-    case http2::Http2DecoderAdapter::SPDY_RST_STREAM_FRAME_CORRUPT:
-      return ERR_HTTP2_PROTOCOL_ERROR;
     case http2::Http2DecoderAdapter::SPDY_INVALID_PADDING:
       return ERR_HTTP2_PROTOCOL_ERROR;
     case http2::Http2DecoderAdapter::SPDY_INVALID_DATA_FRAME_FLAGS:
-      return ERR_HTTP2_PROTOCOL_ERROR;
-    case http2::Http2DecoderAdapter::SPDY_INVALID_CONTROL_FRAME_FLAGS:
       return ERR_HTTP2_PROTOCOL_ERROR;
     case http2::Http2DecoderAdapter::SPDY_UNEXPECTED_FRAME:
       return ERR_HTTP2_PROTOCOL_ERROR;
@@ -943,6 +921,7 @@ SpdySession::SpdySession(
     size_t session_max_recv_window_size,
     int session_max_queued_capped_frames,
     const spdy::SettingsMap& initial_settings,
+    bool enable_http2_settings_grease,
     const absl::optional<SpdySessionPool::GreasedHttp2Frame>&
         greased_http2_frame,
     bool http2_end_stream_with_data_frame,
@@ -972,6 +951,7 @@ SpdySession::SpdySession(
       write_state_(WRITE_STATE_IDLE),
       error_on_close_(OK),
       initial_settings_(initial_settings),
+      enable_http2_settings_grease_(enable_http2_settings_grease),
       greased_http2_frame_(greased_http2_frame),
       http2_end_stream_with_data_frame_(http2_end_stream_with_data_frame),
       enable_priority_update_(enable_priority_update),
@@ -2646,6 +2626,16 @@ void SpdySession::SendInitialData() {
     if (!IsSpdySettingAtDefaultInitialValue(setting.first, setting.second)) {
       settings_map.insert(setting);
     }
+  }
+  if (enable_http2_settings_grease_) {
+    spdy::SpdySettingsId greased_id = 0x0a0a +
+                                      0x1000 * base::RandGenerator(0xf + 1) +
+                                      0x0010 * base::RandGenerator(0xf + 1);
+    uint32_t greased_value = base::RandGenerator(
+        static_cast<uint64_t>(std::numeric_limits<uint32_t>::max()) + 1);
+    // Let insertion silently fail if `settings_map` already contains
+    // `greased_id`.
+    settings_map.insert(std::make_pair(greased_id, greased_value));
   }
   net_log_.AddEvent(NetLogEventType::HTTP2_SESSION_SEND_SETTINGS, [&] {
     return NetLogSpdySendSettingsParams(&settings_map);

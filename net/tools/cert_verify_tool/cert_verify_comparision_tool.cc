@@ -25,6 +25,7 @@
 #include "net/cert/cert_verify_proc_builtin.h"
 #include "net/cert/crl_set.h"
 #include "net/cert/internal/system_trust_store.h"
+#include "net/cert/trial_comparison_cert_verifier_util.h"
 #include "net/cert/x509_certificate.h"
 #include "net/cert_net/cert_net_fetcher_url_request.h"
 #include "net/tools/cert_verify_tool/cert_verify_tool_util.h"
@@ -142,15 +143,6 @@ std::unique_ptr<CertVerifyImpl> CreateCertVerifyImplFromName(
   return nullptr;
 }
 
-bool CertVerifyResultEqual(const net::CertVerifyResult& a,
-                           const net::CertVerifyResult& b) {
-  return std::tie(a.cert_status, a.is_issued_by_known_root) ==
-             std::tie(b.cert_status, b.is_issued_by_known_root) &&
-         (!!a.verified_cert == !!b.verified_cert) &&
-         (!a.verified_cert ||
-          a.verified_cert->EqualsIncludingChain(b.verified_cert.get()));
-}
-
 const char kUsage[] =
     " --input=<file>\n"
     "\n"
@@ -160,6 +152,70 @@ const char kUsage[] =
     " cert_verify_tool::CertChain. The path to the file must not\n"
     " contain any dot(.) characters."
     "\n";
+
+// Stats based on errors reading and parsing the input file.
+std::map<std::string, int> file_error_stats;
+
+std::map<std::string, int> chain_processing_stats;
+
+std::map<std::string, int> ignorable_difference_stats;
+
+void PrintStats() {
+  std::cout << "\n\nFile processing stats:\n";
+  for (const auto& error_stat : file_error_stats) {
+    std::cout << "  " << error_stat.first << ": " << error_stat.second << "\n";
+  }
+
+  std::cout << "\n\nChain processing stats:\n";
+  for (const auto& chain_stat : chain_processing_stats) {
+    std::cout << "  " << chain_stat.first << ": " << chain_stat.second << "\n";
+  }
+
+  std::cout << "\n\nIgnorable difference stats:\n";
+  for (const auto& ignorable_diff_stat : ignorable_difference_stats) {
+    std::cout << "  " << ignorable_diff_stat.first << ": "
+              << ignorable_diff_stat.second << "\n";
+  }
+}
+
+std::string TrialComparisonResultToString(net::TrialComparisonResult result) {
+  switch (result) {
+    case net::TrialComparisonResult::kInvalid:
+      return "invalid";
+    case net::TrialComparisonResult::kEqual:
+      return "equal";
+    case net::TrialComparisonResult::kPrimaryValidSecondaryError:
+      return "primary_valid_secondary_error";
+    case net::TrialComparisonResult::kPrimaryErrorSecondaryValid:
+      return "primary_error_secondary_valid";
+    case net::TrialComparisonResult::kBothValidDifferentDetails:
+      return "both_valid_different_details";
+    case net::TrialComparisonResult::kBothErrorDifferentDetails:
+      return "both_error_different_details";
+    case net::TrialComparisonResult::kIgnoredMacUndesiredRevocationChecking:
+      return "ignored_mac_undesirable_rev_checking";
+    case net::TrialComparisonResult::
+        kIgnoredMultipleEVPoliciesAndOneMatchesRoot:
+      return "ignored_multiple_ev_policies_one_matches_root";
+    case net::TrialComparisonResult::kIgnoredDifferentPathReVerifiesEquivalent:
+      return "ignored_different_path_reverifies_equivalent";
+    case net::TrialComparisonResult::kIgnoredLocallyTrustedLeaf:
+      return "ignored_locally_trusted_leaf";
+    case net::TrialComparisonResult::kIgnoredConfigurationChanged:
+      return "ignored_configuration_changed";
+    case net::TrialComparisonResult::kIgnoredSHA1SignaturePresent:
+      return "ignored_sha1_signature_present";
+    case net::TrialComparisonResult::kIgnoredWindowsRevCheckingEnabled:
+      return "ignored_windows_rev_checking_enabled";
+    case net::TrialComparisonResult::kIgnoredBothAuthorityInvalid:
+      return "ignored_both_authority_invalid";
+    case net::TrialComparisonResult::kIgnoredBothKnownRoot:
+      return "ignored_both_known_root";
+    case net::TrialComparisonResult::
+        kIgnoredBuiltinAuthorityInvalidPlatformSymantec:
+      return "ignored_builtin_authority_invalid_platform_symantec";
+  }
+}
 
 void PrintUsage(const char* argv0) {
   std::cerr << "Usage: " << argv0 << kUsage;
@@ -175,6 +231,7 @@ int RunCert(base::File* input_file,
   if (size_bytes_read != 4) {
     std::cerr << "Couldn't read 4 byte size field, read only "
               << size_bytes_read << "\n";
+    file_error_stats["size_read_error"]++;
     return -1;
   }
 
@@ -192,6 +249,7 @@ int RunCert(base::File* input_file,
   if ((proto_bytes_read - proto_size) != 0) {
     std::cerr << "Couldn't read expected proto of size " << proto_size
               << "read only " << proto_bytes_read << "\n";
+    file_error_stats["proto_read_error"]++;
     return -1;
   }
 
@@ -201,6 +259,7 @@ int RunCert(base::File* input_file,
     std::cerr << "Proto parse error for proto of size " << proto_size << ", "
               << proto_bytes_read << " proto bytes read total, "
               << size_bytes_read << " size bytes read\n\n\n";
+    file_error_stats["parse_error"]++;
     return -1;
   }
 
@@ -214,6 +273,7 @@ int RunCert(base::File* input_file,
   if (!x509_target_and_intermediates) {
     std::cerr << "X509Certificate::CreateFromDERCertChain failed for host"
               << cert_chain.host() << "\n\n\n";
+    file_error_stats["chain_parse_error"]++;
 
     // We try to continue here; its possible that the cert chain contained
     // invalid certs for some reason so we don't bail out entirely.
@@ -225,29 +285,77 @@ int RunCert(base::File* input_file,
   net::CertVerifyResult builtin_result;
   int builtin_error;
 
-  // TODO(mattm,hchao): Explore calling TrialComparisonCertVerifier directly
-  // to have the extra comparison logic built into both places directly.
   platform_proc->VerifyCert(*x509_target_and_intermediates, cert_chain.host(),
                             &platform_result, &platform_error);
   builtin_proc->VerifyCert(*x509_target_and_intermediates, cert_chain.host(),
                            &builtin_result, &builtin_error);
 
-  if (CertVerifyResultEqual(platform_result, builtin_result) &&
+  if (net::CertVerifyResultEqual(platform_result, builtin_result) &&
       platform_error == builtin_error) {
-    std::cerr << "Host " << cert_chain.host() << " has equal verify results!\n";
+    chain_processing_stats["equal"]++;
   } else {
-    std::cerr << "Host " << cert_chain.host()
+    net::TrialComparisonResult result = net::IsSynchronouslyIgnorableDifference(
+        platform_error, platform_result, builtin_error, builtin_result,
+        /*sha1_local_anchors_enabled=*/false);
+
+    if (result != net::TrialComparisonResult::kInvalid) {
+      chain_processing_stats["ignorable_diff"]++;
+      ignorable_difference_stats[TrialComparisonResultToString(result)]++;
+      return 0;
+    }
+
+    // Much of the below code is lifted from
+    // TrialComparisonCertVerifier::Job::OnTrialJobCompleted as it wasn't
+    // obvious how to easily refactor the code here to prevent copying this
+    // section of code.
+    const bool chains_equal =
+        platform_result.verified_cert->EqualsIncludingChain(
+            builtin_result.verified_cert.get());
+
+    // Chains built were different with either builtin being OK or both not OK.
+    // Pass builtin chain to platform, see if platform comes back the same.
+    if (!chains_equal &&
+        (builtin_error == net::OK || platform_error != net::OK)) {
+      net::CertVerifyResult platform_reverification_result;
+      int platform_reverification_error;
+
+      platform_proc->VerifyCert(
+          *builtin_result.verified_cert, cert_chain.host(),
+          &platform_reverification_result, &platform_reverification_error);
+      if (net::CertVerifyResultEqual(platform_reverification_result,
+                                     builtin_result) &&
+          platform_reverification_error == builtin_error) {
+        chain_processing_stats["reverify_ignorable"]++;
+        return 0;
+      }
+    }
+
+    chain_processing_stats["different"]++;
+
+    std::cout << "\n *************************** \n\n"
+              << "Host " << cert_chain.host()
               << " has different verify results!\n";
 
-    std::cerr << "Platform: (error = "
+    std::cout << "\nInput chain: \n "
+              << FingerPrintCryptoBuffer(
+                     x509_target_and_intermediates->cert_buffer())
+              << " "
+              << SubjectFromX509Certificate(x509_target_and_intermediates.get())
+              << "\n";
+
+    for (const auto& intermediate :
+         x509_target_and_intermediates->intermediate_buffers()) {
+      std::cout << " " << FingerPrintCryptoBuffer(intermediate.get()) << " "
+                << SubjectFromCryptoBuffer(intermediate.get()) << "\n";
+    }
+
+    std::cout << "\nPlatform: (error = "
               << net::ErrorToShortString(platform_error) << ")\n";
     PrintCertVerifyResult(platform_result);
-    std::cerr << "Builtin:  (error = " << net::ErrorToShortString(builtin_error)
-              << ")\n";
+    std::cout << "\nBuiltin:  (error = "
+              << net::ErrorToShortString(builtin_error) << ")\n";
     PrintCertVerifyResult(builtin_result);
   }
-
-  std::cerr << "\n\n";
 
   return 0;
 }
@@ -327,6 +435,8 @@ int main(int argc, char** argv) {
   // Read file and process cert chains.
   while (RunCert(input_file.get(), platform_proc, builtin_proc) != -1) {
   }
+
+  PrintStats();
 
   // Clean up on the network thread and stop it (which waits for the clean up
   // task to run).

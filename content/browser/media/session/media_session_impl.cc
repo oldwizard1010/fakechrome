@@ -72,6 +72,9 @@ class MediaSessionData : public base::SupportsUserData::Data {
  public:
   MediaSessionData() = default;
 
+  MediaSessionData(const MediaSessionData&) = delete;
+  MediaSessionData& operator=(const MediaSessionData&) = delete;
+
   static MediaSessionData* GetOrCreate(BrowserContext* context) {
     auto* data = static_cast<MediaSessionData*>(
         context->GetUserData(kMediaSessionDataName));
@@ -89,8 +92,6 @@ class MediaSessionData : public base::SupportsUserData::Data {
 
  private:
   base::UnguessableToken source_id_ = base::UnguessableToken::Create();
-
-  DISALLOW_COPY_AND_ASSIGN(MediaSessionData);
 };
 
 size_t ComputeFrameDepth(RenderFrameHost* rfh,
@@ -416,8 +417,10 @@ void MediaSessionImpl::RenderFrameHostStateChanged(
       if (player.first.observer->render_frame_host() != host) {
         continue;
       }
-      hidden_players_.insert(player.first);
+      // RemovePlayer removes the player from not only |normal_players_| but
+      // also |hidden_players_|. Call RemovePlayer first.
       RemovePlayer(player.first.observer, player.first.player_id);
+      hidden_players_.insert(player.first);
     }
     return;
   }
@@ -514,6 +517,7 @@ void MediaSessionImpl::RemovePlayer(MediaSessionPlayerObserver* observer,
   normal_players_.erase(identifier);
   pepper_players_.erase(identifier);
   one_shot_players_.erase(identifier);
+  hidden_players_.erase(identifier);
 
   if (guarding_player_id_ && *guarding_player_id_ == identifier)
     ResetDurationUpdateGuard();
@@ -738,7 +742,7 @@ void MediaSessionImpl::Stop(SuspendType suspend_type) {
 void MediaSessionImpl::Seek(base::TimeDelta seek_time) {
   DCHECK(!seek_time.is_zero());
 
-  if (seek_time > base::TimeDelta()) {
+  if (seek_time.is_positive()) {
     // If the site has registered an action handler for seek forward then we
     // should pass it to the site and let them handle it.
     if (ShouldRouteAction(
@@ -749,7 +753,7 @@ void MediaSessionImpl::Seek(base::TimeDelta seek_time) {
 
     for (const auto& it : normal_players_)
       it.first.observer->OnSeekForward(it.first.player_id, seek_time);
-  } else if (seek_time < base::TimeDelta()) {
+  } else if (seek_time.is_negative()) {
     // If the site has registered an action handler for seek backward then we
     // should pass it to the site and let them handle it.
     if (ShouldRouteAction(
@@ -1689,8 +1693,8 @@ void MediaSessionImpl::RebuildAndNotifyMetadataChanged() {
   ContentClient* content_client = content::GetContentClient();
   const GURL& url = web_contents()->GetLastCommittedURL();
 
-  // If |url| wraps a chrome extension ID, we can display the extension
-  // name instead, which is more human-readable.
+  // If |url| wraps a chrome extension ID or System Web App, we can display the
+  // extension or app name instead, which is more human-readable.
   std::u16string source_title;
   WebContentsDelegate* delegate = web_contents()->GetDelegate();
   if (delegate) {

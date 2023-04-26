@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "build/build_config.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
@@ -203,7 +202,7 @@ class PageInfo {
 
   // Initializes the current UI and calls present data methods on it to notify
   // the current UI about the data it is subscribed to.
-  void InitializeUiState(PageInfoUI* ui);
+  void InitializeUiState(PageInfoUI* ui, base::OnceClosure done);
 
   // This method is called to update the presenter's security state and forwards
   // that change on to the UI to be redrawn.
@@ -260,6 +259,10 @@ class PageInfo {
   permissions::ObjectPermissionContextBase* GetChooserContextFromUIInfo(
       const ChooserUIInfo& ui_info) const;
 
+  void SetAboutThisSiteShown(bool was_about_this_site_shown) {
+    was_about_this_site_shown_ = was_about_this_site_shown;
+  }
+
   // Accessors.
   const SiteConnectionStatus& site_connection_status() const {
     return site_connection_status_;
@@ -286,6 +289,8 @@ class PageInfo {
 
   PageInfoUI* ui_for_testing() const { return ui_; }
 
+  void SetSiteNameForTesting(const std::u16string& site_name);
+
  private:
   FRIEND_TEST_ALL_PREFIXES(PageInfoTest,
                            NonFactoryDefaultAndRecentlyChangedPermissionsShown);
@@ -299,8 +304,12 @@ class PageInfo {
   // Sets (presents) the information about the site's permissions in the |ui_|.
   void PresentSitePermissions();
 
+  // Helper function which `PresentSiteData` calls after the ignored empty
+  // storage keys have been updated.
+  void PresentSiteDataInternal(base::OnceClosure done);
+
   // Sets (presents) the information about the site's data in the |ui_|.
-  void PresentSiteData();
+  void PresentSiteData(base::OnceClosure done);
 
   // Sets (presents) the information about the site's identity and connection
   // in the |ui_|.
@@ -433,6 +442,14 @@ class PageInfo {
   // Description of the Safe Browsing status. Non-empty if
   // MaliciousContentStatus isn't NONE.
   std::u16string safe_browsing_details_;
+
+  // Whether the "About this site" data was available for the site and "About
+  // this site" section was shown in the page info.
+  bool was_about_this_site_shown_ = false;
+
+  std::u16string site_name_for_testing_;
+
+  base::WeakPtrFactory<PageInfo> weak_factory_{this};
 };
 
 #endif  // COMPONENTS_PAGE_INFO_PAGE_INFO_H_

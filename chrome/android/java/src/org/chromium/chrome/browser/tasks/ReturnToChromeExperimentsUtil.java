@@ -237,9 +237,23 @@ public final class ReturnToChromeExperimentsUtil {
      */
     public static Tab handleLoadUrlFromStartSurface(
             LoadUrlParams params, @Nullable Boolean incognito, @Nullable Tab parentTab) {
+        return handleLoadUrlFromStartSurface(params, false, incognito, parentTab);
+    }
+
+    /**
+     * Check if we should handle the navigation. If so, create a new tab and load the URL.
+     *
+     * @param params The LoadUrlParams to load.
+     * @param isBackground Whether to load the URL in a new tab in the background.
+     * @param incognito Whether to load URL in an incognito Tab.
+     * @param parentTab  The parent tab used to create a new tab if needed.
+     * @return Current tab created if we have handled the navigation, null otherwise.
+     */
+    public static Tab handleLoadUrlFromStartSurface(LoadUrlParams params, boolean isBackground,
+            @Nullable Boolean incognito, @Nullable Tab parentTab) {
         try (TraceEvent e = TraceEvent.scoped("StartSurface.LoadUrl")) {
-            return handleLoadUrlWithPostDataFromStartSurface(
-                    params, null, null, incognito, parentTab, false, false, null, null);
+            return handleLoadUrlWithPostDataFromStartSurface(params, null, null, isBackground,
+                    incognito, parentTab, false, false, null, null);
         }
     }
 
@@ -259,7 +273,8 @@ public final class ReturnToChromeExperimentsUtil {
             @PageTransition int transition, @Nullable Boolean incognito, @Nullable Tab parentTab,
             TabModel currentTabModel, @Nullable Runnable emptyTabCloseCallback) {
         LoadUrlParams params = new LoadUrlParams(url, transition);
-        handleLoadUrlWithPostDataFromStartSurface(params, null, null, incognito, parentTab,
+        handleLoadUrlWithPostDataFromStartSurface(params, null, null, /*isBackground=*/false,
+                incognito, parentTab,
                 /*focusOnOmnibox*/ true, /*skipOverviewCheck*/ true, currentTabModel,
                 emptyTabCloseCallback);
     }
@@ -280,8 +295,8 @@ public final class ReturnToChromeExperimentsUtil {
     public static boolean handleLoadUrlWithPostDataFromStartSurface(LoadUrlParams params,
             @Nullable String postDataType, @Nullable byte[] postData, @Nullable Boolean incognito,
             @Nullable Tab parentTab) {
-        return handleLoadUrlWithPostDataFromStartSurface(params, postDataType, postData, incognito,
-                       parentTab, false, false, null, null)
+        return handleLoadUrlWithPostDataFromStartSurface(params, postDataType, postData, false,
+                       incognito, parentTab, false, false, null, null)
                 != null;
     }
 
@@ -293,6 +308,7 @@ public final class ReturnToChromeExperimentsUtil {
      * @param postDataType   postData type.
      * @param postData       POST data to include in the tab URL's request body, ex. bitmap when
      *         image search.
+     * @param isBackground Whether to load the URL in a new tab in the background.
      * @param incognito Whether to load URL in an incognito Tab. If null, the current tab model will
      *         be used.
      * @param parentTab  The parent tab used to create a new tab if needed.
@@ -304,9 +320,10 @@ public final class ReturnToChromeExperimentsUtil {
      * @return Current tab created if we have handled the navigation, null otherwise.
      */
     private static Tab handleLoadUrlWithPostDataFromStartSurface(LoadUrlParams params,
-            @Nullable String postDataType, @Nullable byte[] postData, @Nullable Boolean incognito,
-            @Nullable Tab parentTab, boolean focusOnOmnibox, boolean skipOverviewCheck,
-            @Nullable TabModel currentTabModel, @Nullable Runnable emptyTabCloseCallback) {
+            @Nullable String postDataType, @Nullable byte[] postData, boolean isBackground,
+            @Nullable Boolean incognito, @Nullable Tab parentTab, boolean focusOnOmnibox,
+            boolean skipOverviewCheck, @Nullable TabModel currentTabModel,
+            @Nullable Runnable emptyTabCloseCallback) {
         String url = params.getUrl();
         ChromeActivity chromeActivity =
                 getActivityPresentingOverviewWithOmnibox(url, skipOverviewCheck);
@@ -326,10 +343,18 @@ public final class ReturnToChromeExperimentsUtil {
         }
 
         Tab newTab = chromeActivity.getTabCreator(incognitoParam)
-                             .createNewTab(params, TabLaunchType.FROM_START_SURFACE, parentTab);
+                             .createNewTab(params,
+                                     isBackground ? TabLaunchType.FROM_LONGPRESS_BACKGROUND
+                                                  : TabLaunchType.FROM_START_SURFACE,
+                                     parentTab);
+        if (isBackground) {
+            StartSurfaceUserData.setOpenedFromStart(newTab);
+        }
+
         if (focusOnOmnibox && newTab != null) {
             // This observer lives for as long as the user is focused in the Omnibox. It stops
-            // observing once the focus is cleared, e.g, Tab navigates or user taps the back button.
+            // observing once the focus is cleared, e.g, Tab navigates or user taps the back
+            // button.
             new TabStateObserver(newTab, currentTabModel,
                     chromeActivity.getToolbarManager().getOmniboxStub(), emptyTabCloseCallback,
                     chromeActivity.getActivityTabProvider());
@@ -361,10 +386,8 @@ public final class ReturnToChromeExperimentsUtil {
      */
     private static ChromeActivity getActivityPresentingOverviewWithOmnibox(
             String url, boolean skipOverviewCheck) {
-        if (!isStartSurfaceHomepageEnabled()) return null;
-
         Activity activity = ApplicationStatus.getLastTrackedFocusedActivity();
-        if (!(activity instanceof ChromeActivity)) return null;
+        if (!isStartSurfaceEnabled(activity) || !(activity instanceof ChromeActivity)) return null;
 
         ChromeActivity chromeActivity = (ChromeActivity) activity;
 
@@ -378,24 +401,15 @@ public final class ReturnToChromeExperimentsUtil {
     }
 
     /**
-     * @return true when both Start Surface and homepage is enabled.
-     */
-    public static boolean isStartSurfaceHomepageEnabled() {
-        return HomepageManager.isHomepageEnabled()
-                && StartSurfaceConfiguration.isStartSurfaceEnabled();
-    }
-
-    /**
      * Check whether we should show Start Surface as the home page. This is used for all cases
      * except initial tab creation, which uses {@link
-     * #shouldShowStartSurfaceAsTheHomePageNoTabs(Context)}.
+     * ReturnToChromeExperimentsUtil#isStartSurfaceEnabled(Context)}.
      *
      * @return Whether Start Surface should be shown as the home page.
      * @param context The activity context
      */
     public static boolean shouldShowStartSurfaceAsTheHomePage(Context context) {
-        return shouldShowStartSurfaceAsTheHomePageNoTabs(context)
-                && HomepageManager.isHomepageEnabled()
+        return isStartSurfaceEnabled(context)
                 && !StartSurfaceConfiguration.START_SURFACE_OPEN_NTP_INSTEAD_OF_START.getValue();
     }
 
@@ -417,17 +431,26 @@ public final class ReturnToChromeExperimentsUtil {
     }
 
     /**
-     * Check whether we should show Start Surface as the home page for initial tab creation.
-     *
-     * @return Whether Start Surface should be shown as the home page.
+     * @return Whether opening a NTP instead of Start surface for new Tab is enabled.
+     */
+    public static boolean shouldOpenNTPInsteadOfStart() {
+        return StartSurfaceConfiguration.START_SURFACE_OPEN_NTP_INSTEAD_OF_START.getValue();
+    }
+
+    /**
+     * Check whether Start Surface is enabled. It includes checks of:
+     * 1) whether home page is enabled and whether it is Chrome' home page url;
+     * 2) whether Start surface is enabled with current accessibility settings;
+     * 3) whether it is on phone.
      * @param context The activity context.
      */
-    public static boolean shouldShowStartSurfaceAsTheHomePageNoTabs(Context context) {
+    public static boolean isStartSurfaceEnabled(Context context) {
         // When creating initial tab, i.e. cold start without restored tabs, we should only show
         // StartSurface as the HomePage if Single Pane is enabled, HomePage is not customized, not
         // on tablet, accessibility is not enabled or the tab group continuation feature is enabled.
         String homePageUrl = HomepageManager.getHomepageUri();
-        return StartSurfaceConfiguration.isStartSurfaceSinglePaneEnabled()
+        return StartSurfaceConfiguration.isStartSurfaceFlagEnabled()
+                && HomepageManager.isHomepageEnabled()
                 && (TextUtils.isEmpty(homePageUrl)
                         || UrlUtilities.isCanonicalizedNTPUrl(homePageUrl))
                 && !shouldHideStartSurfaceWithAccessibilityOn(context)
@@ -489,7 +512,7 @@ public final class ReturnToChromeExperimentsUtil {
                 && !intent.getBooleanExtra(IntentHandler.EXTRA_OPEN_NEW_INCOGNITO_TAB, false)) {
             return true;
         }
-        if (ReturnToChromeExperimentsUtil.shouldShowStartSurfaceAsTheHomePageNoTabs(context)
+        if (ReturnToChromeExperimentsUtil.isStartSurfaceEnabled(context)
                 && IntentUtils.isMainIntentFromLauncher(intent)
                 && ReturnToChromeExperimentsUtil.getTotalTabCount(context, tabModelSelector) <= 0) {
             // Handle initial tab creation.
@@ -505,7 +528,7 @@ public final class ReturnToChromeExperimentsUtil {
         // If the overview page won't be shown on startup, stops here.
         if (!tabSwitcherOnReturn) return false;
 
-        if (ReturnToChromeExperimentsUtil.isStartSurfaceHomepageEnabled()) {
+        if (ReturnToChromeExperimentsUtil.isStartSurfaceEnabled(context)) {
             if (StartSurfaceConfiguration.CHECK_SYNC_BEFORE_SHOW_START_AT_STARTUP.getValue()) {
                 // We only check the sync status when flag CHECK_SYNC_BEFORE_SHOW_START_AT_STARTUP
                 // and the Start surface are both enabled.

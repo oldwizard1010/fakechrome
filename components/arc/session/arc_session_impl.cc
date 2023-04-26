@@ -459,8 +459,6 @@ void ArcSessionImpl::DoStartMiniInstance(size_t num_cores_disabled) {
       delegate_->GetChannel() != version_info::Channel::STABLE &&
       delegate_->GetChannel() != version_info::Channel::BETA;
   params.arc_custom_tabs_experiment = is_custom_tab_enabled;
-  params.enable_image_copy_paste_compat =
-      base::FeatureList::IsEnabled(arc::kImageCopyPasteCompatFeature);
   params.enable_keyboard_shortcut_helper_integration =
       base::FeatureList::IsEnabled(
           arc::kKeyboardShortcutHelperIntegrationFeature);
@@ -468,6 +466,11 @@ void ArcSessionImpl::DoStartMiniInstance(size_t num_cores_disabled) {
   params.num_cores_disabled = num_cores_disabled;
   params.enable_notifications_refresh =
       ash::features::IsNotificationsRefreshEnabled();
+
+  // TODO (b/196460968): Remove after CTS run is complete.
+  if (params.enable_notifications_refresh) {
+    VLOG(1) << "Notifications Refresh is enabled";
+  }
 
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           chromeos::switches::kArcPlayStoreAutoUpdate)) {

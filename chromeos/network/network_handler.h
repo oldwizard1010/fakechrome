@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "base/component_export.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/task/single_thread_task_runner.h"
 
@@ -56,6 +55,9 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkHandler {
 
   // Gets the global instance. Initialize() must be called first.
   static NetworkHandler* Get();
+
+  NetworkHandler(const NetworkHandler&) = delete;
+  NetworkHandler& operator=(const NetworkHandler&) = delete;
 
   // Returns true if the global instance has been initialized.
   static bool IsInitialized();
@@ -145,8 +147,6 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkHandler {
 
   // True when the device is managed by policy.
   bool is_enterprise_managed_ = false;
-
-  DISALLOW_COPY_AND_ASSIGN(NetworkHandler);
 };
 
 }  // namespace chromeos

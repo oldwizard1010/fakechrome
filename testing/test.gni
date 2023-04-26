@@ -8,6 +8,7 @@
 
 import("//build/config/chromeos/args.gni")
 import("//build/config/chromeos/ui_mode.gni")
+import("//build/config/devtools.gni")
 import("//build/config/gclient_args.gni")
 import("//build/config/rts.gni")
 import("//build_overrides/build.gni")
@@ -390,9 +391,18 @@ template("test") {
     # Define the package target that will bundle the test and additional
     # components and their data.
     fuchsia_package(_pkg_target) {
-      forward_variables_from(invoker, [ "excluded_files" ])
+      forward_variables_from(invoker,
+                             [
+                               "excluded_files",
+                               "excluded_dirs",
+                             ])
       package_name = _output_name
       deps = _test_component_targets
+
+      if (!defined(excluded_dirs)) {
+        excluded_dirs = []
+      }
+      excluded_dirs += [ devtools_root_location ]
     }
 
     # |target_name| refers to the package-runner rule, so that building
@@ -407,6 +417,7 @@ template("test") {
                                "use_test_server",
                              ])
 
+      is_test_exe = true
       package = ":$_pkg_target"
       package_name = _output_name
 
@@ -427,6 +438,8 @@ template("test") {
       if (!defined(data_deps)) {
         data_deps = []
       }
+      data_deps += [ "//testing/buildbot/filters:fuchsia_filters" ]
+
       if (use_rts) {
         data_deps += [ ":${target_name}__rts_filters" ]
       }
@@ -520,6 +533,7 @@ template("test") {
 
       if (ios_use_shared_bundle_id_for_test_apps) {
         bundle_identifier = "$ios_app_bundle_id_prefix.gtest.unittests"
+        not_needed([ "_output_name" ])
       } else {
         bundle_identifier = "$ios_app_bundle_id_prefix.gtest." +
                             string_replace(_output_name, "_", "-")

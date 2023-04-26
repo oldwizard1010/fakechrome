@@ -356,8 +356,8 @@ class ChromePrintContext : public PrintContext {
         context.SetStrokeThickness(1);
         context.SetStrokeColor(Color(0, 0, 255));
         context.DrawLine(
-            IntPoint(0, current_height - 1),
-            IntPoint(spool_size_in_pixels.width(), current_height - 1),
+            gfx::Point(0, current_height - 1),
+            gfx::Point(spool_size_in_pixels.width(), current_height - 1),
             AutoDarkMode::Disabled());
         context.Restore();
       }
@@ -492,7 +492,7 @@ class ChromePluginPrintContext final : public ChromePrintContext {
   }
 
   void ComputePageRects(const FloatSize& print_size) override {
-    IntRect rect(IntPoint(0, 0), FlooredIntSize(print_size));
+    IntRect rect(gfx::Point(0, 0), FlooredIntSize(print_size));
     print_params_.print_content_area = ToGfxRect(rect);
     page_rects_.Fill(rect, plugin_->PrintBegin(print_params_));
   }
@@ -618,6 +618,13 @@ int WebFrame::InstanceCount() {
 WebFrame* WebFrame::FromFrameToken(const FrameToken& frame_token) {
   auto* frame = Frame::ResolveFrame(frame_token);
   return WebFrame::FromCoreFrame(frame);
+}
+
+// static
+WebLocalFrame* WebLocalFrame::FromFrameToken(
+    const LocalFrameToken& frame_token) {
+  auto* frame = LocalFrame::FromFrameToken(frame_token);
+  return WebLocalFrameImpl::FromFrame(frame);
 }
 
 WebLocalFrame* WebLocalFrame::FrameForCurrentContext() {
@@ -767,15 +774,16 @@ void WebLocalFrameImpl::CopyToFindPboard() {
 
 gfx::Vector2dF WebLocalFrameImpl::GetScrollOffset() const {
   if (ScrollableArea* scrollable_area = LayoutViewport()) {
-    return ToGfxVector2dF(scrollable_area->GetScrollOffset());
+    return ToGfxVector2dF(scrollable_area->ScrollPosition());
   }
   return gfx::Vector2dF();
 }
 
 void WebLocalFrameImpl::SetScrollOffset(const gfx::Vector2dF& offset) {
   if (ScrollableArea* scrollable_area = LayoutViewport()) {
-    scrollable_area->SetScrollOffset(ScrollOffset(offset),
-                                     mojom::blink::ScrollType::kProgrammatic);
+    scrollable_area->SetScrollOffset(
+        scrollable_area->ScrollPositionToOffset(FloatPoint(offset)),
+        mojom::blink::ScrollType::kProgrammatic);
   }
 }
 
@@ -982,7 +990,8 @@ void WebLocalFrameImpl::RequestExecuteScript(
     bool user_gesture,
     ScriptExecutionType execution_type,
     WebScriptExecutionCallback* callback,
-    BackForwardCacheAware back_forward_cache_aware) {
+    BackForwardCacheAware back_forward_cache_aware,
+    PromiseBehavior promise_behavior) {
   DCHECK(GetFrame());
 
   scoped_refptr<DOMWrapperWorld> world;
@@ -999,12 +1008,13 @@ void WebLocalFrameImpl::RequestExecuteScript(
         {SchedulingPolicy::DisableBackForwardCache()});
   }
 
-  HeapVector<ScriptSourceCode> script_sources;
+  Vector<WebScriptSource> script_sources;
   script_sources.Append(sources.data(),
                         base::checked_cast<wtf_size_t>(sources.size()));
   auto* executor = MakeGarbageCollected<PausableScriptExecutor>(
-      GetFrame()->DomWindow(), std::move(world), script_sources, user_gesture,
-      callback);
+      GetFrame()->DomWindow(), std::move(world), std::move(script_sources),
+      user_gesture, callback);
+  executor->set_wait_for_promise(promise_behavior == PromiseBehavior::kAwait);
   switch (execution_type) {
     case kAsynchronousBlockingOnload:
       executor->RunAsync(PausableScriptExecutor::kOnloadBlocking);
@@ -1437,7 +1447,7 @@ void WebLocalFrameImpl::MoveRangeSelectionExtent(const gfx::Point& point) {
       DocumentUpdateReason::kSelection);
 
   GetFrame()->Selection().MoveRangeSelectionExtent(
-      GetFrame()->View()->ViewportToFrame(IntPoint(point)));
+      GetFrame()->View()->ViewportToFrame(point));
 }
 
 void WebLocalFrameImpl::MoveRangeSelection(
@@ -1455,8 +1465,8 @@ void WebLocalFrameImpl::MoveRangeSelection(
   if (granularity == WebFrame::kWordGranularity)
     blink_granularity = blink::TextGranularity::kWord;
   GetFrame()->Selection().MoveRangeSelection(
-      GetFrame()->View()->ViewportToFrame(IntPoint(base_in_viewport)),
-      GetFrame()->View()->ViewportToFrame(IntPoint(extent_in_viewport)),
+      GetFrame()->View()->ViewportToFrame(base_in_viewport),
+      GetFrame()->View()->ViewportToFrame(extent_in_viewport),
       blink_granularity);
 }
 
@@ -1468,8 +1478,8 @@ void WebLocalFrameImpl::MoveCaretSelection(
   // needs to be audited.  see http://crbug.com/590369 for more details.
   GetFrame()->GetDocument()->UpdateStyleAndLayout(
       DocumentUpdateReason::kSelection);
-  const IntPoint point_in_contents =
-      GetFrame()->View()->ViewportToFrame(IntPoint(point_in_viewport));
+  const gfx::Point point_in_contents =
+      GetFrame()->View()->ViewportToFrame(point_in_viewport);
   GetFrame()->Selection().MoveCaretSelection(point_in_contents);
 }
 
@@ -1824,7 +1834,7 @@ gfx::Rect WebLocalFrameImpl::GetSelectionBoundsRectForTesting() const {
 gfx::Point WebLocalFrameImpl::GetPositionInViewportForTesting() const {
   DCHECK(GetFrame());  // Not valid after the Frame is detached.
   LocalFrameView* view = GetFrameView();
-  return ToGfxPoint(view->ConvertToRootFrame(IntPoint()));
+  return view->ConvertToRootFrame(gfx::Point());
 }
 
 // WebLocalFrameImpl public --------------------------------------------------
@@ -1955,8 +1965,7 @@ WebLocalFrameImpl::WebLocalFrameImpl(
           MakeGarbageCollected<FindInPage>(*this, interface_registry)),
       interface_registry_(interface_registry),
       input_method_controller_(*this),
-      spell_check_panel_host_client_(nullptr),
-      self_keep_alive_(PERSISTENT_FROM_HERE, this) {
+      spell_check_panel_host_client_(nullptr) {
   CHECK(client_);
   g_frame_count++;
   client_->BindToFrame(this);
@@ -2080,6 +2089,16 @@ LocalFrame* WebLocalFrameImpl::CreateChildFrame(
       policy_container_receiver =
           policy_container_remote.InitWithNewEndpointAndPassReceiver();
 
+  FramePolicy frame_policy = owner_element->GetFramePolicy();
+  // Documents create iframes, iframes host new documents. Both are associated
+  // with sandbox flags. They are required to be stricter or equal as we go
+  // down. The iframe owner element only returns the additional restrictions
+  // defined in the HTMLIFrameElement's sanbox attribute. It needs to be
+  // combined with the document's sandbox flags to get the frame's sandbox
+  // policy right.
+  frame_policy.sandbox_flags |=
+      GetFrame()->GetDocument()->GetExecutionContext()->GetSandboxFlags();
+
   // FIXME: Using subResourceAttributeName as fallback is not a perfect
   // solution. subResourceAttributeName returns just one attribute name. The
   // element might not have the attribute, and there might be other attributes
@@ -2089,8 +2108,7 @@ LocalFrame* WebLocalFrameImpl::CreateChildFrame(
           scope, name,
           owner_element->getAttribute(
               owner_element->SubResourceAttributeName()),
-          owner_element->GetFramePolicy(), owner_properties,
-          owner_element->OwnerType(),
+          std::move(frame_policy), owner_properties, owner_element->OwnerType(),
           WebPolicyContainerBindParams{std::move(policy_container_receiver)}));
   if (!webframe_child)
     return nullptr;
@@ -2249,8 +2267,8 @@ void WebLocalFrameImpl::DidFinish() {
 }
 
 HitTestResult WebLocalFrameImpl::HitTestResultForVisualViewportPos(
-    const IntPoint& pos_in_viewport) {
-  IntPoint root_frame_point(
+    const gfx::Point& pos_in_viewport) {
+  gfx::Point root_frame_point(
       GetFrame()->GetPage()->GetVisualViewport().ViewportToRootFrame(
           pos_in_viewport));
   HitTestLocation location(
@@ -2373,16 +2391,16 @@ bool WebLocalFrameImpl::IsNavigationScheduledWithin(
          GetFrame()->GetDocument()->IsHttpRefreshScheduledWithin(interval);
 }
 
-void WebLocalFrameImpl::SetCommittedFirstRealLoad() {
+void WebLocalFrameImpl::SetIsNotOnInitialEmptyDocument() {
   DCHECK(GetFrame());
   GetFrame()->GetDocument()->OverrideIsInitialEmptyDocument();
-  GetFrame()->Loader().SetDidLoadNonEmptyDocument();
+  GetFrame()->Loader().SetIsNotOnInitialEmptyDocument();
   GetFrame()->SetShouldSendResourceTimingInfoToParent(false);
 }
 
-bool WebLocalFrameImpl::HasCommittedFirstRealLoad() {
+bool WebLocalFrameImpl::IsOnInitialEmptyDocument() {
   DCHECK(GetFrame());
-  return !GetFrame()->GetDocument()->IsInitialEmptyDocument();
+  return GetFrame()->GetDocument()->IsInitialEmptyDocument();
 }
 
 void WebLocalFrameImpl::BlinkFeatureUsageReport(
@@ -2521,7 +2539,7 @@ WebFrameWidget* WebLocalFrameImpl::FrameWidget() const {
 
 void WebLocalFrameImpl::CopyImageAtForTesting(
     const gfx::Point& pos_in_viewport) {
-  GetFrame()->CopyImageAtViewportPoint(IntPoint(pos_in_viewport));
+  GetFrame()->CopyImageAtViewportPoint(pos_in_viewport);
 }
 
 void WebLocalFrameImpl::ShowContextMenuFromExternal(

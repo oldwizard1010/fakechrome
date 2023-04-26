@@ -7,7 +7,6 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/macros.h"
 #include "chrome/browser/feed/android/feed_reliability_logging_bridge.h"
 #include "components/feed/core/v2/public/feed_api.h"
 #include "components/feed/core/v2/public/feed_stream_surface.h"
@@ -115,6 +114,20 @@ class FeedStream : public ::feed::FeedStreamSurface {
 
   jlong GetLastFetchTimeMs(JNIEnv* env,
                            const base::android::JavaParamRef<jobject>& obj);
+
+  void ReportNoticeCreated(JNIEnv* env,
+                           const base::android::JavaParamRef<jobject>& obj,
+                           const base::android::JavaParamRef<jstring>& key);
+  void ReportNoticeViewed(JNIEnv* env,
+                          const base::android::JavaParamRef<jobject>& obj,
+                          const base::android::JavaParamRef<jstring>& key);
+  void ReportNoticeOpenAction(JNIEnv* env,
+                              const base::android::JavaParamRef<jobject>& obj,
+                              const base::android::JavaParamRef<jstring>& key);
+
+  void ReportNoticeDismissed(JNIEnv* env,
+                             const base::android::JavaParamRef<jobject>& obj,
+                             const base::android::JavaParamRef<jstring>& key);
 
  private:
   base::android::ScopedJavaGlobalRef<jobject> java_ref_;

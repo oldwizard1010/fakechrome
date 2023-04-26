@@ -9,7 +9,6 @@
 #include <string>
 #include <vector>
 
-#include "base/macros.h"
 #include "chromeos/components/proximity_auth/proximity_auth_local_state_pref_manager.h"
 #include "chromeos/components/proximity_auth/proximity_auth_pref_names.h"
 #include "chromeos/services/multidevice_setup/public/cpp/fake_multidevice_setup_client.h"
@@ -33,6 +32,12 @@ const int64_t kPromotionCheckTimestampMs2 = 2222222222L;
 }  //  namespace
 
 class ProximityAuthProfilePrefManagerTest : public testing::Test {
+ public:
+  ProximityAuthProfilePrefManagerTest(
+      const ProximityAuthProfilePrefManagerTest&) = delete;
+  ProximityAuthProfilePrefManagerTest& operator=(
+      const ProximityAuthProfilePrefManagerTest&) = delete;
+
  protected:
   ProximityAuthProfilePrefManagerTest() = default;
 
@@ -56,9 +61,6 @@ class ProximityAuthProfilePrefManagerTest : public testing::Test {
       fake_multidevice_setup_client_;
   sync_preferences::TestingPrefServiceSyncable pref_service_;
   std::unique_ptr<ProximityAuthProfilePrefManager> pref_manager_;
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(ProximityAuthProfilePrefManagerTest);
 };
 
 // TODO(crbug/904005): Investigate using Unified Setup API instead of directly

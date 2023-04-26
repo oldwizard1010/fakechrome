@@ -5,8 +5,8 @@
 /** @fileoverview Test implementation of PasswordManagerProxy. */
 
 // clang-format off
-import {assertEquals} from '../chai_assert.js';
-import {TestBrowserProxy} from '../test_browser_proxy.js';
+import {assertEquals} from 'chrome://webui-test/chai_assert.js';
+import {TestBrowserProxy} from 'chrome://webui-test/test_browser_proxy.js';
 
 import {makePasswordCheckStatus} from './passwords_and_autofill_fake_data.js';
 
@@ -59,7 +59,9 @@ export class TestPasswordManagerProxy extends TestBrowserProxy {
       'removeException',
       'removeExceptions',
       'changeSavedPassword',
-      'checkUrlValid',
+      'isAccountStoreDefault',
+      'getUrlCollection',
+      'addPassword',
     ]);
 
     /** @private {!PasswordManagerExpectations} */
@@ -91,8 +93,11 @@ export class TestPasswordManagerProxy extends TestBrowserProxy {
     /** @private {boolean} */
     this.isOptedInForAccountStorage_ = false;
 
+    /** @private {boolean} */
+    this.isAccountStoreDefault_ = false;
+
     /** @private {?chrome.passwordsPrivate.UrlCollection} */
-    this.checkUrlValidResponse_ = null;
+    this.getUrlCollectionResponse_ = null;
   }
 
   /** @override */
@@ -307,57 +312,77 @@ export class TestPasswordManagerProxy extends TestBrowserProxy {
     this.methodCalled('removeInsecureCredential', insecureCredential);
   }
 
-  /** override */
+  /** @override */
   recordPasswordCheckInteraction(interaction) {
     this.methodCalled('recordPasswordCheckInteraction', interaction);
   }
 
-  /** override */
+  /** @override */
   recordPasswordCheckReferrer(referrer) {
     this.methodCalled('recordPasswordCheckReferrer', referrer);
   }
 
-  /** override */
+  /** @override */
   changeSavedPassword(ids, newUsername, newPassword) {
     this.methodCalled('changeSavedPassword', {ids, newUsername, newPassword});
     return Promise.resolve();
   }
 
   /**
-   * Sets the value to be returned by checkUrlValid.
+   * Sets the value to be returned by isAccountStoreDefault.
+   * @param {boolean} isDefault
+   */
+  setIsAccountStoreDefault(isDefault) {
+    this.isAccountStoreDefault_ = isDefault;
+  }
+
+  /** @override */
+  isAccountStoreDefault() {
+    this.methodCalled('isAccountStoreDefault');
+    return Promise.resolve(this.isAccountStoreDefault_);
+  }
+
+  /**
+   * Sets the value to be returned by getUrlCollection.
    * @param {?chrome.passwordsPrivate.UrlCollection} urlCollection
    */
-  setCheckUrlValidResponse(urlCollection) {
-    this.checkUrlValidResponse_ = urlCollection;
+  setGetUrlCollectionResponse(urlCollection) {
+    this.getUrlCollectionResponse_ = urlCollection;
   }
 
-  /** override */
-  checkUrlValid(url) {
-    this.methodCalled('checkUrlValid', url);
-    return Promise.resolve(this.checkUrlValidResponse_);
+  /** @override */
+  getUrlCollection(url) {
+    this.methodCalled('getUrlCollection', url);
+    return Promise.resolve(this.getUrlCollectionResponse_);
   }
 
-  /** override */
+  /** @override */
+  addPassword(options) {
+    this.methodCalled('addPassword', options);
+    return Promise.resolve();
+  }
+
+  /** @override */
   addPasswordsFileExportProgressListener() {}
 
-  /** override */
+  /** @override */
   cancelExportPasswords() {}
 
-  /** override */
+  /** @override */
   exportPasswords() {}
 
-  /** override */
+  /** @override */
   importPasswords() {}
 
-  /** override */
+  /** @override */
   optInForAccountStorage() {}
 
-  /** override */
+  /** @override */
   removePasswordsFileExportProgressListener() {}
 
-  /** override */
+  /** @override */
   requestExportProgressStatus() {}
 
-  /** override */
+  /** @override */
   undoRemoveSavedPasswordOrException() {}
 }

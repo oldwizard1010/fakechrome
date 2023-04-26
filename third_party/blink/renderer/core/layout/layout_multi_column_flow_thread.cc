@@ -773,7 +773,6 @@ void LayoutMultiColumnFlowThread::FinishLayoutFromNG(
   for (LayoutBox* column_box = FirstMultiColumnBox(); column_box;
        column_box = column_box->NextSiblingMultiColumnBox()) {
     column_box->ClearNeedsLayout();
-    column_box->UpdateAfterLayout();
   }
 
   // If we have a trailing column set, finish it.
@@ -785,7 +784,6 @@ void LayoutMultiColumnFlowThread::FinishLayoutFromNG(
 
   ValidateColumnSets();
   SetLogicalHeight(flow_thread_offset);
-  UpdateAfterLayout();
   ClearNeedsLayout();
   last_set_worked_on_ = nullptr;
 }
@@ -1089,7 +1087,7 @@ void LayoutMultiColumnFlowThread::SkipColumnSpanner(
   // and where such out-of-flow objects might be, just go through the whole
   // subtree.
   for (LayoutObject* descendant = layout_object->SlowFirstChild(); descendant;
-       descendant = descendant->NextInPreOrder()) {
+       descendant = descendant->NextInPreOrder(layout_object)) {
     if (descendant->IsBox() && descendant->IsOutOfFlowPositioned()) {
       descendant->ContainingBlock()->InsertPositionedObject(
           To<LayoutBox>(descendant));

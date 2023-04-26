@@ -8,7 +8,6 @@
 #include <string>
 
 #include "base/callback_forward.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chromeos/disks/disk_mount_manager.h"
 #include "components/arc/mojom/volume_mounter.mojom.h"
@@ -74,6 +73,7 @@ class ArcVolumeMounterBridge
 
   // mojom::VolumeMounterHost overrides:
   void RequestAllMountPoints() override;
+  void ReportMountFailureCount(uint16_t count) override;
 
   // Initialize ArcVolumeMounterBridge with delegate.
   void Initialize(Delegate* delegate);

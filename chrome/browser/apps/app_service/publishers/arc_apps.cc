@@ -41,7 +41,6 @@
 #include "components/app_restore/features.h"
 #include "components/app_restore/full_restore_save_handler.h"
 #include "components/app_restore/full_restore_utils.h"
-#include "components/arc/arc_service_manager.h"
 #include "components/arc/arc_util.h"
 #include "components/arc/intent_helper/intent_constants.h"
 #include "components/arc/metrics/arc_metrics_constants.h"
@@ -49,8 +48,11 @@
 #include "components/arc/mojom/app_permissions.mojom.h"
 #include "components/arc/mojom/compatibility_mode.mojom.h"
 #include "components/arc/mojom/file_system.mojom.h"
+#include "components/arc/mojom/intent_helper.mojom.h"
 #include "components/arc/session/arc_bridge_service.h"
+#include "components/arc/session/arc_service_manager.h"
 #include "components/services/app_service/public/cpp/icon_types.h"
+#include "components/services/app_service/public/cpp/intent_filter_util.h"
 #include "components/services/app_service/public/cpp/intent_util.h"
 #include "components/services/app_service/public/cpp/permission_utils.h"
 #include "components/services/app_service/public/cpp/types_util.h"
@@ -69,22 +71,21 @@
 
 namespace {
 
-void CompleteWithCompressed(apps::mojom::Publisher::LoadIconCallback callback,
+void CompleteWithCompressed(apps::LoadIconCallback callback,
                             std::vector<uint8_t> data) {
   if (data.empty()) {
-    std::move(callback).Run(apps::mojom::IconValue::New());
+    std::move(callback).Run(std::make_unique<apps::IconValue>());
     return;
   }
-  apps::mojom::IconValuePtr iv = apps::mojom::IconValue::New();
-  iv->icon_type = apps::mojom::IconType::kCompressed;
+  auto iv = std::make_unique<apps::IconValue>();
+  iv->icon_type = apps::IconType::kCompressed;
   iv->compressed = std::move(data);
   iv->is_placeholder_icon = false;
   std::move(callback).Run(std::move(iv));
 }
 
-void UpdateIconImage(apps::mojom::Publisher::LoadIconCallback callback,
-                     apps::mojom::IconValuePtr iv) {
-  if (iv->icon_type == apps::mojom::IconType::kCompressed) {
+void UpdateIconImage(apps::LoadIconCallback callback, apps::IconValuePtr iv) {
+  if (iv->icon_type == apps::IconType::kCompressed) {
     iv->uncompressed.MakeThreadSafe();
     base::ThreadPool::PostTaskAndReplyWithResult(
         FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
@@ -96,27 +97,26 @@ void UpdateIconImage(apps::mojom::Publisher::LoadIconCallback callback,
   std::move(callback).Run(std::move(iv));
 }
 
-void OnArcAppIconCompletelyLoaded(
-    apps::mojom::IconType icon_type,
-    int32_t size_hint_in_dip,
-    apps::IconEffects icon_effects,
-    apps::mojom::Publisher::LoadIconCallback callback,
-    ArcAppIcon* icon) {
+void OnArcAppIconCompletelyLoaded(apps::IconType icon_type,
+                                  int32_t size_hint_in_dip,
+                                  apps::IconEffects icon_effects,
+                                  apps::LoadIconCallback callback,
+                                  ArcAppIcon* icon) {
   if (!icon) {
-    std::move(callback).Run(apps::mojom::IconValue::New());
+    std::move(callback).Run(std::make_unique<apps::IconValue>());
     return;
   }
 
-  apps::mojom::IconValuePtr iv = apps::mojom::IconValue::New();
+  auto iv = std::make_unique<apps::IconValue>();
   iv->icon_type = icon_type;
   iv->is_placeholder_icon = false;
 
   switch (icon_type) {
-    case apps::mojom::IconType::kCompressed:
+    case apps::IconType::kCompressed:
       FALLTHROUGH;
-    case apps::mojom::IconType::kUncompressed:
+    case apps::IconType::kUncompressed:
       FALLTHROUGH;
-    case apps::mojom::IconType::kStandard: {
+    case apps::IconType::kStandard: {
       iv->uncompressed =
           icon->is_adaptive_icon()
               ? apps::CompositeImagesAndApplyMask(icon->foreground_image_skia(),
@@ -131,7 +131,7 @@ void OnArcAppIconCompletelyLoaded(
       }
       break;
     }
-    case apps::mojom::IconType::kUnknown:
+    case apps::IconType::kUnknown:
       NOTREACHED();
       break;
   }
@@ -345,15 +345,6 @@ void ResetVerifiedLinks(
       SetVerifiedLinks);
   if (instance) {
     instance->SetVerifiedLinks(package_names, /*always_open=*/false);
-    return;
-  }
-
-  // TODO(crbug.com/1251026): Remove ResetVerifiedLinks method.
-  instance = ARC_GET_INSTANCE_FOR_METHOD(
-      arc_service_manager->arc_bridge_service()->intent_helper(),
-      ResetVerifiedLinksDeprecated);
-  if (instance) {
-    instance->ResetVerifiedLinksDeprecated(package_names);
   }
 }
 
@@ -530,25 +521,21 @@ ArcApps* ArcApps::Get(Profile* profile) {
   return ArcAppsFactory::GetForProfile(profile);
 }
 
-// static
-ArcApps* ArcApps::CreateForTesting(Profile* profile,
-                                   apps::AppServiceProxyChromeOs* proxy) {
-  return new ArcApps(profile, proxy);
-}
+ArcApps::ArcApps(AppServiceProxy* proxy)
+    : AppPublisher(proxy),
+      proxy_(proxy),
+      profile_(proxy->profile()),
+      arc_icon_once_loader_(profile_) {}
 
-ArcApps::ArcApps(Profile* profile) : ArcApps(profile, nullptr) {}
+ArcApps::~ArcApps() = default;
 
-ArcApps::ArcApps(Profile* profile, apps::AppServiceProxyChromeOs* proxy)
-    : profile_(profile), arc_icon_once_loader_(profile) {
+void ArcApps::Initialize() {
   if (!arc::IsArcAllowedForProfile(profile_) ||
       (arc::ArcServiceManager::Get() == nullptr)) {
     return;
   }
 
-  if (!proxy) {
-    proxy = apps::AppServiceProxyFactory::GetForProfile(profile);
-  }
-  mojo::Remote<apps::mojom::AppService>& app_service = proxy->AppService();
+  mojo::Remote<apps::mojom::AppService>& app_service = proxy_->AppService();
   if (!app_service.is_bound()) {
     return;
   }
@@ -559,7 +546,7 @@ ArcApps::ArcApps(Profile* profile, apps::AppServiceProxyChromeOs* proxy)
     return;
   }
   prefs->AddObserver(this);
-  proxy->SetArcIsRegistered();
+  proxy_->SetArcIsRegistered();
 
   auto* intent_helper_bridge =
       arc::ArcIntentHelperBridge::GetForBrowserContext(profile_);
@@ -576,7 +563,7 @@ ArcApps::ArcApps(Profile* profile, apps::AppServiceProxyChromeOs* proxy)
         ash::ArcNotificationsHostInitializer::Get());
   }
 
-  auto* instance_registry = &proxy->InstanceRegistry();
+  auto* instance_registry = &proxy_->InstanceRegistry();
   if (instance_registry) {
     instance_registry_observation_.Observe(instance_registry);
   }
@@ -587,9 +574,16 @@ ArcApps::ArcApps(Profile* profile, apps::AppServiceProxyChromeOs* proxy)
   }
 
   PublisherBase::Initialize(app_service, apps::mojom::AppType::kArc);
-}
 
-ArcApps::~ArcApps() = default;
+  std::vector<std::unique_ptr<App>> apps;
+  for (const auto& app_id : prefs->GetAppIds()) {
+    std::unique_ptr<ArcAppListPrefs::AppInfo> app_info = prefs->GetApp(app_id);
+    if (app_info) {
+      apps.push_back(CreateApp(prefs, app_id, *app_info));
+    }
+  }
+  AppPublisher::Publish(std::move(apps));
+}
 
 void ArcApps::Shutdown() {
   // Disconnect the observee-observer connections that we made during the
@@ -626,6 +620,47 @@ void ArcApps::Shutdown() {
   arc_intent_helper_observation_.Reset();
 }
 
+void ArcApps::LoadIcon(const std::string& app_id,
+                       const IconKey& icon_key,
+                       IconType icon_type,
+                       int32_t size_hint_in_dip,
+                       bool allow_placeholder_icon,
+                       apps::LoadIconCallback callback) {
+  if (icon_type == IconType::kUnknown) {
+    std::move(callback).Run(std::make_unique<IconValue>());
+    return;
+  }
+  IconEffects icon_effects = static_cast<IconEffects>(icon_key.icon_effects);
+
+  // Treat the Play Store as a special case, loading an icon defined by a
+  // resource instead of asking the Android VM (or the cache of previous
+  // responses from the Android VM). Presumably this is for bootstrapping:
+  // the Play Store icon (the UI for enabling and installing Android apps)
+  // should be showable even before the user has installed their first
+  // Android app and before bringing up an Android VM for the first time.
+  if (app_id == arc::kPlayStoreAppId) {
+    LoadPlayStoreIcon(icon_type, size_hint_in_dip, icon_effects,
+                      std::move(callback));
+  } else {
+    const ArcAppListPrefs* arc_prefs = ArcAppListPrefs::Get(profile_);
+    DCHECK(arc_prefs);
+
+    // If the app has been removed, immediately terminate the icon request since
+    // it can't possibly succeed.
+    std::unique_ptr<ArcAppListPrefs::AppInfo> app_info =
+        arc_prefs->GetApp(app_id);
+    if (!app_info) {
+      std::move(callback).Run(std::make_unique<IconValue>());
+      return;
+    }
+
+    arc_icon_once_loader_.LoadIcon(
+        app_id, size_hint_in_dip, icon_type,
+        base::BindOnce(&OnArcAppIconCompletelyLoaded, icon_type,
+                       size_hint_in_dip, icon_effects, std::move(callback)));
+  }
+}
+
 void ArcApps::Connect(
     mojo::PendingRemote<apps::mojom::Subscriber> subscriber_remote,
     apps::mojom::ConnectOptionsPtr opts) {
@@ -649,15 +684,17 @@ void ArcApps::Connect(
 
 void ArcApps::LoadIcon(const std::string& app_id,
                        apps::mojom::IconKeyPtr icon_key,
-                       apps::mojom::IconType icon_type,
+                       apps::mojom::IconType mojom_icon_type,
                        int32_t size_hint_in_dip,
                        bool allow_placeholder_icon,
                        LoadIconCallback callback) {
-  if (!icon_key || icon_type == apps::mojom::IconType::kUnknown) {
+  if (!icon_key || mojom_icon_type == apps::mojom::IconType::kUnknown) {
     std::move(callback).Run(apps::mojom::IconValue::New());
     return;
   }
   IconEffects icon_effects = static_cast<IconEffects>(icon_key->icon_effects);
+
+  apps::IconType icon_type = ConvertMojomIconTypeToIconType(mojom_icon_type);
 
   // Treat the Play Store as a special case, loading an icon defined by a
   // resource instead of asking the Android VM (or the cache of previous
@@ -667,7 +704,7 @@ void ArcApps::LoadIcon(const std::string& app_id,
   // Android app and before bringing up an Android VM for the first time.
   if (app_id == arc::kPlayStoreAppId) {
     LoadPlayStoreIcon(icon_type, size_hint_in_dip, icon_effects,
-                      std::move(callback));
+                      IconValueToMojomIconValueCallback(std::move(callback)));
   } else {
     const ArcAppListPrefs* arc_prefs = ArcAppListPrefs::Get(profile_);
     DCHECK(arc_prefs);
@@ -684,7 +721,8 @@ void ArcApps::LoadIcon(const std::string& app_id,
     arc_icon_once_loader_.LoadIcon(
         app_id, size_hint_in_dip, icon_type,
         base::BindOnce(&OnArcAppIconCompletelyLoaded, icon_type,
-                       size_hint_in_dip, icon_effects, std::move(callback)));
+                       size_hint_in_dip, icon_effects,
+                       IconValueToMojomIconValueCallback(std::move(callback))));
   }
 }
 
@@ -719,9 +757,11 @@ void ArcApps::LaunchAppWithIntent(const std::string& app_id,
                                   int32_t event_flags,
                                   apps::mojom::IntentPtr intent,
                                   apps::mojom::LaunchSource launch_source,
-                                  apps::mojom::WindowInfoPtr window_info) {
+                                  apps::mojom::WindowInfoPtr window_info,
+                                  LaunchAppWithIntentCallback callback) {
   auto user_interaction_type = GetUserInterationType(launch_source);
   if (!user_interaction_type.has_value()) {
+    std::move(callback).Run(/*success=*/false);
     return;
   }
 
@@ -736,12 +776,14 @@ void ArcApps::LaunchAppWithIntent(const std::string& app_id,
 
   ArcAppListPrefs* prefs = ArcAppListPrefs::Get(profile_);
   if (!prefs) {
+    std::move(callback).Run(/*success=*/false);
     return;
   }
   const std::unique_ptr<ArcAppListPrefs::AppInfo> app_info =
       prefs->GetApp(app_id);
   if (!app_info) {
     LOG(ERROR) << "Launch App failed, could not find app with id " << app_id;
+    std::move(callback).Run(/*success=*/false);
     return;
   }
 
@@ -767,6 +809,7 @@ void ArcApps::LaunchAppWithIntent(const std::string& app_id,
           base::BindOnce(&OnContentUrlResolved, profile_->GetPath(), app_id,
                          event_flags, std::move(intent), std::move(activity),
                          std::move(new_window_info)));
+      std::move(callback).Run(/*success=*/true);
       return;
     }
 
@@ -781,6 +824,7 @@ void ArcApps::LaunchAppWithIntent(const std::string& app_id,
               user_interaction_type.value(),
               MakeArcWindowInfo(std::move(new_window_info)))) {
         VLOG(2) << "Failed to launch app: " + app_id + ".";
+        std::move(callback).Run(/*success=*/false);
         return;
       }
     } else {
@@ -791,11 +835,13 @@ void ArcApps::LaunchAppWithIntent(const std::string& app_id,
 
       if (!arc_intent) {
         LOG(ERROR) << "Launch App failed, launch intent is not valid";
+        std::move(callback).Run(/*success=*/false);
         return;
       }
 
       auto* arc_service_manager = arc::ArcServiceManager::Get();
       if (!arc_service_manager) {
+        std::move(callback).Run(/*success=*/false);
         return;
       }
 
@@ -811,6 +857,7 @@ void ArcApps::LaunchAppWithIntent(const std::string& app_id,
             arc_service_manager->arc_bridge_service()->intent_helper(),
             HandleIntent);
         if (!instance) {
+          std::move(callback).Run(/*success=*/false);
           return;
         }
 
@@ -825,6 +872,7 @@ void ArcApps::LaunchAppWithIntent(const std::string& app_id,
         std::make_unique<app_restore::AppLaunchInfo>(
             app_id, event_flags, std::move(intent_for_full_restore), session_id,
             display_id));
+    std::move(callback).Run(/*success=*/true);
     return;
   }
 
@@ -840,6 +888,7 @@ void ArcApps::LaunchAppWithIntent(const std::string& app_id,
       // Store.
       if (app_id == arc::kPlayStoreAppId) {
         prefs->SetLastLaunchTime(app_id);
+        std::move(callback).Run(/*success=*/true);
         return;
       }
     }
@@ -849,6 +898,7 @@ void ArcApps::LaunchAppWithIntent(const std::string& app_id,
       // caller is responsible to not call this function in such case.  DCHECK
       // is here to prevent possible mistake.
       if (!arc::SetArcPlayStoreEnabledForProfile(profile_, true)) {
+        std::move(callback).Run(/*success=*/false);
         return;
       }
       DCHECK(arc::IsArcPlayStoreEnabledForProfile(profile_));
@@ -859,6 +909,7 @@ void ArcApps::LaunchAppWithIntent(const std::string& app_id,
       // Store.
       if (app_id == arc::kPlayStoreAppId) {
         prefs->SetLastLaunchTime(app_id);
+        std::move(callback).Run(/*success=*/false);
         return;
       }
     } else {
@@ -866,6 +917,7 @@ void ArcApps::LaunchAppWithIntent(const std::string& app_id,
       DCHECK(arc::ShouldArcAlwaysStart());
     }
   }
+  std::move(callback).Run(/*success=*/true);
 }
 
 void ArcApps::SetPermission(const std::string& app_id,
@@ -941,9 +993,9 @@ void ArcApps::PauseApp(const std::string& app_id) {
   }
 
   constexpr bool kPaused = true;
-  Publish(paused_apps_.GetAppWithPauseStatus(apps::mojom::AppType::kArc, app_id,
-                                             kPaused),
-          subscribers_);
+  PublisherBase::Publish(paused_apps_.GetAppWithPauseStatus(
+                             apps::mojom::AppType::kArc, app_id, kPaused),
+                         subscribers_);
 
   CloseTasks(app_id);
 }
@@ -954,9 +1006,9 @@ void ArcApps::UnpauseApp(const std::string& app_id) {
   }
 
   constexpr bool kPaused = false;
-  Publish(paused_apps_.GetAppWithPauseStatus(apps::mojom::AppType::kArc, app_id,
-                                             kPaused),
-          subscribers_);
+  PublisherBase::Publish(paused_apps_.GetAppWithPauseStatus(
+                             apps::mojom::AppType::kArc, app_id, kPaused),
+                         subscribers_);
 }
 
 void ArcApps::StopApp(const std::string& app_id) {
@@ -1077,7 +1129,8 @@ void ArcApps::OnAppRegistered(const std::string& app_id,
                               const ArcAppListPrefs::AppInfo& app_info) {
   ArcAppListPrefs* prefs = ArcAppListPrefs::Get(profile_);
   if (prefs) {
-    Publish(Convert(prefs, app_id, app_info), subscribers_);
+    PublisherBase::Publish(Convert(prefs, app_id, app_info), subscribers_);
+    AppPublisher::Publish(CreateApp(prefs, app_id, app_info));
   }
 }
 
@@ -1088,7 +1141,8 @@ void ArcApps::OnAppStatesChanged(const std::string& app_id,
     return;
   }
 
-  Publish(Convert(prefs, app_id, app_info), subscribers_);
+  PublisherBase::Publish(Convert(prefs, app_id, app_info), subscribers_);
+  AppPublisher::Publish(CreateApp(prefs, app_id, app_info));
 }
 
 void ArcApps::OnAppRemoved(const std::string& app_id) {
@@ -1102,11 +1156,15 @@ void ArcApps::OnAppRemoved(const std::string& app_id) {
     app_id_to_task_ids_.erase(app_id);
   }
 
-  apps::mojom::AppPtr app = apps::mojom::App::New();
-  app->app_type = apps::mojom::AppType::kArc;
-  app->app_id = app_id;
-  app->readiness = apps::mojom::Readiness::kUninstalledByUser;
-  Publish(std::move(app), subscribers_);
+  apps::mojom::AppPtr mojom_app = apps::mojom::App::New();
+  mojom_app->app_type = apps::mojom::AppType::kArc;
+  mojom_app->app_id = app_id;
+  mojom_app->readiness = apps::mojom::Readiness::kUninstalledByUser;
+  PublisherBase::Publish(std::move(mojom_app), subscribers_);
+
+  std::unique_ptr<App> app = std::make_unique<App>(AppType::kArc, app_id);
+  app->readiness = Readiness::kUninstalledByUser;
+  AppPublisher::Publish(std::move(app));
 }
 
 void ArcApps::OnAppIconUpdated(const std::string& app_id,
@@ -1116,11 +1174,15 @@ void ArcApps::OnAppIconUpdated(const std::string& app_id,
 
 void ArcApps::OnAppNameUpdated(const std::string& app_id,
                                const std::string& name) {
-  apps::mojom::AppPtr app = apps::mojom::App::New();
-  app->app_type = apps::mojom::AppType::kArc;
-  app->app_id = app_id;
+  apps::mojom::AppPtr mojom_app = apps::mojom::App::New();
+  mojom_app->app_type = apps::mojom::AppType::kArc;
+  mojom_app->app_id = app_id;
+  mojom_app->name = name;
+  PublisherBase::Publish(std::move(mojom_app), subscribers_);
+
+  std::unique_ptr<App> app = std::make_unique<App>(AppType::kArc, app_id);
   app->name = name;
-  Publish(std::move(app), subscribers_);
+  AppPublisher::Publish(std::move(app));
 }
 
 void ArcApps::OnAppLastLaunchTimeUpdated(const std::string& app_id) {
@@ -1136,7 +1198,7 @@ void ArcApps::OnAppLastLaunchTimeUpdated(const std::string& app_id) {
   app->app_type = apps::mojom::AppType::kArc;
   app->app_id = app_id;
   app->last_launch_time = app_info->last_launch_time;
-  Publish(std::move(app), subscribers_);
+  PublisherBase::Publish(std::move(app), subscribers_);
 }
 
 void ArcApps::OnPackageInstalled(
@@ -1162,7 +1224,9 @@ void ArcApps::OnPackageListInitialRefreshed() {
   for (const auto& app_id : prefs->GetAppIds()) {
     std::unique_ptr<ArcAppListPrefs::AppInfo> app_info = prefs->GetApp(app_id);
     if (app_info) {
-      Publish(Convert(prefs, app_id, *app_info, update_icon), subscribers_);
+      PublisherBase::Publish(Convert(prefs, app_id, *app_info, update_icon),
+                             subscribers_);
+      AppPublisher::Publish(CreateApp(prefs, app_id, *app_info, update_icon));
     }
   }
 }
@@ -1202,8 +1266,11 @@ void ArcApps::OnIntentFiltersUpdated(
   auto GetAppInfoAndPublish = [prefs, this](std::string app_id) {
     std::unique_ptr<ArcAppListPrefs::AppInfo> app_info = prefs->GetApp(app_id);
     if (app_info) {
-      Publish(Convert(prefs, app_id, *app_info, false /* update_icon */),
-              subscribers_);
+      PublisherBase::Publish(
+          Convert(prefs, app_id, *app_info, false /* update_icon */),
+          subscribers_);
+      AppPublisher::Publish(
+          CreateApp(prefs, app_id, *app_info, false /* update_icon */));
     }
   };
 
@@ -1225,8 +1292,7 @@ void ArcApps::OnIntentFiltersUpdated(
 }
 
 void ArcApps::OnPreferredAppsChanged() {
-  mojo::Remote<apps::mojom::AppService>& app_service =
-      apps::AppServiceProxyFactory::GetForProfile(profile_)->AppService();
+  mojo::Remote<apps::mojom::AppService>& app_service = proxy_->AppService();
   if (!app_service.is_bound()) {
     return;
   }
@@ -1296,6 +1362,58 @@ void ArcApps::OnPreferredAppsChanged() {
   }
 }
 
+// This method calls App Service directly with a list of intent filters received
+// from ARC, rather than going through AppServiceProxy's
+// SetSupportedlinksPreference method. This is because recent changes to app
+// intent filters (such as after an install or update) may not have propagated
+// to AppServiceProxy's AppRegistryCache yet.
+// TODO(crbug.com/1265315): Use AppServiceProxy to set the preference once app
+// changes are synchronous within Ash.
+void ArcApps::OnArcSupportedLinksChanged(
+    const std::vector<arc::mojom::SupportedLinksPtr>& added,
+    const std::vector<arc::mojom::SupportedLinksPtr>& removed) {
+  mojo::Remote<apps::mojom::AppService>& app_service =
+      apps::AppServiceProxyFactory::GetForProfile(profile_)->AppService();
+  if (!app_service.is_bound()) {
+    return;
+  }
+
+  ArcAppListPrefs* prefs = ArcAppListPrefs::Get(profile_);
+  if (!prefs) {
+    return;
+  }
+
+  for (const auto& supported_link : added) {
+    std::string app_id =
+        prefs->GetAppIdByPackageName(supported_link->package_name);
+    if (app_id.empty() || !supported_link->filters.has_value()) {
+      continue;
+    }
+
+    std::vector<apps::mojom::IntentFilterPtr> app_service_filters;
+    for (const auto& arc_filter : supported_link->filters.value()) {
+      auto converted =
+          apps_util::ConvertArcToAppServiceIntentFilter(arc_filter);
+      if (apps_util::IsSupportedLinkForApp(app_id, converted)) {
+        app_service_filters.push_back(std::move(converted));
+      }
+    }
+
+    app_service->SetSupportedLinksPreference(apps::mojom::AppType::kArc, app_id,
+                                             std::move(app_service_filters));
+  }
+
+  for (const auto& supported_link : removed) {
+    std::string app_id =
+        prefs->GetAppIdByPackageName(supported_link->package_name);
+    if (app_id.empty()) {
+      continue;
+    }
+    app_service->RemoveSupportedLinksPreference(apps::mojom::AppType::kArc,
+                                                app_id);
+  }
+}
+
 void ArcApps::OnSetArcNotificationsInstance(
     ash::ArcNotificationManagerBase* arc_notification_manager) {
   DCHECK(arc_notification_manager);
@@ -1326,9 +1444,9 @@ void ArcApps::OnNotificationUpdated(const std::string& notification_id,
   }
 
   app_notifications_.AddNotification(app_id, notification_id);
-  Publish(app_notifications_.GetAppWithHasBadgeStatus(
-              apps::mojom::AppType::kArc, app_id),
-          subscribers_);
+  PublisherBase::Publish(app_notifications_.GetAppWithHasBadgeStatus(
+                             apps::mojom::AppType::kArc, app_id),
+                         subscribers_);
 }
 
 void ArcApps::OnNotificationRemoved(const std::string& notification_id) {
@@ -1341,9 +1459,9 @@ void ArcApps::OnNotificationRemoved(const std::string& notification_id) {
   app_notifications_.RemoveNotification(notification_id);
 
   for (const auto& app_id : app_ids) {
-    Publish(app_notifications_.GetAppWithHasBadgeStatus(
-                apps::mojom::AppType::kArc, app_id),
-            subscribers_);
+    PublisherBase::Publish(app_notifications_.GetAppWithHasBadgeStatus(
+                               apps::mojom::AppType::kArc, app_id),
+                           subscribers_);
   }
 }
 
@@ -1378,10 +1496,10 @@ void ArcApps::OnInstanceRegistryWillBeDestroyed(
   instance_registry_observation_.Reset();
 }
 
-void ArcApps::LoadPlayStoreIcon(apps::mojom::IconType icon_type,
+void ArcApps::LoadPlayStoreIcon(apps::IconType icon_type,
                                 int32_t size_hint_in_dip,
                                 IconEffects icon_effects,
-                                LoadIconCallback callback) {
+                                apps::LoadIconCallback callback) {
   // Use overloaded Chrome icon for Play Store that is adapted to Chrome style.
   constexpr bool quantize_to_supported_scale_factor = true;
   int size_hint_in_px = apps_util::ConvertDipToPx(
@@ -1389,9 +1507,8 @@ void ArcApps::LoadPlayStoreIcon(apps::mojom::IconType icon_type,
   int resource_id = (size_hint_in_px <= 32) ? IDR_ARC_SUPPORT_ICON_32
                                             : IDR_ARC_SUPPORT_ICON_192;
   constexpr bool is_placeholder_icon = false;
-  LoadIconFromResource(ConvertMojomIconTypeToIconType(icon_type),
-                       size_hint_in_dip, resource_id, is_placeholder_icon,
-                       icon_effects, std::move(callback));
+  LoadIconFromResource(icon_type, size_hint_in_dip, resource_id,
+                       is_placeholder_icon, icon_effects, std::move(callback));
 }
 
 apps::mojom::InstallReason GetInstallReason(
@@ -1417,6 +1534,27 @@ apps::mojom::InstallReason GetInstallReason(
   }
 
   return apps::mojom::InstallReason::kUser;
+}
+
+std::unique_ptr<App> ArcApps::CreateApp(
+    ArcAppListPrefs* prefs,
+    const std::string& app_id,
+    const ArcAppListPrefs::AppInfo& app_info,
+    bool update_icon) {
+  std::unique_ptr<App> app = AppPublisher::MakeApp(
+      AppType::kArc, app_id,
+      app_info.suspended ? Readiness::kDisabledByPolicy : Readiness::kReady,
+      app_info.name);
+
+  app->publisher_id = app_info.package_name;
+
+  if (update_icon) {
+    app->icon_key = std::move(
+        *icon_key_factory_.CreateIconKey(GetIconEffects(app_id, app_info)));
+  }
+
+  // TODO(crbug.com/1253250): Add other fields for the App struct.
+  return app;
 }
 
 apps::mojom::AppPtr ArcApps::Convert(ArcAppListPrefs* prefs,
@@ -1454,6 +1592,7 @@ apps::mojom::AppPtr ArcApps::Convert(ArcAppListPrefs* prefs,
   // persisted.
   app->show_in_shelf = apps::mojom::OptionalBool::kTrue;
   app->show_in_launcher = show;
+  app->handles_intents = show;
 
   if (app_id == arc::kPlayGamesAppId &&
       show == apps::mojom::OptionalBool::kFalse) {
@@ -1464,6 +1603,10 @@ apps::mojom::AppPtr ArcApps::Convert(ArcAppListPrefs* prefs,
     app->show_in_search = show;
     app->show_in_management = show;
   }
+
+  app->allow_uninstall = (app_info.ready && !app_info.sticky)
+                             ? apps::mojom::OptionalBool::kTrue
+                             : apps::mojom::OptionalBool::kFalse;
 
   app->has_badge = app_notifications_.HasNotification(app_id)
                        ? apps::mojom::OptionalBool::kTrue
@@ -1502,7 +1645,9 @@ void ArcApps::ConvertAndPublishPackageApps(
       std::unique_ptr<ArcAppListPrefs::AppInfo> app_info =
           prefs->GetApp(app_id);
       if (app_info) {
-        Publish(Convert(prefs, app_id, *app_info, update_icon), subscribers_);
+        PublisherBase::Publish(Convert(prefs, app_id, *app_info, update_icon),
+                               subscribers_);
+        AppPublisher::Publish(CreateApp(prefs, app_id, *app_info, update_icon));
       }
     }
   }
@@ -1532,12 +1677,17 @@ void ArcApps::SetIconEffect(const std::string& app_id) {
     return;
   }
 
-  apps::mojom::AppPtr app = apps::mojom::App::New();
-  app->app_type = apps::mojom::AppType::kArc;
-  app->app_id = app_id;
-  app->icon_key =
+  apps::mojom::AppPtr mojom_app = apps::mojom::App::New();
+  mojom_app->app_type = apps::mojom::AppType::kArc;
+  mojom_app->app_id = app_id;
+  mojom_app->icon_key =
       icon_key_factory_.MakeIconKey(GetIconEffects(app_id, *app_info));
-  Publish(std::move(app), subscribers_);
+  PublisherBase::Publish(std::move(mojom_app), subscribers_);
+
+  std::unique_ptr<App> app = std::make_unique<App>(AppType::kArc, app_id);
+  app->icon_key = std::move(
+      *icon_key_factory_.CreateIconKey(GetIconEffects(app_id, *app_info)));
+  AppPublisher::Publish(std::move(app));
 }
 
 void ArcApps::CloseTasks(const std::string& app_id) {

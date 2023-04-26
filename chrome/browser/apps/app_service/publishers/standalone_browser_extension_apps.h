@@ -8,16 +8,19 @@
 #include <memory>
 
 #include "base/memory/weak_ptr.h"
+#include "chrome/browser/apps/app_service/app_service_proxy_forward.h"
+#include "chrome/browser/apps/app_service/publishers/app_publisher.h"
 #include "chrome/browser/ash/crosapi/browser_manager.h"
 #include "chromeos/crosapi/mojom/app_service.mojom.h"
 #include "components/keyed_service/core/keyed_service.h"
+#include "components/services/app_service/public/cpp/icon_types.h"
 #include "components/services/app_service/public/cpp/publisher_base.h"
 #include "components/services/app_service/public/mojom/app_service.mojom-forward.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "mojo/public/cpp/bindings/remote_set.h"
 
-class Profile;
+class StandaloneBrowserPublisherTest;
 
 namespace apps {
 
@@ -37,11 +40,16 @@ namespace apps {
 // is almost always running in the background. This is enforced via
 // ScopedKeepAlive. We would like to eventually remove this assumption. This
 // requires caching a copy of installed apps in this class.
+//
+// TODO(crbug.com/1253250):
+// 1. Remove the parent class apps::PublisherBase.
+// 2. Remove all apps::mojom related code.
 class StandaloneBrowserExtensionApps : public KeyedService,
                                        public apps::PublisherBase,
+                                       public AppPublisher,
                                        public crosapi::mojom::AppPublisher {
  public:
-  explicit StandaloneBrowserExtensionApps(Profile* profile);
+  explicit StandaloneBrowserExtensionApps(AppServiceProxy* proxy);
   ~StandaloneBrowserExtensionApps() override;
 
   StandaloneBrowserExtensionApps(const StandaloneBrowserExtensionApps&) =
@@ -59,6 +67,16 @@ class StandaloneBrowserExtensionApps : public KeyedService,
   void RegisterKeepAlive();
 
  private:
+  friend class StandaloneBrowserPublisherTest;
+
+  // apps::AppPublisher overrides.
+  void LoadIcon(const std::string& app_id,
+                const IconKey& icon_key,
+                IconType icon_type,
+                int32_t size_hint_in_dip,
+                bool allow_placeholder_icon,
+                apps::LoadIconCallback callback) override;
+
   // apps::PublisherBase:
   void Connect(mojo::PendingRemote<apps::mojom::Subscriber> subscriber_remote,
                apps::mojom::ConnectOptionsPtr opts) override;
@@ -72,6 +90,16 @@ class StandaloneBrowserExtensionApps : public KeyedService,
               int32_t event_flags,
               apps::mojom::LaunchSource launch_source,
               apps::mojom::WindowInfoPtr window_info) override;
+  void LaunchAppWithIntent(const std::string& app_id,
+                           int32_t event_flags,
+                           apps::mojom::IntentPtr intent,
+                           apps::mojom::LaunchSource launch_source,
+                           apps::mojom::WindowInfoPtr window_info,
+                           LaunchAppWithIntentCallback callback) override;
+  void LaunchAppWithFiles(const std::string& app_id,
+                          int32_t event_flags,
+                          apps::mojom::LaunchSource launch_source,
+                          apps::mojom::FilePathsPtr file_paths) override;
   void GetMenuModel(const std::string& app_id,
                     apps::mojom::MenuType menu_type,
                     int64_t display_id,

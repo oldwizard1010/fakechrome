@@ -251,6 +251,9 @@ class StatisticsProviderImpl : public StatisticsProvider {
 
   static StatisticsProviderImpl* GetInstance();
 
+  StatisticsProviderImpl(const StatisticsProviderImpl&) = delete;
+  StatisticsProviderImpl& operator=(const StatisticsProviderImpl&) = delete;
+
  private:
   typedef std::map<std::string, bool> MachineFlags;
   typedef bool (*RegionDataExtractor)(const base::Value&, std::string*);
@@ -306,8 +309,6 @@ class StatisticsProviderImpl : public StatisticsProvider {
   std::vector<
       std::pair<base::OnceClosure, scoped_refptr<base::SequencedTaskRunner>>>
       statistics_loaded_callbacks_;
-
-  DISALLOW_COPY_AND_ASSIGN(StatisticsProviderImpl);
 };
 
 void StatisticsProviderImpl::SignalStatisticsLoaded() {
@@ -384,25 +385,11 @@ bool StatisticsProviderImpl::GetMachineStatistic(const std::string& name,
     return false;
   }
 
-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  std::string cros_regions_mode;
-  if (command_line->HasSwitch(chromeos::switches::kCrosRegionsMode)) {
-    cros_regions_mode =
-        command_line->GetSwitchValueASCII(chromeos::switches::kCrosRegionsMode);
-  }
-
-  // These two modes override existing machine statistics keys.
-  // By default (cros_regions_mode is empty), the same keys are emulated if
-  // they do not exist in machine statistics.
-  if (cros_regions_mode == chromeos::switches::kCrosRegionsModeOverride ||
-      cros_regions_mode == chromeos::switches::kCrosRegionsModeHide) {
-    if (GetRegionalInformation(name, result))
-      return true;
-  }
-
-  if (cros_regions_mode == chromeos::switches::kCrosRegionsModeHide &&
-      GetRegionalDataExtractor(name)) {
-    return false;
+  // Test region should override VPD values.
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+          chromeos::switches::kCrosRegion) &&
+      GetRegionalInformation(name, result)) {
+    return true;
   }
 
   NameValuePairsParser::NameValueMap::iterator iter = machine_info_.find(name);

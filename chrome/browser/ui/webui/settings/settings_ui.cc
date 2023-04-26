@@ -101,7 +101,9 @@
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 #include "ash/components/account_manager/account_manager_factory.h"
+#include "ash/components/phonehub/phone_hub_manager.h"
 #include "ash/constants/ash_features.h"
+#include "ash/webui/eche_app_ui/eche_app_manager.h"
 #include "chrome/browser/ash/account_manager/account_manager_util.h"
 #include "chrome/browser/ash/android_sms/android_sms_app_manager.h"
 #include "chrome/browser/ash/android_sms/android_sms_service_factory.h"
@@ -109,13 +111,13 @@
 #include "chrome/browser/ash/phonehub/phone_hub_manager_factory.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/browser_process_platform_part.h"
+#include "chrome/browser/chromeos/eche_app/eche_app_manager_factory.h"
 #include "chrome/browser/ui/webui/certificate_provisioning_ui_handler.h"
 #include "chrome/browser/ui/webui/settings/chromeos/account_manager_handler.h"
 #include "chrome/browser/ui/webui/settings/chromeos/android_apps_handler.h"
 #include "chrome/browser/ui/webui/settings/chromeos/multidevice_handler.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/grit/browser_resources.h"
-#include "chromeos/components/phonehub/phone_hub_manager.h"
 #include "chromeos/login/auth/password_visibility_utils.h"
 #include "components/account_manager_core/chromeos/account_manager.h"
 #include "components/account_manager_core/chromeos/account_manager_facade_factory.h"
@@ -173,9 +175,6 @@ SettingsUI::SettingsUI(content::WebUI* web_ui)
 
   AddSettingsPageUIHandler(std::make_unique<AppearanceHandler>(web_ui));
 
-// TODO(crbug.com/1147032): The certificates settings page is temporarily
-// disabled for Lacros-Chrome until a better solution is found.
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
 #if defined(USE_NSS_CERTS)
   AddSettingsPageUIHandler(
       std::make_unique<certificate_manager::CertificatesHandler>());
@@ -187,7 +186,6 @@ SettingsUI::SettingsUI(content::WebUI* web_ui)
       chromeos::cert_provisioning::CertificateProvisioningUiHandler::
           CreateForProfile(profile));
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
 
   AddSettingsPageUIHandler(std::make_unique<AccessibilityMainHandler>());
   AddSettingsPageUIHandler(std::make_unique<BrowserLifetimeHandler>());
@@ -216,7 +214,7 @@ SettingsUI::SettingsUI(content::WebUI* web_ui)
   AddSettingsPageUIHandler(std::make_unique<OnStartupHandler>(profile));
   AddSettingsPageUIHandler(std::make_unique<PeopleHandler>(profile));
   AddSettingsPageUIHandler(std::make_unique<ProfileInfoHandler>(profile));
-  AddSettingsPageUIHandler(std::make_unique<ProtocolHandlersHandler>());
+  AddSettingsPageUIHandler(std::make_unique<ProtocolHandlersHandler>(profile));
   AddSettingsPageUIHandler(std::make_unique<PrivacySandboxHandler>());
   AddSettingsPageUIHandler(std::make_unique<SearchEnginesHandler>(profile));
   AddSettingsPageUIHandler(std::make_unique<SecureDnsHandler>());
@@ -282,11 +280,6 @@ SettingsUI::SettingsUI(content::WebUI* web_ui)
                           base::FeatureList::IsEnabled(
                               password_manager::features::kPasswordImport));
 
-  html_source->AddBoolean(
-      "enableMovingMultiplePasswordsToAccount",
-      base::FeatureList::IsEnabled(
-          password_manager::features::kEnableMovingMultiplePasswordsToAccount));
-
 #if !BUILDFLAG(IS_CHROMEOS_ASH) && !BUILDFLAG(IS_CHROMEOS_LACROS)
   html_source->AddBoolean("enableDesktopRestructuredLanguageSettings",
                           base::FeatureList::IsEnabled(
@@ -315,6 +308,14 @@ SettingsUI::SettingsUI(content::WebUI* web_ui)
   // This is the browser settings page.
   html_source->AddBoolean("isOSSettings", false);
 #endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+
+#if BUILDFLAG(IS_CHROMEOS_LACROS)
+  // Lacros has no access to AccountHasUserFacingPassword() (Ash only). Assign
+  // userCannotManuallyEnterPassword to false so that WebUI would make auth
+  // token request, which is forwarded via crosapi to Ash, which then calls
+  // AccountHasUserFacingPassword().
+  html_source->AddBoolean("userCannotManuallyEnterPassword", false);
+#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
 
   html_source->AddBoolean(
       "privacyReviewEnabled",
@@ -406,6 +407,8 @@ void SettingsUI::InitBrowserSettingsWebUIHandlers() {
             profile);
     chromeos::phonehub::PhoneHubManager* phone_hub_manager =
         ash::phonehub::PhoneHubManagerFactory::GetForProfile(profile);
+    ash::eche_app::EcheAppManager* eche_app_manager =
+        chromeos::eche_app::EcheAppManagerFactory::GetForProfile(profile);
     web_ui()->AddMessageHandler(std::make_unique<
                                 chromeos::settings::MultideviceHandler>(
         profile->GetPrefs(),
@@ -417,7 +420,8 @@ void SettingsUI::InitBrowserSettingsWebUIHandlers() {
             ? android_sms_service->android_sms_pairing_state_tracker()
             : nullptr,
         android_sms_service ? android_sms_service->android_sms_app_manager()
-                            : nullptr));
+                            : nullptr,
+        eche_app_manager ? eche_app_manager->GetAppsAccessManager() : nullptr));
   }
 }
 #else   // BUILDFLAG(IS_CHROMEOS_ASH)

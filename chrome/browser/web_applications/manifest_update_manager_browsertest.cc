@@ -72,6 +72,10 @@
 #include "chrome/browser/web_applications/url_handler_manager_impl.h"
 #endif
 
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+#include "ash/constants/ash_features.h"
+#endif
+
 namespace web_app {
 
 namespace {
@@ -106,7 +110,7 @@ constexpr char16_t kAnotherShortcutsItemName16[] = u"Timeline";
 constexpr char kAnotherShortcutsItemUrl[] = "/shortcut";
 constexpr char kAnotherShortcutsItemShortName[] = "H";
 constexpr char kAnotherShortcutsItemDescription[] = "Navigate home";
-constexpr char kAnotherIconSrc[] = "/launcher-icon-4x.png";
+constexpr char kAnotherIconSrc[] = "/banners/launcher-icon-4x.png";
 constexpr int kAnotherIconSize = 192;
 
 constexpr char kShortcutsItem[] = R"(
@@ -200,11 +204,26 @@ class UpdateCheckResultAwaiter {
   absl::optional<ManifestUpdateResult> result_;
 };
 
+void WaitForUpdatePendingCallback(const GURL& url) {
+  base::RunLoop run_loop;
+  ManifestUpdateTask::SetUpdatePendingCallbackForTesting(
+      base::BindLambdaForTesting([&](const GURL& update_url) {
+        if (url == update_url)
+          run_loop.Quit();
+      }));
+  run_loop.Run();
+}
+
 }  // namespace
 
 class ManifestUpdateManagerBrowserTest : public InProcessBrowserTest {
  public:
-  ManifestUpdateManagerBrowserTest() = default;
+  ManifestUpdateManagerBrowserTest() {
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+    scoped_feature_list_.InitWithFeatures(
+        {}, {features::kWebAppsCrosapi, chromeos::features::kLacrosPrimary});
+#endif
+  }
   ManifestUpdateManagerBrowserTest(const ManifestUpdateManagerBrowserTest&) =
       delete;
   ManifestUpdateManagerBrowserTest& operator=(
@@ -429,9 +448,42 @@ class ManifestUpdateManagerBrowserTest : public InProcessBrowserTest {
   net::EmbeddedTestServer http_server_;
 
  private:
+  base::test::ScopedFeatureList scoped_feature_list_;
   absl::optional<base::RunLoop> shortcut_run_loop_;
   absl::optional<SkColor> updated_shortcut_top_left_color_;
   ScopedOsHooksSuppress os_hooks_suppress_;
+};
+
+enum class UpdateDialogParam {
+  kDisabled = 0,
+  kEnabled = 1,
+};
+
+class ManifestUpdateManagerBrowserTest_UpdateDialog
+    : public ManifestUpdateManagerBrowserTest,
+      public testing::WithParamInterface<UpdateDialogParam> {
+ public:
+  ManifestUpdateManagerBrowserTest_UpdateDialog() {
+    scoped_feature_list_.InitWithFeatureState(
+        features::kPwaUpdateDialogForNameAndIcon, IsUpdateDialogEnabled());
+  }
+
+  bool IsUpdateDialogEnabled() const {
+    return GetParam() == UpdateDialogParam::kEnabled;
+  }
+
+  static std::string ParamToString(
+      testing::TestParamInfo<UpdateDialogParam> param) {
+    switch (param.param) {
+      case UpdateDialogParam::kDisabled:
+        return "UpdateDialogDisabled";
+      case UpdateDialogParam::kEnabled:
+        return "UpdateDialogEnabled";
+    }
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
@@ -978,10 +1030,10 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
             http_server_.GetURL("/"));
 }
 
-IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
-                       CheckDoesNotApplyIconURLChange) {
-  // This test changes the scope and also the icon list. The scope should update
-  // but the icons should not.
+IN_PROC_BROWSER_TEST_P(ManifestUpdateManagerBrowserTest_UpdateDialog,
+                       ScopeChangeWithProductIconChange) {
+  // This test changes the scope and also the icon list. The scope should
+  // update. The icon should update only if identity updates are allowed.
   constexpr char kManifestTemplate[] = R"(
     {
       "name": "Test app name",
@@ -999,8 +1051,10 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
             ManifestUpdateResult::kAppUpdated);
   histogram_tester_.ExpectBucketCount(kUpdateHistogramName,
                                       ManifestUpdateResult::kAppUpdated, 1);
-  // The icon should not be updated.
-  CheckShortcutInfoUpdated(app_id, kInstallableIconTopLeftColor);
+  // The icon should be updated only if product icon updates are allowed.
+  CheckShortcutInfoUpdated(app_id, IsUpdateDialogEnabled()
+                                       ? kAnotherInstallableIconTopLeftColor
+                                       : kInstallableIconTopLeftColor);
   EXPECT_EQ(GetProvider().registrar().GetAppScope(app_id),
             http_server_.GetURL("/"));
 }
@@ -1433,43 +1487,6 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
   histogram_tester_.ExpectBucketCount(kUpdateHistogramName,
                                       ManifestUpdateResult::kAppUpdated, 0);
 }
-
-enum class UpdateDialogParam {
-  kDisabled = 0,
-  kEnabled = 1,
-};
-
-class ManifestUpdateManagerBrowserTest_UpdateDialog
-    : public ManifestUpdateManagerBrowserTest,
-      public testing::WithParamInterface<UpdateDialogParam> {
- public:
-  ManifestUpdateManagerBrowserTest_UpdateDialog() {
-    if (IsUpdateDialogEnabled()) {
-      scoped_feature_list_.InitAndEnableFeature(
-          features::kPwaUpdateDialogForNameAndIcon);
-    } else {
-      scoped_feature_list_.InitAndDisableFeature(
-          features::kPwaUpdateDialogForNameAndIcon);
-    }
-  }
-
-  bool IsUpdateDialogEnabled() const {
-    return GetParam() == UpdateDialogParam::kEnabled;
-  }
-
-  static std::string ParamToString(
-      testing::TestParamInfo<UpdateDialogParam> param) {
-    switch (param.param) {
-      case UpdateDialogParam::kDisabled:
-        return "UpdateDialogDisabled";
-      case UpdateDialogParam::kEnabled:
-        return "UpdateDialogEnabled";
-    }
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
 
 IN_PROC_BROWSER_TEST_P(ManifestUpdateManagerBrowserTest_UpdateDialog,
                        CheckDoesNotUpdateGeneratedIcons_SyncFailure) {
@@ -2535,8 +2552,11 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
   run_loop.Run();
 }
 
-IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
-                       ShortcutIconContentChangeDoesNotApplyAppIconUpdate) {
+IN_PROC_BROWSER_TEST_P(ManifestUpdateManagerBrowserTest_UpdateDialog,
+                       ShortcutIconContentChangeWithProductIconChange) {
+  // This test changes the shortuct icon contents and also the product icon
+  // list. The shortcut icons should update. The icon should update only if
+  // identity updates are allowed.
   constexpr char kManifest[] = R"(
     {
       "name": "Test app name",
@@ -2581,8 +2601,10 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
   OverrideManifest(kManifest, {kAnotherInstallableIconList});
   EXPECT_EQ(GetResultAfterPageLoad(GetAppURL()),
             ManifestUpdateResult::kAppUpdated);
-  // The icon should not be updated.
-  CheckShortcutInfoUpdated(app_id, kInstallableIconTopLeftColor);
+  // The icon should be updated only if product icon updates are allowed.
+  CheckShortcutInfoUpdated(app_id, IsUpdateDialogEnabled()
+                                       ? kAnotherInstallableIconTopLeftColor
+                                       : kInstallableIconTopLeftColor);
   histogram_tester_.ExpectBucketCount(kUpdateHistogramName,
                                       ManifestUpdateResult::kAppUpdated, 1);
 }
@@ -3482,6 +3504,143 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ManifestId,
             ManifestUpdateResult::kAppUpdated);
   EXPECT_TRUE(
       GetProvider().registrar().GetAppById(app_id)->manifest_id().has_value());
+}
+
+// This test exercises the upgrade path for App Identity manifest updates with
+// the update pending while Chrome is in the process of shutting down.
+IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerAppIdentityBrowserTest,
+                       PRE_TestUpgradeDuringShutdownForAppIdentity) {
+  constexpr char kManifestTemplate[] = R"(
+    {
+      "name": "$1",
+      "start_url": "manifest_test_page.html",
+      "scope": "/",
+      "display": "standalone",
+      "icons": $2
+    }
+  )";
+
+  constexpr char kIconList[] = R"(
+    [
+      { "src": "256x256-green.png", "sizes": "256x256", "type": "image/png" }
+    ]
+  )";
+  constexpr char kUpdatedSingleIconList[] = R"(
+    [
+      { "src": "256x256-red.png", "sizes": "256x256", "type": "image/png" }
+    ]
+  )";
+
+  // Simulate the user accepting the App Identity update dialog (when it
+  // appears).
+  chrome::SetAutoAcceptAppIdentityUpdateForTesting(true);
+
+  // Setup the web app, install it and immediately update the manifest.
+  OverrideManifest(kManifestTemplate, {"Test app name", kIconList});
+  AppId app_id = InstallWebApp();
+  OverrideManifest(kManifestTemplate,
+                   {"Different app name", kUpdatedSingleIconList});
+
+  // Navigate to the app in a dedicated PWA window. Note that this opens a
+  // second browser window.
+  GURL url = GetAppURL();
+  Browser* web_app_browser =
+      LaunchWebAppBrowserAndWait(browser()->profile(), app_id);
+
+  // Wait for the PWA to a) detect that an update is needed and b) start waiting
+  // on its window to close.
+  WaitForUpdatePendingCallback(url);
+
+  // Now close the initial browser opened during the test (leaving the PWA
+  // running).
+  CloseBrowserSynchronously(browser());
+
+  // Close the PWA window. This will fire the window close notifier that the PWA
+  // has been waiting for, triggering the manifest update to take effect.
+  UpdateCheckResultAwaiter result_awaiter(web_app_browser, url);
+  CloseBrowserSynchronously(web_app_browser);
+  EXPECT_EQ(std::move(result_awaiter).AwaitNextResult(),
+            ManifestUpdateResult::kAppUpdated);
+
+  // Check the histogram updated correctly. Remaining update checks need to
+  // happen post-restart, because GetProvider() DCHECKs when trying to use it
+  // during shutdown.
+  histogram_tester_.ExpectBucketCount(kUpdateHistogramName,
+                                      ManifestUpdateResult::kAppUpdated, 1);
+}
+
+IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerAppIdentityBrowserTest,
+                       TestUpgradeDuringShutdownForAppIdentity) {
+  // The app installed in the pre-test should be the only app installed.
+  auto app_ids = GetProvider().registrar().GetAppIds();
+  ASSERT_EQ(1u, app_ids.size());
+  AppId app_id = app_ids[0];
+
+  EXPECT_EQ("Different app name",
+            GetProvider().registrar().GetAppShortName(app_id));
+
+  constexpr SkColor kUpdatedIconTopLeftColor = SkColorSetRGB(0xFF, 0x00, 0x00);
+  CheckShortcutInfoUpdated(app_id, kUpdatedIconTopLeftColor);
+}
+
+// This test exercises the upgrade path for benign (non-App Identity) manifest
+// updates with the update pending while Chrome is in the process of shutting
+// down.
+IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerAppIdentityBrowserTest,
+                       PRE_TestUpgradeDuringShutdownForBenignUpdate) {
+  constexpr char kManifestTemplate[] = R"(
+    {
+      "name": "Test app name",
+      "start_url": "manifest_test_page.html",
+      "scope": "/",
+      "display": "standalone",
+      "icons": $1,
+      "background_color": "$2"
+    }
+  )";
+  OverrideManifest(kManifestTemplate, {kInstallableIconList, "blue"});
+  AppId app_id = InstallWebApp();
+  EXPECT_EQ(GetProvider().registrar().GetAppBackgroundColor(app_id),
+            SK_ColorBLUE);
+  OverrideManifest(kManifestTemplate, {kInstallableIconList, "red"});
+
+  // Navigate to the app in a dedicated PWA window. Note that this opens a
+  // second browser window.
+  GURL url = GetAppURL();
+  Browser* web_app_browser =
+      LaunchWebAppBrowserAndWait(browser()->profile(), app_id);
+
+  // Wait for the PWA to a) detect that an update is needed and b) start waiting
+  // on its window to close.
+  WaitForUpdatePendingCallback(url);
+
+  // Now close the initial browser opened during the test (leaving the PWA
+  // running).
+  CloseBrowserSynchronously(browser());
+
+  // Close the PWA window. This will fire the window close notifier that the PWA
+  // has been waiting for, triggering the manifest update to take effect.
+  UpdateCheckResultAwaiter result_awaiter(web_app_browser, url);
+  CloseBrowserSynchronously(web_app_browser);
+  EXPECT_EQ(std::move(result_awaiter).AwaitNextResult(),
+            ManifestUpdateResult::kAppUpdated);
+
+  // Check the histogram updated correctly. Remaining update checks need to
+  // happen post-restart, because GetProvider() DCHECKs when trying to use it
+  // during shutdown.
+  histogram_tester_.ExpectBucketCount(kUpdateHistogramName,
+                                      ManifestUpdateResult::kAppUpdated, 1);
+}
+
+IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerAppIdentityBrowserTest,
+                       TestUpgradeDuringShutdownForBenignUpdate) {
+  // The app installed in the pre-test should be the only app installed.
+  auto app_ids = GetProvider().registrar().GetAppIds();
+  ASSERT_EQ(1u, app_ids.size());
+  AppId app_id = app_ids[0];
+
+  EXPECT_EQ(GetProvider().registrar().GetAppBackgroundColor(app_id),
+            SK_ColorRED);
 }
 
 // Test that showing the AppIdentity update confirmation and allowing the update

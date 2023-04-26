@@ -44,8 +44,7 @@ public class BookmarkFeatures {
 
     private static final boolean BOOKMARK_VISUALS_ENABLED_DEFAULT = false;
     private static final boolean IMPROVED_SAVE_FLOW_AUTODISMISS_ENABLED_DEFAULT = true;
-    // This is the same as the default dismiss time for snackbars.
-    private static final int IMPROVED_SAVE_FLOW_AUTODISMISS_TIME_MS_DEFAULT = 3000;
+    private static final int IMPROVED_SAVE_FLOW_AUTODISMISS_TIME_MS_DEFAULT = 6000;
 
     static final String BOOKMARK_VISUALS_ENABLED = "bookmark_visuals_enabled";
     static final String AUTODISMISS_ENABLED_PARAM_NAME = "autodismiss_enabled";
@@ -91,15 +90,9 @@ public class BookmarkFeatures {
                         BOOKMARK_VISUALS_ENABLED_DEFAULT);
     }
 
-    public static boolean isAddBookmarkMenuItemEnabled() {
+    public static boolean isBookmarkMenuItemAsDedicatedRowEnabled() {
         return isBookmarksRefreshEnabled()
                 && ChromeFeatureList.getFieldTrialParamByFeatureAsBoolean(
-                        ChromeFeatureList.BOOKMARKS_REFRESH, "add_bookmark_in_app_menu", false);
-    }
-
-    public static boolean isEditBookmarkMenuItemEnabled() {
-        return isBookmarksRefreshEnabled()
-                && ChromeFeatureList.getFieldTrialParamByFeatureAsBoolean(
-                        ChromeFeatureList.BOOKMARKS_REFRESH, "edit_bookmark_in_app_menu", false);
+                        ChromeFeatureList.BOOKMARKS_REFRESH, "bookmark_in_app_menu", false);
     }
 }

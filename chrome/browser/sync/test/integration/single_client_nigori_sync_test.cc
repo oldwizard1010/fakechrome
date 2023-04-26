@@ -7,7 +7,6 @@
 
 #include "base/base64.h"
 #include "base/command_line.h"
-#include "base/macros.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -37,9 +36,9 @@
 #include "components/sync/driver/sync_driver_switches.h"
 #include "components/sync/engine/loopback_server/loopback_server_entity.h"
 #include "components/sync/engine/nigori/key_derivation_params.h"
+#include "components/sync/engine/nigori/nigori.h"
 #include "components/sync/engine/sync_engine_switches.h"
 #include "components/sync/nigori/cryptographer_impl.h"
-#include "components/sync/nigori/nigori.h"
 #include "components/sync/nigori/nigori_test_utils.h"
 #include "components/sync/test/fake_server/fake_server_nigori_helper.h"
 #include "components/sync/trusted_vault/fake_security_domains_server.h"
@@ -1308,7 +1307,7 @@ class SingleClientNigoriWithRecoveryAndPasswordsAccountStorageTest
 
   // SetupClients() must have been already called.
   void SetupSyncTransport() {
-    secondary_account_helper::SignInSecondaryAccount(
+    secondary_account_helper::SignInUnconsentedAccount(
         GetProfile(0), &test_url_loader_factory_, kAccountEmail);
     ASSERT_TRUE(GetClient(0)->AwaitSyncTransportActive());
     ASSERT_FALSE(GetSyncService(0)->IsSyncFeatureEnabled());

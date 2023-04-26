@@ -32,7 +32,7 @@ class UnittestingSystemAppDelegate : public SystemWebAppDelegate {
 
   std::vector<AppId> GetAppIdsToUninstallAndReplace() const override;
   gfx::Size GetMinimumWindowSize() const override;
-  bool ShouldBeSingleWindow() const override;
+  bool ShouldReuseExistingWindow() const override;
   bool ShouldShowNewWindowMenuOption() const override;
   bool ShouldIncludeLaunchDirectory() const override;
   std::vector<int> GetAdditionalSearchTerms() const override;
@@ -50,7 +50,7 @@ class UnittestingSystemAppDelegate : public SystemWebAppDelegate {
 
   void SetAppIdsToUninstallAndReplace(const std::vector<AppId>&);
   void SetMinimumWindowSize(const gfx::Size&);
-  void SetShouldBeSingleWindow(bool);
+  void SetShouldReuseExistingWindow(bool);
   void SetShouldShowNewWindowMenuOption(bool);
   void SetShouldIncludeLaunchDirectory(bool);
   void SetEnabledOriginTrials(const OriginTrialsMap&);

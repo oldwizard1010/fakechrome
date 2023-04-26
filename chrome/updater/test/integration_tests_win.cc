@@ -31,6 +31,7 @@
 #include "base/version.h"
 #include "base/win/registry.h"
 #include "base/win/scoped_bstr.h"
+#include "build/branding_buildflags.h"
 #include "chrome/updater/app/server/win/updater_idl.h"
 #include "chrome/updater/app/server/win/updater_internal_idl.h"
 #include "chrome/updater/app/server/win/updater_legacy_idl.h"
@@ -93,6 +94,10 @@ absl::optional<base::FilePath> GetProductVersionPath(UpdaterScope scope) {
   absl::optional<base::FilePath> product_path = GetProductPath(scope);
   return product_path ? product_path->AppendASCII(kUpdaterVersion)
                       : product_path;
+}
+
+std::wstring GetAppClientsKey(const std::wstring& id) {
+  return base::StrCat({CLIENTS_KEY, id});
 }
 
 std::wstring GetAppClientStateKey(const std::string& id) {
@@ -274,6 +279,13 @@ void CheckInstallation(UpdaterScope scope,
   }
 }
 
+// Returns true is any updater process is found running in any session in the
+// system, regardless of its path.
+bool IsUpdaterRunning() {
+  ProcessFilterName filter(kUpdaterProcessName);
+  return base::ProcessIterator(&filter).NextProcessEntry();
+}
+
 }  // namespace
 
 absl::optional<base::FilePath> GetInstalledExecutablePath(UpdaterScope scope) {
@@ -428,9 +440,10 @@ void ExpectNotActive(UpdaterScope /*scope*/, const std::string& id) {
   }
 }
 
-void WaitForServerExit(UpdaterScope scope) {
-  // CreateGlobalPrefs will block until it can acquire the prefs lock.
-  CreateGlobalPrefs(scope);
+// Waits for all updater processes to end, including the server process holding
+// the prefs lock.
+void WaitForServerExit(UpdaterScope /*scope*/) {
+  WaitFor(base::BindRepeating([]() { return !IsUpdaterRunning(); }));
 }
 
 // Tests if the typelibs and some of the public, internal, and
@@ -449,6 +462,7 @@ void ExpectInterfacesRegistered(UpdaterScope scope) {
     Microsoft::WRL::ComPtr<IUpdater> updater;
     EXPECT_HRESULT_SUCCEEDED(updater_server.As(&updater));
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
     Microsoft::WRL::ComPtr<IUnknown> updater_legacy_server;
     EXPECT_HRESULT_SUCCEEDED(::CoCreateInstance(
         scope == UpdaterScope::kSystem ? __uuidof(GoogleUpdate3WebSystemClass)
@@ -460,6 +474,7 @@ void ExpectInterfacesRegistered(UpdaterScope scope) {
     Microsoft::WRL::ComPtr<IDispatch> dispatch;
     EXPECT_HRESULT_SUCCEEDED(google_update->createAppBundleWeb(&dispatch));
     EXPECT_HRESULT_SUCCEEDED(dispatch.As(&app_bundle));
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
   }
 
   // IUpdaterInternal.
@@ -658,6 +673,70 @@ void ExpectLegacyUpdate3WebSucceeds(UpdaterScope scope,
                                     const std::string& app_id) {
   EXPECT_HRESULT_SUCCEEDED(
       DoUpdate(scope, base::win::ScopedBstr(base::UTF8ToWide(app_id).c_str())));
+}
+
+void SetFcLaunchCmd(const std::wstring& id) {
+  base::win::RegKey key;
+  ASSERT_EQ(key.Create(HKEY_LOCAL_MACHINE, GetAppClientsKey(id).c_str(),
+                       Wow6432(KEY_WRITE)),
+            ERROR_SUCCESS);
+  EXPECT_EQ(key.WriteValue(L"fc", L"fc /?"), ERROR_SUCCESS);
+}
+
+void DeleteFcLaunchCmd(const std::wstring& id) {
+  base::win::RegKey key;
+  ASSERT_EQ(key.Create(HKEY_LOCAL_MACHINE, GetAppClientsKey(id).c_str(),
+                       Wow6432(KEY_WRITE)),
+            ERROR_SUCCESS);
+  EXPECT_EQ(key.DeleteValue(L"fc"), ERROR_SUCCESS);
+}
+
+void ExpectLegacyProcessLauncherSucceeds(UpdaterScope scope) {
+  // ProcessLauncher is only implemented for kSystem at the moment.
+  if (scope != UpdaterScope::kSystem)
+    return;
+
+  Microsoft::WRL::ComPtr<IProcessLauncher> process_launcher;
+  EXPECT_HRESULT_SUCCEEDED(::CoCreateInstance(__uuidof(ProcessLauncherClass),
+                                              nullptr, CLSCTX_LOCAL_SERVER,
+                                              IID_PPV_ARGS(&process_launcher)));
+  EXPECT_TRUE(process_launcher);
+
+  const wchar_t* const kAppId1 = L"{831EF4D0-B729-4F61-AA34-91526481799D}";
+  ULONG_PTR proc_handle = 0;
+  DWORD caller_proc_id = ::GetCurrentProcessId();
+
+  // Returns ERROR_BAD_IMPERSONATION_LEVEL when explicit security blanket is not
+  // set.
+  EXPECT_EQ(HRESULT_FROM_WIN32(ERROR_BAD_IMPERSONATION_LEVEL),
+            process_launcher->LaunchCmdElevated(kAppId1, _T("fc"),
+                                                caller_proc_id, &proc_handle));
+  EXPECT_EQ(static_cast<ULONG_PTR>(0), proc_handle);
+
+  // Sets a security blanket that will allow the server to impersonate the
+  // client.
+  EXPECT_HRESULT_SUCCEEDED(::CoSetProxyBlanket(
+      process_launcher.Get(), RPC_C_AUTHN_DEFAULT, RPC_C_AUTHZ_DEFAULT,
+      COLE_DEFAULT_PRINCIPAL, RPC_C_AUTHN_LEVEL_DEFAULT,
+      RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, EOAC_DEFAULT));
+
+  // Succeeds when the command is present in the registry.
+  SetFcLaunchCmd(kAppId1);
+  EXPECT_HRESULT_SUCCEEDED(process_launcher->LaunchCmdElevated(
+      kAppId1, _T("fc"), caller_proc_id, &proc_handle));
+  EXPECT_NE(static_cast<ULONG_PTR>(0), proc_handle);
+
+  HANDLE handle = reinterpret_cast<HANDLE>(proc_handle);
+  EXPECT_NE(WAIT_FAILED, ::WaitForSingleObject(handle, 10000));
+  EXPECT_TRUE(::CloseHandle(handle));
+  DeleteFcLaunchCmd(kAppId1);
+
+  // Returns HRESULT_FROM_WIN32(ERROR_NOT_FOUND) when the command is missing in
+  // the registry.
+  EXPECT_EQ(HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+            process_launcher->LaunchCmdElevated(kAppId1, _T("fc"),
+                                                caller_proc_id, &proc_handle));
+  EXPECT_EQ(static_cast<ULONG_PTR>(0), proc_handle);
 }
 
 int RunVPythonCommand(const base::CommandLine& command_line) {

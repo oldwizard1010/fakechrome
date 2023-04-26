@@ -163,6 +163,8 @@ public final class ProductionSupportedFlagList {
                             + "interact with a payment form."),
             Flag.baseFeature(AutofillFeatures.AUTOFILL_ENABLE_AUGMENTED_PHONE_COUNTRY_CODE,
                     "Enables support for phone code number fields with additional text."),
+            Flag.baseFeature(AutofillFeatures.AUTOFILL_DISPLACE_REMOVED_FORMS,
+                    "Fixes memory leaks in the renderer- and browser-form caches."),
             Flag.baseFeature(AutofillFeatures.AUTOFILL_USE_UNASSOCIATED_LISTED_ELEMENTS,
                     "Caches unowned listed elements in the document."),
             Flag.baseFeature(FeatureConstants.KEYBOARD_ACCESSORY_PAYMENT_VIRTUAL_CARD_FEATURE,
@@ -181,6 +183,12 @@ public final class ProductionSupportedFlagList {
                     "Enables use selective image inversion to automatically darken page, it will be"
                             + " used when WebView is in dark mode, but website doesn't provide dark"
                             + " style."),
+            Flag.baseFeature(AwFeatures.WEBVIEW_DARK_MODE_MATCH_THEME,
+                    "Set prefers-color-theme according to the app's theme unless the app specifies"
+                            + " FORCE_DARK_OFF or DARK_STRATEGY_USER_AGENT_DARKENING_ONLY."),
+            Flag.baseFeature(AwFeatures.WEBVIEW_FORCE_DARK_MODE_MATCH_THEME,
+                    "Automatically darken page if"
+                            + " WebView is set to FORCE_DARK_AUTO and the app has dark theme"),
             Flag.baseFeature(ContentFeatures.VERIFY_DID_COMMIT_PARAMS,
                     "Enables reporting of browser and renderer navigation inconsistencies on"
                             + "navigations"),
@@ -197,5 +205,11 @@ public final class ProductionSupportedFlagList {
                             + " PageTimeSpent."),
             Flag.baseFeature(BlinkFeatures.FORCE_MAJOR_VERSION100_IN_USER_AGENT,
                     "Force the Chrome major version number to 100 in the User-Agent string."),
+            Flag.baseFeature(NetworkServiceFeatures.URL_LOADER_SYNC_CLIENT,
+                    "Optimizes communication between URLLoader and CorsURLLoader."),
+            Flag.baseFeature(BlinkFeatures.SET_TIMEOUT_WITHOUT_CLAMP,
+                    "Enables faster setTimeout(,0) by removing the 1 ms clamping."),
+            Flag.baseFeature(BlinkFeatures.PAINT_HOLDING_CROSS_ORIGIN,
+                    "Defers the first commit until FCP or timeout for cross-origin navigations."),
     };
 }

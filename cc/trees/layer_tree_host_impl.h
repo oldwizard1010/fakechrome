@@ -70,6 +70,7 @@
 #include "components/viz/common/quads/compositor_render_pass.h"
 #include "components/viz/common/surfaces/child_local_surface_id_allocator.h"
 #include "components/viz/common/surfaces/local_surface_id.h"
+#include "components/viz/common/surfaces/region_capture_bounds.h"
 #include "components/viz/common/surfaces/surface_id.h"
 #include "components/viz/common/surfaces/surface_range.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
@@ -97,6 +98,7 @@ class EvictionTilePriorityQueue;
 class DroppedFrameCounter;
 class ImageAnimationController;
 class LCDTextMetricsReporter;
+class LatencyInfoSwapPromiseMonitor;
 class LayerImpl;
 class LayerTreeFrameSink;
 class LayerTreeImpl;
@@ -112,7 +114,6 @@ class RenderFrameMetadataObserver;
 class RenderingStatsInstrumentation;
 class ResourcePool;
 class SwapPromise;
-class SwapPromiseMonitor;
 class SynchronousTaskGraphRunner;
 class TaskGraphRunner;
 class UIResourceBitmap;
@@ -239,6 +240,7 @@ class CC_EXPORT LayerTreeHostImpl : public TileManagerClient,
     // The original BeginFrameArgs that triggered the latest update from the
     // main thread.
     viz::BeginFrameArgs origin_begin_main_frame_args;
+    bool has_shared_element_resources = false;
   };
 
   // A struct of data for a single UIResource, including the backing
@@ -293,8 +295,8 @@ class CC_EXPORT LayerTreeHostImpl : public TileManagerClient,
                                float page_scale,
                                base::TimeDelta duration);
   void SetNeedsAnimateInput();
-  std::unique_ptr<SwapPromiseMonitor> CreateLatencyInfoSwapPromiseMonitor(
-      ui::LatencyInfo* latency);
+  std::unique_ptr<LatencyInfoSwapPromiseMonitor>
+  CreateLatencyInfoSwapPromiseMonitor(ui::LatencyInfo* latency);
   std::unique_ptr<EventsMetricsManager::ScopedMonitor>
   GetScopedEventMetricsMonitor(
       EventsMetricsManager::ScopedMonitor::DoneCallback done_callback);
@@ -748,6 +750,8 @@ class CC_EXPORT LayerTreeHostImpl : public TileManagerClient,
 
   void ScheduleMicroBenchmark(std::unique_ptr<MicroBenchmarkImpl> benchmark);
 
+  viz::RegionCaptureBounds CollectRegionCaptureBounds();
+
   viz::CompositorFrameMetadata MakeCompositorFrameMetadata();
   RenderFrameMetadata MakeRenderFrameMetadata(FrameData* frame);
 
@@ -759,12 +763,14 @@ class CC_EXPORT LayerTreeHostImpl : public TileManagerClient,
     return viewport_rect_for_tile_priority_;
   }
 
-  // When a SwapPromiseMonitor is created on the impl thread, it calls
-  // InsertSwapPromiseMonitor() to register itself with LayerTreeHostImpl.
-  // When the monitor is destroyed, it calls RemoveSwapPromiseMonitor()
-  // to unregister itself.
-  void InsertSwapPromiseMonitor(SwapPromiseMonitor* monitor);
-  void RemoveSwapPromiseMonitor(SwapPromiseMonitor* monitor);
+  // When a `LatencyInfoSwapPromiseMonitor` is created on the impl thread, it
+  // calls `InsertLatencyInfoSwapPromiseMonitor()` to register itself with
+  // `LayerTreeHostImpl`. When the monitor is destroyed, it calls
+  // `RemoveLatencyInfoSwapPromiseMonitor()` to unregister itself.
+  void InsertLatencyInfoSwapPromiseMonitor(
+      LatencyInfoSwapPromiseMonitor* monitor);
+  void RemoveLatencyInfoSwapPromiseMonitor(
+      LatencyInfoSwapPromiseMonitor* monitor);
 
   // TODO(weiliangc): Replace RequiresHighResToDraw with scheduler waits for
   // ReadyToDraw. crbug.com/469175
@@ -986,7 +992,7 @@ class CC_EXPORT LayerTreeHostImpl : public TileManagerClient,
                             const gpu::SyncToken& sync_token,
                             bool lost);
 
-  void NotifySwapPromiseMonitorsOfSetNeedsRedraw();
+  void NotifyLatencyInfoSwapPromiseMonitors();
 
  private:
   void SetContextVisibility(bool is_visible);
@@ -1157,7 +1163,7 @@ class CC_EXPORT LayerTreeHostImpl : public TileManagerClient,
   TaskGraphRunner* task_graph_runner_;
   int id_;
 
-  std::set<SwapPromiseMonitor*> swap_promise_monitor_;
+  std::set<LatencyInfoSwapPromiseMonitor*> latency_info_swap_promise_monitor_;
 
   bool requires_high_res_to_draw_ = false;
   bool is_likely_to_require_a_draw_ = false;

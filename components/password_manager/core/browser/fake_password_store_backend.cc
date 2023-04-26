@@ -16,6 +16,10 @@ namespace password_manager {
 FakePasswordStoreBackend::FakePasswordStoreBackend() = default;
 FakePasswordStoreBackend::~FakePasswordStoreBackend() = default;
 
+base::WeakPtr<PasswordStoreBackend> FakePasswordStoreBackend::GetWeakPtr() {
+  return weak_ptr_factory_.GetWeakPtr();
+}
+
 void FakePasswordStoreBackend::InitBackend(
     RemoteChangesReceived remote_form_changes_received,
     base::RepeatingClosure sync_enabled_or_disabled_cb,
@@ -121,6 +125,11 @@ std::unique_ptr<syncer::ProxyModelTypeControllerDelegate>
 FakePasswordStoreBackend::CreateSyncControllerDelegate() {
   NOTIMPLEMENTED();
   return nullptr;
+}
+
+void FakePasswordStoreBackend::GetSyncStatus(
+    base::OnceCallback<void(bool)> callback) {
+  NOTIMPLEMENTED();
 }
 
 LoginsResult FakePasswordStoreBackend::GetAllLoginsInternal() {

@@ -593,6 +593,9 @@ class MainFrameSizeWaiter : public content::WebContentsObserver {
 // TODO(crbug.com/1249851): Test crashes on Windows
 #if defined(OS_WIN)
 #define MAYBE_BrowserActionPopup DISABLED_BrowserActionPopup
+#elif defined(OS_LINUX) && defined(THREAD_SANITIZER)
+// TODO(crbug.com/1269076): Test is flaky for linux tsan builds
+#define MAYBE_BrowserActionPopup DISABLED_BrowserActionPopup
 #else
 #define MAYBE_BrowserActionPopup BrowserActionPopup
 #endif
@@ -615,8 +618,12 @@ IN_PROC_BROWSER_TEST_F(BrowserActionInteractiveTest, MAYBE_BrowserActionPopup) {
   ASSERT_GT(minSize.width() + kGrowFactor * 2, maxSize.width());
 
   // Simulate a click on the browser action and verify the size of the resulting
-  // popup.
-  const gfx::Size kExpectedSizes[] = {minSize, middleSize, maxSize};
+  // popup. It is important to do minSize last, because all browser actions
+  // start at minSize and later increase in size. The MainFrameSizeWaiter won't
+  // wait for the popup.js code to run in the minSize case, which can prevent it
+  // from setting and storing the size for the next iteration, resulting in test
+  // flakiness.
+  const gfx::Size kExpectedSizes[] = {maxSize, middleSize, minSize};
   for (size_t i = 0; i < base::size(kExpectedSizes); i++) {
     content::WebContentsAddedObserver popup_observer;
     actions_bar->Press(extension->id());

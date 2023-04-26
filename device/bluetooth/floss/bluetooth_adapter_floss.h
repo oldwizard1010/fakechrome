@@ -135,12 +135,15 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothAdapterFloss final
   // Handle responses to most method calls
   void OnMethodResponse(base::OnceClosure callback,
                         ErrorCallback error_callback,
+                        const absl::optional<Void>& ret,
                         const absl::optional<Error>& error);
 
   // Called on completion of start discovery and stop discovery
   void OnStartDiscovery(DiscoverySessionResultCallback callback,
+                        const absl::optional<Void>& ret,
                         const absl::optional<Error>& error);
   void OnStopDiscovery(DiscoverySessionResultCallback callback,
+                       const absl::optional<Void>& ret,
                        const absl::optional<Error>& error);
 
   // Announce to observers a change in the adapter state.
@@ -167,6 +170,12 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothAdapterFloss final
                          uint32_t cod,
                          FlossAdapterClient::BluetoothSspVariant variant,
                          uint32_t passkey) override;
+  void DeviceBondStateChanged(
+      const FlossDeviceId& remote_device,
+      uint32_t status,
+      FlossAdapterClient::BondState bond_state) override;
+  void AdapterDeviceConnected(const FlossDeviceId& device_id) override;
+  void AdapterDeviceDisconnected(const FlossDeviceId& device_id) override;
 
   // BluetoothAdapter:
   base::WeakPtr<BluetoothAdapter> GetWeakPtr() override;

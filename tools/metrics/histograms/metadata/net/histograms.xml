@@ -11,10 +11,11 @@ along with a detailed description for each histogram.
 For best practices on writing histogram descriptions, see
 https://chromium.googlesource.com/chromium/src.git/+/HEAD/tools/metrics/histograms/README.md
 
-Please send CLs to chromium-metrics-reviews@google.com rather than to specific
-individuals. These CLs will be automatically reassigned to a reviewer within
-about 5 minutes. This approach helps the metrics team to load-balance incoming
-reviews. Googlers can read more about this at go/gwsq-gerrit.
+Please follow the instructions in the OWNERS file in this directory to find a
+reviewer. If no OWNERS file exists, please consider signing up at
+go/reviewing-metrics (Googlers only), as all subdirectories are expected to
+have an OWNERS file. As a last resort you can send the CL to
+chromium-metrics-reviews@google.com.
 -->
 
 <histogram-configuration>
@@ -274,6 +275,9 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 
 <histogram name="Net.CertificateTransparency.SCT.SingleVerificationTime"
     units="microseconds" expires_after="M70">
+  <obsolete>
+    Expired after M70. Removed from code 2021-11.
+  </obsolete>
   <owner>estark@chromium.org</owner>
   <owner>rsleevi@chromium.org</owner>
   <summary>
@@ -286,13 +290,14 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.CertificateTransparency.SCT.VerificationTime"
-    units="microseconds" expires_after="M70">
+    units="microseconds" expires_after="2022-05-01">
   <owner>estark@chromium.org</owner>
   <owner>rsleevi@chromium.org</owner>
   <summary>
     Time to verify the SCTs (Signed Certificate Timestamps) when setting up a
     TLS connection. Recorded on each connection setup where at least one SCT is
-    verified.
+    verified. Histogram was expired between M70 and M97. Histogram is only
+    reported for clients with high resolution clocks.
   </summary>
 </histogram>
 
@@ -330,7 +335,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram base="true" name="Net.CertVerifier.NameNormalizationPrivateRoots"
-    enum="NetCertificateNameNormalization" expires_after="2021-12-12">
+    enum="NetCertificateNameNormalization" expires_after="2022-05-11">
   <owner>mattm@chromium.org</owner>
   <owner>rsleevi@chromium.org</owner>
   <summary>
@@ -1971,6 +1976,24 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
   </summary>
 </histogram>
 
+<histogram name="Net.HttpJob.ProxyTypeFailed" enum="ProxyScheme"
+    expires_after="2022-05-11">
+  <owner>rch@chromium.org</owner>
+  <summary>
+    Scheme of the proxy server used by an HTTP job that failed, or SCHEME_DIRECT
+    if not proxy was used.
+  </summary>
+</histogram>
+
+<histogram name="Net.HttpJob.ProxyTypeSuccess" enum="ProxyScheme"
+    expires_after="2022-05-11">
+  <owner>rch@chromium.org</owner>
+  <summary>
+    Scheme of the proxy server used by an HTTP job that succeeded, or
+    SCHEME_DIRECT if not proxy was used.
+  </summary>
+</histogram>
+
 <histogram name="Net.HttpJob.TotalTime" units="ms" expires_after="never">
 <!-- expires-never: Core network stack health metric -->
 
@@ -2496,8 +2519,8 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.PushedStreamVaryResponseHeader"
-    enum="PushedStreamVaryResponseHeaderValues" expires_after="2021-12-19">
-  <owner>dschinazi@chromium.org</owner>
+    enum="PushedStreamVaryResponseHeaderValues" expires_after="2022-05-11">
+  <owner>bnc@chromium.org</owner>
   <owner>src/net/OWNERS</owner>
   <summary>
     Information about the value of the Vary response header in HTTP/2 pushed
@@ -2506,7 +2529,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.QuicActiveSessions" units="units"
-    expires_after="2022-05-01">
+    expires_after="2022-05-11">
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/quic/OWNERS</owner>
   <summary>
@@ -2525,7 +2548,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.QuicChromiumClientStream.HandleOnCloseConnectionError"
-    enum="QuicErrorCodes" expires_after="2022-05-01">
+    enum="QuicErrorCodes" expires_after="2022-05-11">
   <owner>renjietang@chromium.org</owner>
   <owner>src/net/OWNERS</owner>
   <summary>
@@ -2744,7 +2767,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.QuicHandshakeNotConfirmedNumPacketsReceived" units="units"
-    expires_after="2021-12-05">
+    expires_after="2022-08-14">
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/quic/OWNERS</owner>
   <summary>
@@ -2765,6 +2788,9 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 
 <histogram name="Net.QuicHpackCompressionPercentage" units="%"
     expires_after="2022-05-11">
+  <obsolete>
+    Removed in M58.
+  </obsolete>
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/quic/OWNERS</owner>
   <summary>
@@ -2791,6 +2817,9 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 
 <histogram name="Net.QuicHpackDecompressionPercentage" units="%"
     expires_after="2022-05-11">
+  <obsolete>
+    Removed in M53.
+  </obsolete>
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/quic/OWNERS</owner>
   <summary>
@@ -2826,7 +2855,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.QuicHttpStream.ResponseStatus"
-    enum="QuicRstStreamErrorCodes" expires_after="2022-02-09">
+    enum="QuicRstStreamErrorCodes" expires_after="2022-05-11">
   <owner>bnc@chromium.org</owner>
   <owner>src/net/quic/OWNERS</owner>
   <summary>
@@ -2900,7 +2929,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.QuicSession.AbortedPendingStreamRequests"
-    units="stream requests" expires_after="2022-05-01">
+    units="stream requests" expires_after="2022-05-11">
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/quic/OWNERS</owner>
   <summary>
@@ -2911,7 +2940,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.QuicSession.AcceptChForOrigin" enum="Boolean"
-    expires_after="2022-04-10">
+    expires_after="2022-05-11">
   <owner>bnc@chromium.org</owner>
   <owner>src/net/OWNERS</owner>
   <summary>
@@ -2923,7 +2952,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.QuicSession.AcceptChFrameReceivedViaAlps"
-    enum="AcceptChEntries" expires_after="2022-04-10">
+    enum="AcceptChEntries" expires_after="2022-05-11">
   <owner>bnc@chromium.org</owner>
   <owner>src/net/OWNERS</owner>
   <summary>
@@ -3046,7 +3075,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.QuicSession.ClosedDuringInitializeSession" enum="Boolean"
-    expires_after="2021-12-12">
+    expires_after="2022-05-11">
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/quic/OWNERS</owner>
   <summary>
@@ -3210,7 +3239,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 
 <histogram
     name="Net.QuicSession.ConnectionCloseErrorCodeServerIetfApplicationGoogle"
-    enum="QuicHttp3ErrorCodes" expires_after="2021-12-12">
+    enum="QuicHttp3ErrorCodes" expires_after="2022-05-11">
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/quic/OWNERS</owner>
   <summary>
@@ -3253,7 +3282,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 
 <histogram
     name="Net.QuicSession.ConnectionCloseErrorCodeServerIetfTransportGoogle"
-    enum="QuicTransportErrorCodes" expires_after="2021-12-05">
+    enum="QuicTransportErrorCodes" expires_after="2022-08-14">
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/quic/OWNERS</owner>
   <summary>
@@ -3435,7 +3464,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.QuicSession.EncryptionEstablishedTime"
-    units="Milliseconds" expires_after="2021-12-12">
+    units="Milliseconds" expires_after="2022-05-11">
   <owner>fayang@chromium.org</owner>
   <owner>src/net/quic/OWNERS</owner>
   <summary>
@@ -3728,7 +3757,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.QuicSession.MaxReordering" units="units"
-    expires_after="2022-05-01">
+    expires_after="2022-05-11">
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/quic/OWNERS</owner>
   <summary>
@@ -3850,7 +3879,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.QuicSession.NumTotalStreams" units="units"
-    expires_after="2022-05-01">
+    expires_after="2022-05-11">
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/quic/OWNERS</owner>
   <summary>
@@ -3964,7 +3993,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.QuicSession.PendingStreamsWaitTime" units="ms"
-    expires_after="2022-05-01">
+    expires_after="2022-05-11">
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/quic/OWNERS</owner>
   <summary>
@@ -4353,7 +4382,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.QuicSession.StreamCloseErrorCodeClient.HandshakeConfirmed"
-    enum="QuicErrorCodes" expires_after="2021-12-19">
+    enum="QuicErrorCodes" expires_after="2022-05-11">
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/quic/OWNERS</owner>
   <summary>
@@ -4363,7 +4392,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.QuicSession.StreamCloseErrorCodeServer.HandshakeConfirmed"
-    enum="QuicErrorCodes" expires_after="2022-05-01">
+    enum="QuicErrorCodes" expires_after="2022-05-11">
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/quic/OWNERS</owner>
   <summary>
@@ -4927,6 +4956,20 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
   </summary>
 </histogram>
 
+<histogram name="Net.RestrictedCookieManager.CookiePartitionKeyOK"
+    enum="Boolean" expires_after="2022-10-01">
+  <owner>dylancutler@chromium.org</owner>
+  <owner>src/net/cookies/OWNERS</owner>
+  <summary>
+    Logged whenever a partitioned cookie is set from a renderer process, which
+    can be from either document.cookie or the CookieStore API. True if the
+    partition key was set with the FromScript constructor (used by the
+    CookieStore API) or if the partition key matches the
+    RestrictedCookieManager's internal partition key (which is the case for
+    cookies set/modified by document.cookie).
+  </summary>
+</histogram>
+
 <histogram name="Net.RestrictedCookieManager.SiteForCookiesOK" enum="Boolean"
     expires_after="2022-04-10">
   <owner>morlovich@chromium.org</owner>
@@ -4978,6 +5021,9 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.SiteDomainIsSafe" enum="Boolean" expires_after="M95">
+  <obsolete>
+    Removed November 2021.
+  </obsolete>
   <owner>mmenke@chromium.org</owner>
   <owner>src/net/OWNERS</owner>
   <summary>
@@ -5031,6 +5077,9 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 
 <histogram name="Net.SpdyHpackDecompressionPercentage" units="%"
     expires_after="2022-05-11">
+  <obsolete>
+    Removed in M53.
+  </obsolete>
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/OWNERS</owner>
   <summary>
@@ -5072,7 +5121,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.SpdySession.AcceptChForOrigin" enum="Boolean"
-    expires_after="M99">
+    expires_after="2022-05-11">
   <owner>bnc@chromium.org</owner>
   <owner>src/net/OWNERS</owner>
   <summary>
@@ -5084,7 +5133,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.SpdySession.AlpsAcceptChEntries" enum="AcceptChEntries"
-    expires_after="2022-04-10">
+    expires_after="2022-05-11">
   <owner>bnc@chromium.org</owner>
   <owner>src/net/OWNERS</owner>
   <summary>
@@ -5096,7 +5145,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.SpdySession.AlpsDecoderStatus" enum="AlpsDecoderError"
-    expires_after="2022-04-10">
+    expires_after="2022-05-11">
   <owner>bnc@chromium.org</owner>
   <owner>src/net/OWNERS</owner>
   <summary>
@@ -5107,7 +5156,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.SpdySession.AlpsSettingParameterCount" units="parameters"
-    expires_after="2022-04-10">
+    expires_after="2022-05-11">
   <owner>bnc@chromium.org</owner>
   <owner>src/net/OWNERS</owner>
   <summary>
@@ -5132,7 +5181,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.SpdySession.GoAwayReceived" enum="Http2WireErrorCodes"
-    expires_after="2022-07-22">
+    expires_after="2022-05-11">
   <owner>bnc@chromium.org</owner>
   <owner>src/net/OWNERS</owner>
   <summary>
@@ -5175,7 +5224,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.SpdySessionErrorDetails_Google2"
-    enum="SpdyProtocolErrorDetails2" expires_after="2022-05-01">
+    enum="SpdyProtocolErrorDetails2" expires_after="2022-05-11">
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/OWNERS</owner>
   <summary>
@@ -5214,7 +5263,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.SpdyStreamsPerSession" units="units"
-    expires_after="2022-02-13">
+    expires_after="2022-04-17">
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/OWNERS</owner>
   <summary>The number of streams issued over a single session.</summary>
@@ -5377,7 +5426,7 @@ reviews. Googlers can read more about this at go/gwsq-gerrit.
 </histogram>
 
 <histogram name="Net.SSLNegotiatedAlpnProtocol"
-    enum="SSLNegotiatedAlpnProtocol" expires_after="2021-12-12">
+    enum="SSLNegotiatedAlpnProtocol" expires_after="2022-05-11">
   <owner>dschinazi@chromium.org</owner>
   <owner>src/net/OWNERS</owner>
   <summary>

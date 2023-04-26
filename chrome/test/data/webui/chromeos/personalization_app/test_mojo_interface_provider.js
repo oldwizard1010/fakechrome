@@ -2,22 +2,26 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {OnlineImageType, WallpaperLayout, WallpaperType} from 'chrome://personalization/trusted/personalization_app.mojom-webui.js';
+
 import {assertTrue} from '../../chai_assert.js';
 import {TestBrowserProxy} from '../../test_browser_proxy.js';
 
 /**
- * @implements {chromeos.personalizationApp.mojom.WallpaperProviderInterface}
+ * @implements {WallpaperProviderInterface}
  * @extends {TestBrowserProxy}
  */
 export class TestWallpaperProvider extends TestBrowserProxy {
   constructor() {
     super([
+      'makeTransparent',
       'fetchCollections',
       'fetchImagesForCollection',
       'getLocalImages',
       'getLocalImageThumbnail',
       'setWallpaperObserver',
       'selectWallpaper',
+      'selectLocalImage',
       'setCustomWallpaperLayout',
       'setDailyRefreshCollectionId',
       'getDailyRefreshCollectionId',
@@ -30,7 +34,7 @@ export class TestWallpaperProvider extends TestBrowserProxy {
     /**
      * URLs are not real but must have the correct origin to pass CSP checks.
      * @private
-     * @type {?Array<!chromeos.personalizationApp.mojom.WallpaperCollection>}
+     * @type {?Array<!WallpaperCollection>}
      */
     this.collections_ = [
       {
@@ -48,18 +52,29 @@ export class TestWallpaperProvider extends TestBrowserProxy {
     /**
      * URLs are not real but must have the correct origin to pass CSP checks.
      * @private
-     * @type {?Array<!chromeos.personalizationApp.mojom.WallpaperImage>}
+     * @type {?Array<!WallpaperImage>}
      */
     this.images_ = [
       {
         assetId: BigInt(0),
         attribution: ['Image 0'],
         url: {url: 'https://images.googleusercontent.com/0'},
+        unitId: BigInt(1),
+        type: OnlineImageType.kDark,
+      },
+      {
+        assetId: BigInt(2),
+        attribution: ['Image 2'],
+        url: {url: 'https://images.googleusercontent.com/2'},
+        unitId: BigInt(2),
+        type: OnlineImageType.kDark,
       },
       {
         assetId: BigInt(1),
         attribution: ['Image 1'],
         url: {url: 'https://images.googleusercontent.com/1'},
+        unitId: BigInt(1),
+        type: OnlineImageType.kLight,
       },
     ];
 
@@ -74,13 +89,13 @@ export class TestWallpaperProvider extends TestBrowserProxy {
 
     /**
      * @public
-     * @type {?chromeos.personalizationApp.mojom.CurrentWallpaper}
+     * @type {?CurrentWallpaper}
      */
     this.currentWallpaper = {
       attribution: ['Image 0'],
-      layout: chromeos.personalizationApp.mojom.WallpaperLayout.kCenter,
+      layout: WallpaperLayout.kCenter,
       key: '1',
-      type: chromeos.personalizationApp.mojom.WallpaperType.kOnline,
+      type: WallpaperType.kOnline,
       url: {url: 'https://images.googleusercontent.com/0'},
     };
 
@@ -101,23 +116,28 @@ export class TestWallpaperProvider extends TestBrowserProxy {
 
     /**
      * @public
-     * @type {?chromeos.personalizationApp.mojom.WallpaperObserverInterface}
+     * @type {?WallpaperObserverInterface}
      */
     this.wallpaperObserverRemote = null;
   }
 
   /**
-   * @return {?Array<!chromeos.personalizationApp.mojom.WallpaperCollection>}
+   * @return {?Array<!WallpaperCollection>}
    */
   get collections() {
     return this.collections_;
   }
 
   /**
-   * @return {?Array<!chromeos.personalizationApp.mojom.WallpaperImage>}
+   * @return {?Array<!WallpaperImage>}
    */
   get images() {
     return this.images_;
+  }
+
+  /** @override */
+  makeTransparent() {
+    this.methodCalled('makeTransparent');
   }
 
   /** @override */
@@ -158,14 +178,14 @@ export class TestWallpaperProvider extends TestBrowserProxy {
   }
 
   /** @override */
-  selectWallpaper(assetId) {
-    this.methodCalled('selectWallpaper', assetId);
+  selectWallpaper(assetId, previewMode) {
+    this.methodCalled('selectWallpaper', assetId, previewMode);
     return Promise.resolve({success: this.selectWallpaperResponse});
   }
 
   /** @override */
-  selectLocalImage(id) {
-    this.methodCalled('selectLocalImage', id);
+  selectLocalImage(id, layout, previewMode) {
+    this.methodCalled('selectLocalImage', id, layout, previewMode);
     return Promise.resolve({success: this.selectLocalImageResponse});
   }
 
@@ -207,7 +227,7 @@ export class TestWallpaperProvider extends TestBrowserProxy {
   }
 
   /**
-   * @param {!Array<!chromeos.personalizationApp.mojom.WallpaperCollection>}
+   * @param {!Array<!WallpaperCollection>}
    *     collections
    */
   setCollections(collections) {
@@ -219,7 +239,7 @@ export class TestWallpaperProvider extends TestBrowserProxy {
   }
 
   /**
-   * @param {Array<!chromeos.personalizationApp.mojom.WallpaperImage>} images
+   * @param {Array<!WallpaperImage>} images
    */
   setImages(images) {
     this.images_ = images;

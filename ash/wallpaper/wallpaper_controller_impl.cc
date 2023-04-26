@@ -65,6 +65,7 @@
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/data_decoder/public/cpp/decode_image.h"
 #include "third_party/icu/source/i18n/unicode/gregocal.h"
+#include "ui/compositor/compositor.h"
 #include "ui/compositor/layer.h"
 #include "ui/display/manager/display_manager.h"
 #include "ui/display/manager/managed_display_info.h"
@@ -979,6 +980,13 @@ void WallpaperControllerImpl::SetCustomWallpaper(
     WallpaperLayout layout,
     bool preview_mode,
     SetCustomWallpaperCallback callback) {
+  DCHECK(Shell::Get()->session_controller()->IsActiveUserSessionStarted());
+  if (!CanSetUserWallpaper(account_id)) {
+    // Return early to skip the work of decoding.
+    std::move(callback).Run(/*success=*/false);
+    return;
+  }
+
   // Invalidate weak ptrs to cancel prior requests to set wallpaper.
   set_wallpaper_weak_factory_.InvalidateWeakPtrs();
   ReadAndDecodeWallpaper(
@@ -1029,6 +1037,11 @@ void WallpaperControllerImpl::SetOnlineWallpaper(
     const OnlineWallpaperParams& params,
     SetOnlineWallpaperCallback callback) {
   DCHECK(callback);
+  DCHECK(Shell::Get()->session_controller()->IsActiveUserSessionStarted());
+  if (!CanSetUserWallpaper(params.account_id)) {
+    std::move(callback).Run(/*success=*/false);
+    return;
+  }
   // Invalidate weak ptrs to cancel prior requests to set wallpaper.
   set_wallpaper_weak_factory_.InvalidateWeakPtrs();
   SetOnlineWallpaperIfExists(
@@ -1041,8 +1054,13 @@ void WallpaperControllerImpl::SetOnlineWallpaper(
 void WallpaperControllerImpl::SetOnlineWallpaperIfExists(
     const OnlineWallpaperParams& params,
     SetOnlineWallpaperCallback callback) {
+  DCHECK(callback);
   DCHECK(Shell::Get()->session_controller()->IsActiveUserSessionStarted());
-  DCHECK(CanSetUserWallpaper(params.account_id));
+
+  if (!CanSetUserWallpaper(params.account_id)) {
+    std::move(callback).Run(/*success=*/false);
+    return;
+  }
 
   if (params.from_user) {
     // |asset_id| and |collection_id| are empty when the wallpaper is
@@ -1403,8 +1421,7 @@ void WallpaperControllerImpl::MinimizeInactiveWindows(
 void WallpaperControllerImpl::RestoreMinimizedWindows(
     const std::string& user_id_hash) {
   if (!window_state_manager_) {
-    NOTREACHED() << "This should only be called after calling "
-                 << "MinimizeInactiveWindows.";
+    DVLOG(1) << "No minimized window state saved";
     return;
   }
   window_state_manager_->RestoreMinimizedWindows(user_id_hash);
@@ -1523,6 +1540,13 @@ void WallpaperControllerImpl::OnColorCalculationComplete() {
     CacheProminentColors(colors, current_wallpaper_->wallpaper_info().location);
   }
   SetProminentColors(colors);
+}
+
+void WallpaperControllerImpl::OnActiveUserSessionChanged(
+    const AccountId& account_id) {
+  // It is possible to switch to another user when preview is on. In this case,
+  // we should close the preview and show the user's actual wallpaper.
+  MaybeClosePreviewWallpaper();
 }
 
 void WallpaperControllerImpl::OnSessionStateChanged(

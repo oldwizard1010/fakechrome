@@ -12,7 +12,6 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/command_line.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/run_loop.h"
 #include "base/scoped_observation.h"
@@ -104,6 +103,12 @@ class ServiceWorkerTestContentBrowserClient : public TestContentBrowserClient {
 }  // namespace
 
 class ServiceWorkerContainerHostTest : public testing::Test {
+ public:
+  ServiceWorkerContainerHostTest(const ServiceWorkerContainerHostTest&) =
+      delete;
+  ServiceWorkerContainerHostTest& operator=(
+      const ServiceWorkerContainerHostTest&) = delete;
+
  protected:
   ServiceWorkerContainerHostTest()
       : task_environment_(BrowserTaskEnvironment::IO_MAINLOOP) {
@@ -360,8 +365,6 @@ class ServiceWorkerContainerHostTest : public testing::Test {
   }
 
   url::ScopedSchemeRegistryForTests scoped_registry_;
-
-  DISALLOW_COPY_AND_ASSIGN(ServiceWorkerContainerHostTest);
 };
 
 // Run tests with PlzDedicatedWorker.

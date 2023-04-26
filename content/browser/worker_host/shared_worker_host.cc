@@ -12,6 +12,7 @@
 #include "base/no_destructor.h"
 #include "base/task/post_task.h"
 #include "base/unguessable_token.h"
+#include "content/browser/broadcast_channel/broadcast_channel_provider.h"
 #include "content/browser/code_cache/generated_code_cache_context.h"
 #include "content/browser/devtools/devtools_instrumentation.h"
 #include "content/browser/devtools/shared_worker_devtools_manager.h"
@@ -235,6 +236,7 @@ void SharedWorkerHost::Start(
 
     // Create a COEP reporter with worker's policy.
     coep_reporter_ = std::make_unique<CrossOriginEmbedderPolicyReporter>(
+        CrossOriginEmbedderPolicyReporter::Creator::kSharedWorker,
         GetProcessHost()->GetStoragePartition(), final_response_url,
         worker_cross_origin_embedder_policy_->reporting_endpoint,
         worker_cross_origin_embedder_policy_->report_only_reporting_endpoint,
@@ -453,6 +455,20 @@ void SharedWorkerHost::BindCacheStorage(
   GetProcessHost()->BindCacheStorage(cross_origin_embedder_policy(),
                                      std::move(coep_reporter), GetStorageKey(),
                                      std::move(receiver));
+}
+
+void SharedWorkerHost::CreateBroadcastChannelProvider(
+    mojo::PendingReceiver<blink::mojom::BroadcastChannelProvider> receiver) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+
+  auto* storage_partition_impl = static_cast<StoragePartitionImpl*>(
+      GetProcessHost()->GetStoragePartition());
+
+  mojo::MakeSelfOwnedReceiver(
+      std::make_unique<BroadcastChannelProvider>(
+          storage_partition_impl->GetBroadcastChannelService(),
+          GetStorageKey()),
+      std::move(receiver));
 }
 
 void SharedWorkerHost::CreateCodeCacheHost(

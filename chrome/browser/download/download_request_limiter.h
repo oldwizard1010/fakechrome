@@ -14,7 +14,6 @@
 
 #include "base/callback.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
@@ -164,7 +163,7 @@ class DownloadRequestLimiter
     void OnContentSettingChanged(
         const ContentSettingsPattern& primary_pattern,
         const ContentSettingsPattern& secondary_pattern,
-        ContentSettingsType content_type) override;
+        ContentSettingsTypeSet content_type_set) override;
 
     // Remember to either block or allow automatic downloads from
     // |request_origin|.

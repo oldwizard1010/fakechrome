@@ -541,6 +541,10 @@ class UpdateEngineClientStubImpl : public UpdateEngineClient {
       : current_channel_(kReleaseChannelBeta),
         target_channel_(kReleaseChannelBeta) {}
 
+  UpdateEngineClientStubImpl(const UpdateEngineClientStubImpl&) = delete;
+  UpdateEngineClientStubImpl& operator=(const UpdateEngineClientStubImpl&) =
+      delete;
+
   // UpdateEngineClient implementation:
   void Init(dbus::Bus* bus) override {}
 
@@ -556,7 +560,8 @@ class UpdateEngineClientStubImpl : public UpdateEngineClient {
     return observers_.HasObserver(observer);
   }
 
-  void RequestUpdateCheck(UpdateCheckCallback callback) override {
+  void RequestUpdateCheckInternal(UpdateCheckCallback callback,
+                                  bool apply_update) {
     if (last_status_.current_operation() != update_engine::Operation::IDLE) {
       std::move(callback).Run(UPDATE_RESULT_FAILED);
       return;
@@ -572,13 +577,17 @@ class UpdateEngineClientStubImpl : public UpdateEngineClient {
     base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&UpdateEngineClientStubImpl::StateTransition,
-                       weak_factory_.GetWeakPtr()),
+                       weak_factory_.GetWeakPtr(), apply_update),
         base::Milliseconds(kStateTransitionDefaultDelayMs));
+  }
+
+  void RequestUpdateCheck(UpdateCheckCallback callback) override {
+    RequestUpdateCheckInternal(std::move(callback), true);
   }
 
   void RequestUpdateCheckWithoutApplying(
       UpdateCheckCallback callback) override {
-    RequestUpdateCheck(std::move(callback));
+    RequestUpdateCheckInternal(std::move(callback), false);
   }
 
   void RebootAfterUpdate() override {}
@@ -628,7 +637,7 @@ class UpdateEngineClientStubImpl : public UpdateEngineClient {
   }
 
  private:
-  void StateTransition() {
+  void StateTransition(bool apply_update) {
     update_engine::Operation next_operation = update_engine::Operation::ERROR;
     int delay_ms = kStateTransitionDefaultDelayMs;
     switch (last_status_.current_operation()) {
@@ -644,7 +653,8 @@ class UpdateEngineClientStubImpl : public UpdateEngineClient {
         next_operation = update_engine::Operation::UPDATE_AVAILABLE;
         break;
       case update_engine::Operation::UPDATE_AVAILABLE:
-        next_operation = update_engine::Operation::DOWNLOADING;
+        next_operation = apply_update ? update_engine::Operation::DOWNLOADING
+                                      : update_engine::Operation::IDLE;
         break;
       case update_engine::Operation::DOWNLOADING:
         if (last_status_.progress() >= 1.0) {
@@ -673,7 +683,7 @@ class UpdateEngineClientStubImpl : public UpdateEngineClient {
       base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
           FROM_HERE,
           base::BindOnce(&UpdateEngineClientStubImpl::StateTransition,
-                         weak_factory_.GetWeakPtr()),
+                         weak_factory_.GetWeakPtr(), apply_update),
           base::Milliseconds(delay_ms));
     }
   }
@@ -686,8 +696,6 @@ class UpdateEngineClientStubImpl : public UpdateEngineClient {
   update_engine::StatusResult last_status_;
 
   base::WeakPtrFactory<UpdateEngineClientStubImpl> weak_factory_{this};
-
-  DISALLOW_COPY_AND_ASSIGN(UpdateEngineClientStubImpl);
 };
 
 UpdateEngineClient::UpdateEngineClient() = default;

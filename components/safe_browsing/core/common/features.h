@@ -8,7 +8,6 @@
 #include <stddef.h>
 
 #include "base/feature_list.h"
-#include "base/macros.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/values.h"
 
@@ -59,10 +58,6 @@ const char kClientSideDetectionTagParamName[] = "reporter_omaha_tag";
 // Enables client side detection referrer chain.
 extern const base::Feature kClientSideDetectionReferrerChain;
 
-// Enables GAIA-keying of client side detection requests for Enhanced Safe
-// Browsing users.
-extern const base::Feature kClientSideDetectionWithToken;
-
 // Controls whether the delayed warning experiment is enabled.
 extern const base::Feature kDelayedWarnings;
 // True if mouse clicks should undelay the warnings immediately when delayed
@@ -85,10 +80,6 @@ extern const base::Feature kOmitNonUserGesturesFromReferrerChain;
 
 // Enable GAIA password protection for signed-in users.
 extern const base::Feature kPasswordProtectionForSignedInUsers;
-
-// Enables GAIA-keying of password protection requests for Enhanced Safe
-// Browsing users.
-extern const base::Feature kPasswordProtectionWithToken;
 
 // Controls whether Chrome prompts Enhanced Safe Browsing users for deep
 // scanning.
@@ -114,22 +105,11 @@ extern const base::Feature kSafeBrowsingPageLoadToken;
 extern const base::Feature
     kSafeBrowsingPasswordCheckIntegrationForSavedPasswordsAndroid;
 
-// Controls whether Safe Browsing uses separate NetworkContexts for each
-// profile.
-extern const base::Feature kSafeBrowsingSeparateNetworkContexts;
-
-// Controls whether cookies are removed from certain communications with Safe
-// Browsing.
-extern const base::Feature kSafeBrowsingRemoveCookies;
-
 // Controls whether cookies are removed when the access token is present.
 extern const base::Feature kSafeBrowsingRemoveCookiesInAuthRequests;
 
 // Controls the daily quota for the suspicious site trigger.
 extern const base::Feature kSuspiciousSiteTriggerQuotaFeature;
-
-// Controls whether the referrer chain is attached to real time requests.
-extern const base::Feature kRealTimeUrlLookupReferrerChain;
 
 // Controls whether the referrer chain is attached to real time requests for
 // enterprise.

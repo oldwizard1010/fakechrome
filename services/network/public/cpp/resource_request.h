@@ -125,6 +125,10 @@ struct COMPONENT_EXPORT(NETWORK_CPP_BASE) ResourceRequest {
   // once Chrome Platform Apps are gone.
   absl::optional<url::Origin> isolated_world_origin;
 
+  // The chain of URLs seen during navigation redirects.  This should only
+  // contain values if the mode is `RedirectMode::kNavigate`.
+  std::vector<GURL> navigation_redirect_chain;
+
   GURL referrer;
   net::ReferrerPolicy referrer_policy = net::ReferrerPolicy::NEVER_CLEAR;
   net::HttpRequestHeaders headers;
@@ -144,6 +148,8 @@ struct COMPONENT_EXPORT(NETWORK_CPP_BASE) ResourceRequest {
   mojom::RedirectMode redirect_mode = mojom::RedirectMode::kFollow;
   std::string fetch_integrity;
   mojom::RequestDestination destination = mojom::RequestDestination::kEmpty;
+  mojom::RequestDestination original_destination =
+      mojom::RequestDestination::kEmpty;
   scoped_refptr<ResourceRequestBody> request_body;
   bool keepalive = false;
   bool has_user_gesture = false;

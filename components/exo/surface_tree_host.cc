@@ -7,7 +7,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/macros.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "cc/trees/layer_tree_frame_sink.h"
 #include "components/exo/layer_tree_frame_sink_holder.h"
@@ -31,6 +30,7 @@
 #include "ui/aura/window_targeter.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/base/cursor/cursor.h"
+#include "ui/compositor/compositor.h"
 #include "ui/compositor/layer.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
@@ -211,10 +211,6 @@ bool SurfaceTreeHost::IsInputEnabled(Surface*) const {
 
 void SurfaceTreeHost::OnNewOutputAdded() {
   UpdateDisplayOnTree();
-}
-
-void SurfaceTreeHost::SetClientSubmitsSurfacesInPixelCoordinates(bool enabled) {
-  client_submits_surfaces_in_pixel_coordinates_ = enabled;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

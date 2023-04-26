@@ -6,12 +6,14 @@
 
 #include <string>
 
+#include "ash/components/settings/cros_settings_names.h"
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/location.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
+#include "base/time/time.h"
 #include "chrome/browser/ash/attestation/attestation_key_payload.pb.h"
 #include "chrome/browser/ash/attestation/fake_certificate.h"
 #include "chrome/browser/ash/attestation/machine_certificate_uploader_impl.h"
@@ -19,7 +21,6 @@
 #include "chromeos/attestation/mock_attestation_flow.h"
 #include "chromeos/cryptohome/cryptohome_parameters.h"
 #include "chromeos/dbus/attestation/fake_attestation_client.h"
-#include "chromeos/settings/cros_settings_names.h"
 #include "components/policy/core/common/cloud/mock_cloud_policy_client.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -181,7 +182,7 @@ class MachineCertificateUploaderTestBase : public ::testing::Test {
     MachineCertificateUploaderImpl uploader(&policy_client_,
                                             &attestation_flow_);
     uploader.set_retry_limit_for_testing(kRetryLimit);
-    uploader.set_retry_delay_for_testing(0);
+    uploader.set_retry_delay_for_testing(base::TimeDelta());
     if (GetShouldRefreshCert())
       uploader.RefreshAndUploadCertificate(base::DoNothing());
     else

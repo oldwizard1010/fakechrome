@@ -10,7 +10,6 @@
 #include "base/json/json_string_value_serializer.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
 #include "chromeos/network/network_profile_handler.h"
@@ -110,6 +109,9 @@ class ShillToONCTranslator {
         field_translation_table_(field_translation_table),
         network_state_(network_state) {}
 
+  ShillToONCTranslator(const ShillToONCTranslator&) = delete;
+  ShillToONCTranslator& operator=(const ShillToONCTranslator&) = delete;
+
   // Translates the associated Shill dictionary and creates an ONC object of the
   // given signature.
   std::unique_ptr<base::DictionaryValue> CreateTranslatedONCObject();
@@ -193,8 +195,6 @@ class ShillToONCTranslator {
   const FieldTranslationEntry* field_translation_table_;
   std::unique_ptr<base::Value> onc_object_;
   const NetworkState* network_state_;
-
-  DISALLOW_COPY_AND_ASSIGN(ShillToONCTranslator);
 };
 
 std::unique_ptr<base::DictionaryValue>
@@ -473,34 +473,31 @@ void ShillToONCTranslator::TranslateCellularWithState() {
     // Do not let any value for |::onc::cellular::kAllowRoaming| that was
     // translated using the device table override the value that was translated
     // using the cellular with state table.
-    // TODO(chadduffin): Remove when the
-    // |ash::features::kCellularAllowPerNetworkRoaming| feature flag has fully
-    // launched and |shill::kCellularAllowRoamingProperty| usage as a Shill
-    // device property is fully deprecated.
+    // TODO(crbug.com/1232818): Remove when
+    // |shill::kCellularAllowRoamingProperty| usage as a Shill device property
+    // is fully deprecated.
     if (onc_object_->FindKey(::onc::cellular::kAllowRoaming)) {
       nested_object->RemoveKey(::onc::cellular::kAllowRoaming);
     }
     onc_object_->MergeDictionary(nested_object.get());
 
-    // The Scanning property is retrieved from the Device dictionary, but only
-    // if this is the active SIM, meaning that the service ICCID matches the
-    // device ICCID.
+    // Both the Scanning property and the ProviderRequiresRoaming property are
+    // retrieved from the Device dictionary, but only if this is the active SIM,
+    // meaning that the service ICCID matches the device ICCID.
     const std::string* service_iccid =
         onc_object_->FindStringKey(::onc::cellular::kICCID);
     if (service_iccid) {
       const std::string* device_iccid =
           device_dictionary->FindStringKey(shill::kIccidProperty);
       if (device_iccid && *service_iccid == *device_iccid) {
+        requires_roaming =
+            device_dictionary
+                ->FindBoolKey(shill::kProviderRequiresRoamingProperty)
+                .value_or(false);
         scanning = device_dictionary->FindBoolKey(shill::kScanningProperty)
                        .value_or(false);
       }
     }
-
-    // Get requires_roaming from the Device dictionary, even if this is not the
-    // active SIM.
-    requires_roaming =
-        device_dictionary->FindBoolKey(shill::kProviderRequiresRoamingProperty)
-            .value_or(false);
   }
   if (requires_roaming) {
     onc_object_->SetKey(::onc::cellular::kRoamingState,

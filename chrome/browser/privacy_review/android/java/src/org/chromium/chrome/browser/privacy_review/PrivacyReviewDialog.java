@@ -11,6 +11,7 @@ import android.view.View;
 import android.widget.FrameLayout;
 
 import androidx.appcompat.widget.Toolbar;
+import androidx.viewpager2.widget.ViewPager2;
 
 import org.chromium.ui.widget.ButtonCompat;
 
@@ -19,6 +20,10 @@ import org.chromium.ui.widget.ButtonCompat;
  */
 public class PrivacyReviewDialog extends Dialog {
     private View mDialogView;
+    private ViewPager2 mViewPager;
+    private PrivacyReviewPagerAdapter mPagerAdapter;
+    private ButtonCompat mNextButton;
+    private ButtonCompat mBackButton;
 
     public PrivacyReviewDialog(Context context) {
         super(context, R.style.ThemeOverlay_BrowserUI_Fullscreen);
@@ -54,5 +59,37 @@ public class PrivacyReviewDialog extends Dialog {
         FrameLayout content = mDialogView.findViewById(R.id.dialog_content);
         content.removeAllViews();
         getLayoutInflater().inflate(R.layout.privacy_review_steps, content);
+
+        mViewPager = (ViewPager2) mDialogView.findViewById(R.id.review_viewpager);
+        mPagerAdapter = new PrivacyReviewPagerAdapter();
+        mViewPager.setAdapter(mPagerAdapter);
+
+        mNextButton = (ButtonCompat) mDialogView.findViewById(R.id.next_button);
+        mNextButton.setOnClickListener((View v) -> nextStep());
+
+        mBackButton = (ButtonCompat) mDialogView.findViewById(R.id.back_button);
+        mBackButton.setOnClickListener((View v) -> previousStep());
+    }
+
+    private void nextStep() {
+        int nextIdx = mViewPager.getCurrentItem() + 1;
+        if (nextIdx < mPagerAdapter.getItemCount()) {
+            mViewPager.setCurrentItem(nextIdx);
+        }
+        mBackButton.setVisibility(View.VISIBLE);
+        if (nextIdx + 1 == mPagerAdapter.getItemCount()) {
+            mNextButton.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    private void previousStep() {
+        int prevIdx = mViewPager.getCurrentItem() - 1;
+        if (prevIdx >= 0) {
+            mViewPager.setCurrentItem(prevIdx);
+        }
+        mNextButton.setVisibility(View.VISIBLE);
+        if (prevIdx == 0) {
+            mBackButton.setVisibility(View.INVISIBLE);
+        }
     }
 }

@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/process/process_iterator.h"
@@ -65,7 +64,7 @@ class ArcBridgeService;
 // while RequestSystemProcessList() is responsible for System Processes.
 class ArcProcessService : public KeyedService,
                           public ConnectionObserver<mojom::ProcessInstance>,
-                          public ProcessSnapshotServer::Observer {
+                          public ash::ProcessSnapshotServer::Observer {
  public:
   // Returns singleton instance for the given BrowserContext,
   // or nullptr if the browser |context| is not allowed to use ARC.

@@ -64,11 +64,6 @@
       }
     ]
   },
-  "Android arm64 Builder (dbg) (reclient)": {
-    "additional_compile_targets": [
-      "all"
-    ]
-  },
   "android-10-x86-fyi-rel-tests": {
     "gtest_tests": [
       {
@@ -184,7 +179,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -254,7 +249,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -325,7 +320,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -395,7 +390,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -460,7 +455,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -492,7 +487,9 @@
         "args": [
           "--gs-results-bucket=chromium-result-details",
           "--recover-devices",
-          "--avd-config=../../tools/android/avd/proto/generic_android31.textpb"
+          "--avd-config=../../tools/android/avd/proto/generic_android31.textpb",
+          "--test-launcher-filter-file=../../testing/buildbot/filters/android.emulator.base_unittests.filter",
+          "--gtest_filter=-ModuleCacheTest.CheckAgainstProcMaps"
         ],
         "merge": {
           "args": [
@@ -521,7 +518,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -591,7 +588,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -661,7 +658,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -731,7 +728,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -772,7 +769,8 @@
         "args": [
           "--gs-results-bucket=chromium-result-details",
           "--recover-devices",
-          "--avd-config=../../tools/android/avd/proto/generic_android31.textpb"
+          "--avd-config=../../tools/android/avd/proto/generic_android31.textpb",
+          "--test-launcher-filter-file=../../testing/buildbot/filters/android.emulator.blink_unittests.filter"
         ],
         "merge": {
           "args": [
@@ -802,7 +800,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -873,7 +871,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -943,7 +941,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -1013,7 +1011,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -1084,7 +1082,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -1154,7 +1152,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -1224,7 +1222,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -1294,7 +1292,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -1337,7 +1335,8 @@
           "--gs-results-bucket=chromium-result-details",
           "--recover-devices",
           "--avd-config=../../tools/android/avd/proto/generic_android31.textpb",
-          "--git-revision=${got_revision}"
+          "--git-revision=${got_revision}",
+          "--timeout-scale=2.0"
         ],
         "merge": {
           "args": [
@@ -1371,7 +1370,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -1415,7 +1414,8 @@
           "--gs-results-bucket=chromium-result-details",
           "--recover-devices",
           "--avd-config=../../tools/android/avd/proto/generic_android31.textpb",
-          "--git-revision=${got_revision}"
+          "--git-revision=${got_revision}",
+          "--avd-config=../../tools/android/avd/proto/generic_playstore_android31.textpb"
         ],
         "merge": {
           "args": [
@@ -1450,25 +1450,25 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
           ],
           "named_caches": [
             {
-              "name": "avd_generic_android31",
+              "name": "avd_generic_playstore_android31",
               "path": ".android"
             },
             {
-              "name": "system_images_android_31_google_apis_x64",
+              "name": "system_images_android_31_google_apis_playstore_x64",
               "path": ".emulator_sdk"
             }
           ],
           "optional_dimensions": {
             "60": [
               {
-                "caches": "avd_generic_android31"
+                "caches": "avd_generic_playstore_android31"
               }
             ]
           },
@@ -1526,7 +1526,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -1596,7 +1596,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -1666,7 +1666,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -1737,7 +1737,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -1808,7 +1808,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -1879,7 +1879,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -1921,7 +1921,8 @@
         "args": [
           "--gs-results-bucket=chromium-result-details",
           "--recover-devices",
-          "--avd-config=../../tools/android/avd/proto/generic_android31.textpb"
+          "--avd-config=../../tools/android/avd/proto/generic_android31.textpb",
+          "--test-launcher-filter-file=../../testing/buildbot/filters/android.emulator_12.crashpad_tests.filter"
         ],
         "merge": {
           "args": [
@@ -1950,7 +1951,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -2020,7 +2021,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -2090,7 +2091,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -2160,7 +2161,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -2230,7 +2231,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -2300,7 +2301,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -2370,7 +2371,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -2440,7 +2441,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -2512,7 +2513,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -2582,7 +2583,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -2652,7 +2653,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -2722,7 +2723,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -2792,7 +2793,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -2862,7 +2863,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -2932,7 +2933,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -3002,7 +3003,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -3072,7 +3073,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -3142,7 +3143,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -3212,7 +3213,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -3282,7 +3283,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -3352,7 +3353,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -3422,7 +3423,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -3492,7 +3493,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -3562,7 +3563,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -3632,7 +3633,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -3702,7 +3703,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -3773,7 +3774,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -3843,7 +3844,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -3913,7 +3914,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -3983,7 +3984,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -4053,7 +4054,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -4123,7 +4124,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -4193,7 +4194,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -4263,7 +4264,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -4333,7 +4334,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -4403,7 +4404,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -4473,7 +4474,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -4543,7 +4544,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -4614,7 +4615,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -4684,7 +4685,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -4754,7 +4755,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -4824,7 +4825,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -4894,7 +4895,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -4964,7 +4965,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -5034,7 +5035,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -5109,7 +5110,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -5180,7 +5181,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -5251,7 +5252,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -5321,7 +5322,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -5391,7 +5392,7 @@
               "cpu": "x86-64",
               "device_os": null,
               "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
+              "machine_type": "e2-standard-8",
               "os": "Ubuntu-16.04|Ubuntu-18.04",
               "pool": "chromium.tests.avd"
             }
@@ -5442,6 +5443,7 @@
   "android-pie-arm64-wpt-rel-non-cq": {
     "isolated_scripts": [
       {
+        "experiment_percentage": 100,
         "isolate_name": "system_webview_wpt",
         "merge": {
           "args": [
@@ -5481,6 +5483,7 @@
         "test_id_prefix": "ninja://android_webview/test:system_webview_wpt/"
       },
       {
+        "experiment_percentage": 100,
         "isolate_name": "weblayer_shell_wpt",
         "merge": {
           "args": [
@@ -5527,6 +5530,7 @@
         "args": [
           "--avd-config=../../tools/android/avd/proto/generic_android28.textpb"
         ],
+        "experiment_percentage": 100,
         "isolate_name": "chrome_public_wpt",
         "merge": {
           "args": [
@@ -5591,8 +5595,7 @@
         "args": [
           "--gs-results-bucket=chromium-result-details",
           "--recover-devices",
-          "--avd-config=../../tools/android/avd/proto/generic_android29.textpb",
-          "--replace-system-package=org.chromium.weblayer.shell,apks/WebLayerShellSystemWebView.apk"
+          "--avd-config=../../tools/android/avd/proto/generic_android29.textpb"
         ],
         "merge": {
           "args": [
@@ -5661,6 +5664,7 @@
       },
       {
         "args": [
+          "--additional-apk=apks/WebLayerShellSystemWebView.apk",
           "--webview-apk-path=apks/SystemWebView.apk",
           "--test-runner-outdir",
           ".",
@@ -5748,93 +5752,7 @@
       },
       {
         "args": [
-          "--webview-apk-path=apks/SystemWebView.apk",
-          "--test-runner-outdir",
-          ".",
-          "--client-outdir",
-          "../../weblayer_instrumentation_test_M95/out/Release",
-          "--implementation-outdir",
-          ".",
-          "--test-expectations",
-          "../../weblayer/browser/android/javatests/skew/expectations.txt",
-          "--client-version=95",
-          "--gs-results-bucket=chromium-result-details",
-          "--recover-devices",
-          "--avd-config=../../tools/android/avd/proto/generic_android29.textpb"
-        ],
-        "merge": {
-          "args": [
-            "--bucket",
-            "chromium-result-details",
-            "--test-name",
-            "weblayer_skew_tests_with_client_from_95"
-          ],
-          "script": "//build/android/pylib/results/presentation/test_results_presentation.py"
-        },
-        "name": "weblayer_skew_tests_with_client_from_95",
-        "resultdb": {
-          "enable": true,
-          "has_native_resultdb_integration": true
-        },
-        "swarming": {
-          "can_use_on_swarming_builders": true,
-          "cipd_packages": [
-            {
-              "cipd_package": "chromium/testing/weblayer-x86",
-              "location": "weblayer_instrumentation_test_M95",
-              "revision": "version:95.0.4638.55"
-            },
-            {
-              "cipd_package": "infra/tools/luci/logdog/butler/${platform}",
-              "location": "bin",
-              "revision": "git_revision:ff387eadf445b24c935f1cf7d6ddd279f8a6b04c"
-            }
-          ],
-          "dimension_sets": [
-            {
-              "cpu": "x86-64",
-              "device_os": null,
-              "device_type": null,
-              "machine_type": "n1-standard-4|e2-standard-4",
-              "os": "Ubuntu-16.04|Ubuntu-18.04",
-              "pool": "chromium.tests.avd"
-            }
-          ],
-          "named_caches": [
-            {
-              "name": "avd_generic_android29",
-              "path": ".android"
-            },
-            {
-              "name": "system_images_android_29_google_apis_x86",
-              "path": ".emulator_sdk"
-            }
-          ],
-          "optional_dimensions": {
-            "60": [
-              {
-                "caches": "avd_generic_android29"
-              }
-            ]
-          },
-          "output_links": [
-            {
-              "link": [
-                "https://luci-logdog.appspot.com/v/?s",
-                "=android%2Fswarming%2Flogcats%2F",
-                "${TASK_ID}%2F%2B%2Funified_logcats"
-              ],
-              "name": "shard #${SHARD_INDEX} logcats"
-            }
-          ],
-          "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
-          "shards": 2
-        },
-        "test": "weblayer_skew_tests",
-        "test_id_prefix": "ninja://weblayer/browser/android/javatests:weblayer_skew_tests/"
-      },
-      {
-        "args": [
+          "--additional-apk=apks/WebLayerShellSystemWebView.apk",
           "--webview-apk-path=apks/SystemWebView.apk",
           "--test-runner-outdir",
           ".",
@@ -5869,7 +5787,7 @@
             {
               "cipd_package": "chromium/testing/weblayer-x86",
               "location": "weblayer_instrumentation_test_M96",
-              "revision": "version:96.0.4664.12"
+              "revision": "version:96.0.4664.45"
             },
             {
               "cipd_package": "infra/tools/luci/logdog/butler/${platform}",
@@ -5922,6 +5840,95 @@
       },
       {
         "args": [
+          "--additional-apk=apks/WebLayerShellSystemWebView.apk",
+          "--webview-apk-path=apks/SystemWebView.apk",
+          "--test-runner-outdir",
+          ".",
+          "--client-outdir",
+          "../../weblayer_instrumentation_test_M97/out/Release",
+          "--implementation-outdir",
+          ".",
+          "--test-expectations",
+          "../../weblayer/browser/android/javatests/skew/expectations.txt",
+          "--client-version=97",
+          "--gs-results-bucket=chromium-result-details",
+          "--recover-devices",
+          "--avd-config=../../tools/android/avd/proto/generic_android29.textpb"
+        ],
+        "merge": {
+          "args": [
+            "--bucket",
+            "chromium-result-details",
+            "--test-name",
+            "weblayer_skew_tests_with_client_from_97"
+          ],
+          "script": "//build/android/pylib/results/presentation/test_results_presentation.py"
+        },
+        "name": "weblayer_skew_tests_with_client_from_97",
+        "resultdb": {
+          "enable": true,
+          "has_native_resultdb_integration": true
+        },
+        "swarming": {
+          "can_use_on_swarming_builders": true,
+          "cipd_packages": [
+            {
+              "cipd_package": "chromium/testing/weblayer-x86",
+              "location": "weblayer_instrumentation_test_M97",
+              "revision": "version:97.0.4692.11"
+            },
+            {
+              "cipd_package": "infra/tools/luci/logdog/butler/${platform}",
+              "location": "bin",
+              "revision": "git_revision:ff387eadf445b24c935f1cf7d6ddd279f8a6b04c"
+            }
+          ],
+          "dimension_sets": [
+            {
+              "cpu": "x86-64",
+              "device_os": null,
+              "device_type": null,
+              "machine_type": "n1-standard-4|e2-standard-4",
+              "os": "Ubuntu-16.04|Ubuntu-18.04",
+              "pool": "chromium.tests.avd"
+            }
+          ],
+          "named_caches": [
+            {
+              "name": "avd_generic_android29",
+              "path": ".android"
+            },
+            {
+              "name": "system_images_android_29_google_apis_x86",
+              "path": ".emulator_sdk"
+            }
+          ],
+          "optional_dimensions": {
+            "60": [
+              {
+                "caches": "avd_generic_android29"
+              }
+            ]
+          },
+          "output_links": [
+            {
+              "link": [
+                "https://luci-logdog.appspot.com/v/?s",
+                "=android%2Fswarming%2Flogcats%2F",
+                "${TASK_ID}%2F%2B%2Funified_logcats"
+              ],
+              "name": "shard #${SHARD_INDEX} logcats"
+            }
+          ],
+          "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
+          "shards": 2
+        },
+        "test": "weblayer_skew_tests",
+        "test_id_prefix": "ninja://weblayer/browser/android/javatests:weblayer_skew_tests/"
+      },
+      {
+        "args": [
+          "--additional-apk=apks/WebLayerShellSystemWebView.apk",
           "--webview-apk-path=apks/AOSP_SystemWebView.apk",
           "--test-runner-outdir",
           ".",
@@ -6009,16 +6016,17 @@
       },
       {
         "args": [
+          "--additional-apk=apks/WebLayerShellSystemWebView.apk",
           "--webview-apk-path=apks/AOSP_SystemWebView.apk",
           "--test-runner-outdir",
           ".",
           "--client-outdir",
           ".",
           "--implementation-outdir",
-          "../../weblayer_instrumentation_test_M95/out/Release",
+          "../../weblayer_instrumentation_test_M96/out/Release",
           "--test-expectations",
           "../../weblayer/browser/android/javatests/skew/expectations.txt",
-          "--impl-version=95",
+          "--impl-version=96",
           "--gs-results-bucket=chromium-result-details",
           "--recover-devices",
           "--avd-config=../../tools/android/avd/proto/generic_android29.textpb"
@@ -6028,11 +6036,11 @@
             "--bucket",
             "chromium-result-details",
             "--test-name",
-            "weblayer_skew_tests_with_impl_from_95"
+            "weblayer_skew_tests_with_impl_from_96"
           ],
           "script": "//build/android/pylib/results/presentation/test_results_presentation.py"
         },
-        "name": "weblayer_skew_tests_with_impl_from_95",
+        "name": "weblayer_skew_tests_with_impl_from_96",
         "resultdb": {
           "enable": true,
           "has_native_resultdb_integration": true
@@ -6042,8 +6050,8 @@
           "cipd_packages": [
             {
               "cipd_package": "chromium/testing/weblayer-x86",
-              "location": "weblayer_instrumentation_test_M95",
-              "revision": "version:95.0.4638.55"
+              "location": "weblayer_instrumentation_test_M96",
+              "revision": "version:96.0.4664.45"
             },
             {
               "cipd_package": "infra/tools/luci/logdog/butler/${platform}",
@@ -6096,16 +6104,17 @@
       },
       {
         "args": [
+          "--additional-apk=apks/WebLayerShellSystemWebView.apk",
           "--webview-apk-path=apks/AOSP_SystemWebView.apk",
           "--test-runner-outdir",
           ".",
           "--client-outdir",
           ".",
           "--implementation-outdir",
-          "../../weblayer_instrumentation_test_M96/out/Release",
+          "../../weblayer_instrumentation_test_M97/out/Release",
           "--test-expectations",
           "../../weblayer/browser/android/javatests/skew/expectations.txt",
-          "--impl-version=96",
+          "--impl-version=97",
           "--gs-results-bucket=chromium-result-details",
           "--recover-devices",
           "--avd-config=../../tools/android/avd/proto/generic_android29.textpb"
@@ -6115,11 +6124,11 @@
             "--bucket",
             "chromium-result-details",
             "--test-name",
-            "weblayer_skew_tests_with_impl_from_96"
+            "weblayer_skew_tests_with_impl_from_97"
           ],
           "script": "//build/android/pylib/results/presentation/test_results_presentation.py"
         },
-        "name": "weblayer_skew_tests_with_impl_from_96",
+        "name": "weblayer_skew_tests_with_impl_from_97",
         "resultdb": {
           "enable": true,
           "has_native_resultdb_integration": true
@@ -6129,8 +6138,8 @@
           "cipd_packages": [
             {
               "cipd_package": "chromium/testing/weblayer-x86",
-              "location": "weblayer_instrumentation_test_M96",
-              "revision": "version:96.0.4664.12"
+              "location": "weblayer_instrumentation_test_M97",
+              "revision": "version:97.0.4692.11"
             },
             {
               "cipd_package": "infra/tools/luci/logdog/butler/${platform}",
@@ -6189,6 +6198,7 @@
         "args": [
           "--avd-config=../../tools/android/avd/proto/generic_android28.textpb"
         ],
+        "experiment_percentage": 100,
         "isolate_name": "weblayer_shell_wpt",
         "merge": {
           "args": [
@@ -6255,6 +6265,7 @@
           "--default-exclude",
           "--include-file=../../third_party/blink/web_tests/android/WPTSmokeTestCases"
         ],
+        "experiment_percentage": 100,
         "isolate_name": "weblayer_shell_wpt",
         "merge": {
           "args": [
@@ -6320,6 +6331,7 @@
           "--avd-config=../../tools/android/avd/proto/generic_android28.textpb",
           "--log-wptreport"
         ],
+        "experiment_percentage": 100,
         "isolate_name": "system_webview_wpt",
         "merge": {
           "args": [

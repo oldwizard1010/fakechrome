@@ -37,11 +37,7 @@ WaylandPopup::~WaylandPopup() = default;
 bool WaylandPopup::CreateShellPopup() {
   DCHECK(parent_window() && !shell_popup_);
 
-  // Set pending initial bounds and notify the delegate.
-  if (!pending_initial_bounds_px_.IsEmpty()) {
-    SetBounds(pending_initial_bounds_px_);
-    pending_initial_bounds_px_ = gfx::Rect();
-  } else if (window_scale() != parent_window()->window_scale()) {
+  if (window_scale() != parent_window()->window_scale()) {
     // If scale changed while this was hidden (when WaylandPopup hides, parent
     // window's child is reset), update buffer scale accordingly.
     UpdateWindowScale(true);
@@ -175,15 +171,11 @@ void WaylandPopup::SetBounds(const gfx::Rect& bounds) {
 }
 
 void WaylandPopup::HandlePopupConfigure(const gfx::Rect& bounds_dip) {
-  DCHECK(shell_popup());
-  DCHECK(parent_window());
-
-  base::AutoReset<bool> auto_reset(&wayland_sets_bounds_, true);
-  SetBoundsDip(gfx::ScaleToRoundedRect(
+  pending_bounds_dip_ = gfx::ScaleToRoundedRect(
       wl::TranslateBoundsToTopLevelCoordinates(
           gfx::ScaleToRoundedRect(bounds_dip, window_scale()),
           parent_window()->GetBounds()),
-      1.0 / window_scale()));
+      1.0 / window_scale());
 }
 
 void WaylandPopup::HandleSurfaceConfigure(uint32_t serial) {
@@ -192,7 +184,26 @@ void WaylandPopup::HandleSurfaceConfigure(uint32_t serial) {
     schedule_redraw_ = false;
   }
 
-  shell_popup()->AckConfigure(serial);
+  ProcessPendingBoundsDip(serial);
+}
+
+void WaylandPopup::UpdateVisualSize(const gfx::Size& size_px,
+                                    float scale_factor) {
+  WaylandWindow::UpdateVisualSize(size_px, scale_factor);
+
+  if (!shell_popup())
+    return;
+
+  ProcessVisualSizeUpdate(size_px, scale_factor);
+  ApplyPendingBounds();
+}
+
+void WaylandPopup::ApplyPendingBounds() {
+  if (pending_configures_.empty())
+    return;
+
+  base::AutoReset<bool> auto_reset(&wayland_sets_bounds_, true);
+  SetBoundsDip(pending_configures_.back().bounds_dip);
 }
 
 void WaylandPopup::OnCloseRequest() {
@@ -220,7 +231,16 @@ bool WaylandPopup::IsSurfaceConfigured() {
 
 void WaylandPopup::SetWindowGeometry(gfx::Rect bounds_dip) {
   DCHECK(shell_popup_);
-  shell_popup_->SetWindowGeometry(bounds_dip);
+  gfx::Point p;
+  if (frame_insets_px() && !frame_insets_px()->IsEmpty()) {
+    p = gfx::ScaleToRoundedPoint(
+        {frame_insets_px()->left(), frame_insets_px()->top()},
+        1.f / window_scale());
+  }
+  shell_popup_->SetWindowGeometry({p, bounds_dip.size()});
 }
 
+void WaylandPopup::AckConfigure(uint32_t serial) {
+  shell_popup()->AckConfigure(serial);
+}
 }  // namespace ui

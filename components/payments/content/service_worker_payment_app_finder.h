@@ -11,7 +11,6 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/macros.h"
 #include "components/payments/content/web_app_manifest.h"
 #include "content/public/browser/document_user_data.h"
 #include "content/public/browser/global_routing_id.h"
@@ -98,6 +97,7 @@ class ServiceWorkerPaymentAppFinder
   friend class PaymentRequestPlatformBrowserTestBase;
   friend class PaymentMethodViewControllerTest;
   friend class PaymentHandlerIconRefetchTest;
+  friend class EmptyParametersTest;
 
   explicit ServiceWorkerPaymentAppFinder(content::RenderFrameHost* rfh);
 

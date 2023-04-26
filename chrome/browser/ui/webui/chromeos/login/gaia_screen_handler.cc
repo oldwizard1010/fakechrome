@@ -9,6 +9,7 @@
 
 #include "ash/components/security_token_pin/constants.h"
 #include "ash/components/security_token_pin/error_generator.h"
+#include "ash/components/settings/cros_settings_names.h"
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
 #include "ash/constants/devicetype.h"
@@ -81,7 +82,6 @@
 #include "chromeos/login/auth/sync_trusted_vault_keys.h"
 #include "chromeos/login/auth/user_context.h"
 #include "chromeos/network/onc/certificate_scope.h"
-#include "chromeos/settings/cros_settings_names.h"
 #include "chromeos/strings/grit/chromeos_strings.h"
 #include "components/login/localized_values_builder.h"
 #include "components/policy/proto/chrome_device_policy.pb.h"
@@ -184,12 +184,6 @@ std::string GetEnterpriseDomainManager() {
   policy::BrowserPolicyConnectorAsh* connector =
       g_browser_process->platform_part()->browser_policy_connector_ash();
   return connector->GetEnterpriseDomainManager();
-}
-
-std::string GetEnterpriseDisplayDomain() {
-  policy::BrowserPolicyConnectorAsh* connector =
-      g_browser_process->platform_part()->browser_policy_connector_ash();
-  return connector->GetEnterpriseDisplayDomain();
 }
 
 std::string GetEnterpriseEnrollmentDomain() {
@@ -423,14 +417,11 @@ void GaiaScreenHandler::LoadGaiaWithPartitionAndVersionAndConsent(
     params.SetStringKey("realm", realm);
   }
 
-  const std::string enterprise_display_domain(GetEnterpriseDisplayDomain());
   const std::string enterprise_enrollment_domain(
       GetEnterpriseEnrollmentDomain());
   const std::string enterprise_domain_manager(GetEnterpriseDomainManager());
   const std::string sso_profile(GetSSOProfile());
 
-  if (!enterprise_display_domain.empty())
-    params.SetStringKey("enterpriseDisplayDomain", enterprise_display_domain);
   if (!enterprise_enrollment_domain.empty()) {
     params.SetStringKey("enterpriseEnrollmentDomain",
                         enterprise_enrollment_domain);

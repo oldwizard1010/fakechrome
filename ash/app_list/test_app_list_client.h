@@ -12,15 +12,14 @@
 #include <vector>
 
 #include "ash/public/cpp/app_list/app_list_client.h"
-#include "base/macros.h"
+#include "ash/public/cpp/app_list/app_list_types.h"
 
 namespace ash {
-class AppListControllerImpl;
 
 // A test implementation of AppListClient that records function call counts.
 class TestAppListClient : public AppListClient {
  public:
-  explicit TestAppListClient(AppListControllerImpl* controller);
+  TestAppListClient();
 
   TestAppListClient(const TestAppListClient&) = delete;
   TestAppListClient& operator=(const TestAppListClient&) = delete;
@@ -39,7 +38,7 @@ class TestAppListClient : public AppListClient {
                         int suggestion_index,
                         bool launch_as_default) override;
   void InvokeSearchResultAction(const std::string& result_id,
-                                int action_index) override;
+                                SearchResultActionType action) override;
   void GetSearchResultContextMenuModel(
       const std::string& result_id,
       GetContextMenuModelCallback callback) override;
@@ -53,21 +52,10 @@ class TestAppListClient : public AppListClient {
                            GetContextMenuModelCallback callback) override;
   void OnAppListVisibilityWillChange(bool visible) override {}
   void OnAppListVisibilityChanged(bool visible) override {}
-  void OnItemAdded(int profile_id,
-                   std::unique_ptr<AppListItemMetadata> item) override {}
-  void OnItemUpdated(int profile_id,
-                     std::unique_ptr<AppListItemMetadata> item) override {}
-  void OnFolderDeleted(int profile_id,
-                       std::unique_ptr<AppListItemMetadata> item) override {}
-  void OnPageBreakItemDeleted(int profile_id, const std::string& id) override {}
   void OnSearchResultVisibilityChanged(const std::string& id,
                                        bool visibility) override {}
-  void OnAppListSortRequested(int profile_id, AppListSortOrder order) override {
-  }
-  void OnSetPositionRequested(
-      int profile_id,
-      std::string id,
-      const syncer::StringOrdinal& new_position) override;
+  void OnAppListSortRequested(int profile_id, AppListSortOrder order) override;
+  void OnAppListSortRevertRequested(int profile_id) override {}
   void OnQuickSettingsChanged(
       const std::string& setting_name,
       const std::map<std::string, int>& values) override {}
@@ -92,6 +80,11 @@ class TestAppListClient : public AppListClient {
     return last_opened_search_result_;
   }
 
+  // Returns the app list sort status.
+  AppListSortOrder requested_sort_order() const {
+    return requested_sort_order_.value_or(AppListSortOrder::kCustom);
+  }
+
   using SearchResultActionId = std::pair<std::string, int>;
   std::vector<SearchResultActionId> GetAndClearInvokedResultActions();
 
@@ -102,7 +95,8 @@ class TestAppListClient : public AppListClient {
   std::string activate_item_last_id_;
   std::string last_opened_search_result_;
 
-  AppListControllerImpl* const controller_;
+  // The last sort order requested using `OnAppListSortRequested()`.
+  absl::optional<AppListSortOrder> requested_sort_order_;
 };
 
 }  // namespace ash

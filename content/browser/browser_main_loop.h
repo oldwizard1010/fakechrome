@@ -9,9 +9,9 @@
 
 #include "base/callback_helpers.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
+#include "base/types/strong_alias.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "content/browser/browser_process_io_thread.h"
@@ -122,7 +122,7 @@ class CONTENT_EXPORT BrowserMainLoop {
   // The ThreadPoolInstance must exist but not to be started when building
   // BrowserMainLoop.
   explicit BrowserMainLoop(
-      const MainFunctionParams& parameters,
+      MainFunctionParams parameters,
       std::unique_ptr<base::ThreadPoolInstance::ScopedExecutionFence> fence);
 
   BrowserMainLoop(const BrowserMainLoop&) = delete;
@@ -164,6 +164,9 @@ class CONTENT_EXPORT BrowserMainLoop {
   void ShutdownThreadsAndCleanUp();
 
   int GetResultCode() const { return result_code_; }
+
+  // Needed by some embedders.
+  void SetResultCode(int code) { result_code_ = code; }
 
   media::AudioManager* audio_manager() const;
   bool AudioServiceOutOfProcess() const;
@@ -250,6 +253,13 @@ class CONTENT_EXPORT BrowserMainLoop {
 
   int PreMainMessageLoopRun();
 
+  // One last opportunity to intercept the upcoming MainMessageLoopRun (or
+  // before yielding to the native loop on Android). Returns false iff the run
+  // should proceed after this call.
+  using ProceedWithMainMessageLoopRun =
+      base::StrongAlias<class ProceedWithMainMessageLoopRunTag, bool>;
+  ProceedWithMainMessageLoopRun InterceptMainMessageLoopRun();
+
   void MainMessageLoopRun();
 
   void InitializeMojo();
@@ -281,7 +291,7 @@ class CONTENT_EXPORT BrowserMainLoop {
   //   OnFirstIdle()
 
   // Members initialized on construction ---------------------------------------
-  const MainFunctionParams& parameters_;
+  MainFunctionParams parameters_;
   const base::CommandLine& parsed_command_line_;
   int result_code_;
   bool created_threads_;  // True if the non-UI threads were created.

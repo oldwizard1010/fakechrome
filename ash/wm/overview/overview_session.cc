@@ -165,10 +165,22 @@ void OverviewSession::Init(const WindowList& windows,
                            const WindowList& hide_windows) {
   Shell::Get()->AddShellObserver(this);
 
+  if (desks_templates_util::AreDesksTemplatesEnabled())
+    tablet_mode_observation_.Observe(Shell::Get()->tablet_mode_controller());
+
   hide_overview_windows_ = std::make_unique<ScopedOverviewHideWindows>(
       std::move(hide_windows), /*force_hidden=*/false);
   if (active_window_before_overview_)
     active_window_before_overview_->AddObserver(this);
+
+  // Create this before the desks bar widget.
+  if (desks_templates_util::AreDesksTemplatesEnabled() &&
+      !desks_templates_presenter_) {
+    desks_templates_presenter_ =
+        std::make_unique<DesksTemplatesPresenter>(this);
+    desks_templates_dialog_controller_ =
+        std::make_unique<DesksTemplatesDialogController>();
+  }
 
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
   std::sort(root_windows.begin(), root_windows.end(),
@@ -256,6 +268,8 @@ void OverviewSession::Shutdown() {
 
   Shell::Get()->RemovePreTargetHandler(this);
   Shell::Get()->RemoveShellObserver(this);
+
+  tablet_mode_observation_.Reset();
 
   // Stop the presenter from receiving any events that may update the model or
   // UI.
@@ -538,8 +552,10 @@ void OverviewSession::InitiateDrag(OverviewItem* item,
       this, item, is_touch_dragging);
   window_drag_controller_->InitiateDrag(location_in_screen);
 
-  for (std::unique_ptr<OverviewGrid>& grid : grid_list_)
+  for (std::unique_ptr<OverviewGrid>& grid : grid_list_) {
     grid->OnSelectorItemDragStarted(item);
+    grid->UpdateSaveDeskAsTemplateButton();
+  }
 }
 
 void OverviewSession::Drag(OverviewItem* item,
@@ -559,8 +575,10 @@ void OverviewSession::CompleteDrag(OverviewItem* item,
   highlight_controller_->SetFocusHighlightVisibility(true);
   const bool snap = window_drag_controller_->CompleteDrag(location_in_screen) ==
                     OverviewWindowDragController::DragResult::kSnap;
-  for (std::unique_ptr<OverviewGrid>& grid : grid_list_)
+  for (std::unique_ptr<OverviewGrid>& grid : grid_list_) {
     grid->OnSelectorItemDragEnded(snap);
+    grid->UpdateSaveDeskAsTemplateButton();
+  }
 }
 
 void OverviewSession::StartNormalDragMode(
@@ -580,8 +598,10 @@ void OverviewSession::Fling(OverviewItem* item,
   const bool snap = window_drag_controller_->Fling(location_in_screen,
                                                    velocity_x, velocity_y) ==
                     OverviewWindowDragController::DragResult::kSnap;
-  for (std::unique_ptr<OverviewGrid>& grid : grid_list_)
+  for (std::unique_ptr<OverviewGrid>& grid : grid_list_) {
     grid->OnSelectorItemDragEnded(snap);
+    grid->UpdateSaveDeskAsTemplateButton();
+  }
 }
 
 void OverviewSession::ActivateDraggedWindow() {
@@ -590,8 +610,10 @@ void OverviewSession::ActivateDraggedWindow() {
 
 void OverviewSession::ResetDraggedWindowGesture() {
   window_drag_controller_->ResetGesture();
-  for (std::unique_ptr<OverviewGrid>& grid : grid_list_)
+  for (std::unique_ptr<OverviewGrid>& grid : grid_list_) {
     grid->OnSelectorItemDragEnded(/*snap=*/false);
+    grid->UpdateSaveDeskAsTemplateButton();
+  }
 }
 
 void OverviewSession::OnWindowDragStarted(aura::Window* dragged_window,
@@ -682,16 +704,6 @@ void OverviewSession::OnStartingAnimationComplete(bool canceled,
 
   if (canceled)
     return;
-
-  // Create this after the desks bar widget. This will try to update the desks
-  // templates button on the desks bar views during construction.
-  if (desks_templates_util::AreDesksTemplatesEnabled() &&
-      !desks_templates_presenter_) {
-    desks_templates_presenter_ =
-        std::make_unique<DesksTemplatesPresenter>(this);
-    desks_templates_dialog_controller_ =
-        std::make_unique<DesksTemplatesDialogController>();
-  }
 
   if (overview_focus_widget_) {
     if (should_focus_overview) {
@@ -939,9 +951,9 @@ bool OverviewSession::IsWindowActiveWindowBeforeOverview(
   return window == active_window_before_overview_;
 }
 
-void OverviewSession::ShowDesksTemplatesGrids() {
+void OverviewSession::ShowDesksTemplatesGrids(bool was_zero_state) {
   for (auto& grid : grid_list_)
-    grid->ShowDesksTemplatesGrid();
+    grid->ShowDesksTemplatesGrid(was_zero_state);
   desks_templates_presenter_->GetAllEntries();
   UpdateNoWindowsWidgetOnEachGrid();
 }
@@ -990,7 +1002,7 @@ void OverviewSession::OnKeyEvent(ui::KeyEvent* event) {
   }
 
   // If a desk templates dialog is visible it should receive the key events.
-  if (desks_templates_util::AreDesksTemplatesEnabled() &&
+  if (desks_templates_dialog_controller_ &&
       desks_templates_dialog_controller_->dialog_widget()) {
     return;
   }
@@ -1121,20 +1133,6 @@ void OverviewSession::OnShelfAlignmentChanged(aura::Window* root_window,
   EndOverview(OverviewEndAction::kShelfAlignmentChanged);
 }
 
-void OverviewSession::OnSplitViewStateChanged(
-    SplitViewController::State previous_state,
-    SplitViewController::State state) {
-  // Do nothing if overview is being shutdown.
-  if (!Shell::Get()->overview_controller()->InOverviewSession())
-    return;
-
-  RefreshNoWindowsWidgetBoundsOnEachGrid(/*animate=*/false);
-}
-
-void OverviewSession::OnSplitViewDividerPositionChanged() {
-  RefreshNoWindowsWidgetBoundsOnEachGrid(/*animate=*/false);
-}
-
 void OverviewSession::OnUserWorkAreaInsetsChanged(aura::Window* root_window) {
   // Don't make any change if |root_window| is not the primary root window.
   // Because ChromveVox is only shown on the primary window.
@@ -1156,6 +1154,34 @@ void OverviewSession::OnUserWorkAreaInsetsChanged(aura::Window* root_window) {
     if (root_window == overview_grid->root_window())
       overview_grid->OnUserWorkAreaInsetsChanged(root_window);
   }
+}
+
+void OverviewSession::OnSplitViewStateChanged(
+    SplitViewController::State previous_state,
+    SplitViewController::State state) {
+  // Do nothing if overview is being shutdown.
+  if (!Shell::Get()->overview_controller()->InOverviewSession())
+    return;
+
+  RefreshNoWindowsWidgetBoundsOnEachGrid(/*animate=*/false);
+}
+
+void OverviewSession::OnSplitViewDividerPositionChanged() {
+  RefreshNoWindowsWidgetBoundsOnEachGrid(/*animate=*/false);
+}
+
+void OverviewSession::OnTabletModeStarted() {
+  OnTabletModeChanged();
+}
+
+void OverviewSession::OnTabletModeEnded() {
+  OnTabletModeChanged();
+}
+
+void OverviewSession::OnTabletModeChanged() {
+  DCHECK(desks_templates_util::AreDesksTemplatesEnabled());
+  DCHECK(desks_templates_presenter_);
+  desks_templates_presenter_->UpdateDesksTemplatesUI();
 }
 
 void OverviewSession::Move(bool reverse) {

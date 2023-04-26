@@ -17,7 +17,6 @@
 #include "base/time/clock.h"
 #include "base/time/time.h"
 #include "base/trace_event/typed_macros.h"
-#include "components/optimization_guide/core/model_executor.h"
 #include "components/optimization_guide/proto/models.pb.h"
 #include "components/segmentation_platform/internal/database/metadata_utils.h"
 #include "components/segmentation_platform/internal/database/signal_database.h"
@@ -322,6 +321,12 @@ void ModelExecutionManagerImpl::ExecuteModel(
     return;
   }
 
+  if (VLOG_IS_ON(1)) {
+    std::stringstream log_input;
+    for (unsigned i = 0; i < state->input_tensor.size(); ++i)
+      log_input << " feature " << i << ": " << state->input_tensor[i];
+    VLOG(1) << "Segmentation model input: " << log_input.str();
+  }
   const std::vector<float>& const_input_tensor = std::move(state->input_tensor);
   stats::RecordModelExecutionZeroValuePercent(state->segment_id,
                                               const_input_tensor);
@@ -341,10 +346,12 @@ void ModelExecutionManagerImpl::OnModelExecutionComplete(
       state->segment_id, result.has_value(),
       clock_->Now() - state->model_execution_start_time);
   if (result.has_value()) {
+    VLOG(1) << "Segmentation model result: " << *result;
     stats::RecordModelExecutionResult(state->segment_id, result.value());
     RunModelExecutionCallback(std::move(state), *result,
                               ModelExecutionStatus::kSuccess);
   } else {
+    VLOG(1) << "Segmentation model returned no result.";
     RunModelExecutionCallback(std::move(state), 0,
                               ModelExecutionStatus::kExecutionError);
   }

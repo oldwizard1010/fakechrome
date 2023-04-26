@@ -51,6 +51,8 @@ class PasswordStoreBackend {
   PasswordStoreBackend& operator=(PasswordStoreBackend&&) = delete;
   virtual ~PasswordStoreBackend() = default;
 
+  virtual base::WeakPtr<PasswordStoreBackend> GetWeakPtr() = 0;
+
   // TODO(crbug.bom/1226042): Rename this to Init after PasswordStoreImpl no
   // longer inherits PasswordStore.
   virtual void InitBackend(RemoteChangesReceived remote_form_changes_received,
@@ -115,11 +117,16 @@ class PasswordStoreBackend {
   virtual std::unique_ptr<syncer::ProxyModelTypeControllerDelegate>
   CreateSyncControllerDelegate() = 0;
 
+  // Tells whether backend is actively syncing data. Callback is called on a
+  // main sequence.
+  virtual void GetSyncStatus(base::OnceCallback<void(bool)> callback) = 0;
+
   // Factory function for creating the backend. The Local backend requires the
   // provided `login_db` for storage and Android backend for migration purposes.
   static std::unique_ptr<PasswordStoreBackend> Create(
       std::unique_ptr<LoginDatabase> login_db,
-      PrefService* prefs);
+      PrefService* prefs,
+      base::RepeatingCallback<bool()> is_syncing_passwords_callback);
 };
 
 }  // namespace password_manager

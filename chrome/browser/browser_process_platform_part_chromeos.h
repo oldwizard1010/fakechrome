@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "base/compiler_specific.h"
-#include "base/macros.h"
 #include "base/sequence_checker.h"
 #include "chrome/browser/browser_process_platform_part_base.h"
 #include "chrome/browser/component_updater/cros_component_installer_chromeos.h"
@@ -26,6 +25,7 @@ class ChromeUserManager;
 class InSessionPasswordChangeManager;
 class KernelFeatureManager;
 class ProfileHelper;
+class SchedulerConfigurationManager;
 class TimeZoneResolver;
 
 namespace system {
@@ -36,10 +36,6 @@ class TimeZoneResolverManager;
 class SystemClock;
 }  // namespace system
 }  // namespace ash
-
-namespace chromeos {
-class SchedulerConfigurationManager;
-}  // namespace chromeos
 
 namespace policy {
 class BrowserPolicyConnectorAsh;
@@ -109,7 +105,7 @@ class BrowserProcessPlatformPart : public BrowserProcessPlatformPartBase {
 
   ash::ChromeUserManager* user_manager() { return chrome_user_manager_.get(); }
 
-  chromeos::SchedulerConfigurationManager* scheduler_configuration_manager() {
+  ash::SchedulerConfigurationManager* scheduler_configuration_manager() {
     return scheduler_configuration_manager_.get();
   }
 
@@ -132,6 +128,7 @@ class BrowserProcessPlatformPart : public BrowserProcessPlatformPartBase {
 
   // Overridden from BrowserProcessPlatformPartBase:
   void StartTearDown() override;
+  void AttemptExit(bool try_to_quit_application) override;
 
   ash::system::SystemClock* GetSystemClock();
   void DestroySystemClock();
@@ -206,7 +203,7 @@ class BrowserProcessPlatformPart : public BrowserProcessPlatformPartBase {
 
   base::CallbackListSubscription primary_profile_shutdown_subscription_;
 
-  std::unique_ptr<chromeos::SchedulerConfigurationManager>
+  std::unique_ptr<ash::SchedulerConfigurationManager>
       scheduler_configuration_manager_;
   std::unique_ptr<ash::KernelFeatureManager> kernel_feature_manager_;
 

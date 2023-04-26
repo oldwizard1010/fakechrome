@@ -214,6 +214,8 @@ bool ShouldConsiderDecoyRequestForStatus(PrefetchProxyPrefetchStatus status) {
     case PrefetchProxyPrefetchStatus::kPrefetchIsStaleWithNSP:
     case PrefetchProxyPrefetchStatus::kPrefetchIsStaleNSPAttemptDenied:
     case PrefetchProxyPrefetchStatus::kPrefetchIsStaleNSPNotStarted:
+    case PrefetchProxyPrefetchStatus::kPrefetchNotUsedCookiesChanged:
+    case PrefetchProxyPrefetchStatus::kPrefetchFailedRedirectsDisabled:
       // These statuses should not be returned by the eligibility checks, and
       // thus not be passed in here.
       NOTREACHED();
@@ -359,8 +361,29 @@ void PrefetchProxyTabHelper::DidStartNavigation(
     return;
   }
 
+  // User is navigating, don't bother prefetching further.
+  page_->url_loaders_.clear();
+
+  if (page_->srp_metrics_->prefetch_attempted_count_ > 0) {
+    UMA_HISTOGRAM_COUNTS_100(
+        "PrefetchProxy.Prefetch.Mainframe.TotalRedirects",
+        page_->srp_metrics_->prefetch_total_redirect_count_);
+  }
+
   const GURL& url = navigation_handle->GetURL();
 
+  // If the cookies associated with |url| have changed since the initial
+  // eligibility check, then we shouldn't serve prefetched resources.
+  if (HaveCookiesChanged(url)) {
+    OnPrefetchStatusUpdate(
+        url, PrefetchProxyPrefetchStatus::kPrefetchNotUsedCookiesChanged);
+    return;
+  }
+
+  PrepareToServe(url);
+}
+
+void PrefetchProxyTabHelper::PrepareToServe(const GURL& url) {
   // TODO(https://crbug.com/1238926): At this point in the navigation it's not
   // guaranteed that we serve the prefetch, so consider moving the cookies to
   // the interception path for robustness.
@@ -377,15 +400,6 @@ void PrefetchProxyTabHelper::DidStartNavigation(
     }
   }
 
-  // User is navigating, don't bother prefetching further.
-  page_->url_loaders_.clear();
-
-  if (page_->srp_metrics_->prefetch_attempted_count_ > 0) {
-    UMA_HISTOGRAM_COUNTS_100(
-        "PrefetchProxy.Prefetch.Mainframe.TotalRedirects",
-        page_->srp_metrics_->prefetch_total_redirect_count_);
-  }
-
   // Notify the subresource manager (if applicable)  that its page is being
   // navigated to so that the prefetched subresources can be used from cache.
   PrefetchProxyService* service =
@@ -394,7 +408,7 @@ void PrefetchProxyTabHelper::DidStartNavigation(
     return;
 
   PrefetchProxySubresourceManager* subresource_manager =
-      service->GetSubresourceManagerForURL(navigation_handle->GetURL());
+      service->GetSubresourceManagerForURL(url);
   if (!subresource_manager)
     return;
 
@@ -454,6 +468,8 @@ PrefetchProxyTabHelper::MaybeUpdatePrefetchStatusWithNSPContext(
     case PrefetchProxyPrefetchStatus::kPrefetchIneligibleRetryAfter:
     case PrefetchProxyPrefetchStatus::kPrefetchProxyNotAvailable:
     case PrefetchProxyPrefetchStatus::kPrefetchIsPrivacyDecoy:
+    case PrefetchProxyPrefetchStatus::kPrefetchNotUsedCookiesChanged:
+    case PrefetchProxyPrefetchStatus::kPrefetchFailedRedirectsDisabled:
       return status;
     // These statuses we are going to update to, and this is the only place that
     // they are set so they are not expected to be passed in.
@@ -854,45 +870,17 @@ void PrefetchProxyTabHelper::OnPrefetchRedirect(
     std::vector<std::string>* removed_headers) {
   DCHECK(PrefetchingActive());
 
-  // Copy the position ordering when there is a redirect so the metrics don't
-  // miss out on redirects.
-  auto position_iter = page_->original_prediction_ordering_.find(original_url);
-  if (position_iter != page_->original_prediction_ordering_.end()) {
-    page_->original_prediction_ordering_.emplace(redirect_info.new_url,
-                                                 position_iter->second);
-  }
-
-  if (page_->decoy_urls_.find(original_url) != page_->decoy_urls_.end()) {
-    // Check whether the next url is eligible (without considering user data) to
-    // be prefetched as a decoy.
-    auto result =
-        CheckEligibilityOfURLSansUserData(profile_, redirect_info.new_url);
-    if (result.first && PrefetchProxySendDecoyRequestForIneligiblePrefetch()) {
-      page_->decoy_urls_.emplace(redirect_info.new_url);
-      page_->urls_to_prefetch_.push_back(redirect_info.new_url);
-    }
-
-    // Cancels the current request.
-    DCHECK(page_->url_loaders_.find(loader) != page_->url_loaders_.end());
-    page_->url_loaders_.erase(page_->url_loaders_.find(loader));
-
-    Prefetch();
-    return;
-  }
-
-  page_->srp_metrics_->prefetch_total_redirect_count_++;
-
-  // Run the new URL through all the eligibility checks. In the mean time,
-  // continue on with other Prefetches.
-  CheckEligibilityOfURL(
-      profile_, redirect_info.new_url,
-      base::BindOnce(&PrefetchProxyTabHelper::OnGotEligibilityResult,
-                     weak_factory_.GetWeakPtr()));
+  // Currently all redirects are disabled when using the prefetch proxy. See
+  // crbug.com/1266876 for more details.
+  OnPrefetchStatusUpdate(
+      original_url,
+      PrefetchProxyPrefetchStatus::kPrefetchFailedRedirectsDisabled);
 
   // Cancels the current request.
   DCHECK(page_->url_loaders_.find(loader) != page_->url_loaders_.end());
   page_->url_loaders_.erase(page_->url_loaders_.find(loader));
 
+  // Continue prefetching other urls.
   Prefetch();
 }
 
@@ -1500,6 +1488,13 @@ void PrefetchProxyTabHelper::OnGotEligibilityResult(
 
   Prefetch();
 
+  // Registers a cookie listener for this URL. If the cookies in the default
+  // partition change after this point, then the prefetched resources should not
+  // be served.
+  page_->cookie_listeners_[url] = PrefetchProxyCookieListener::MakeAndRegister(
+      url, profile_->GetDefaultStoragePartition()
+               ->GetCookieManagerForBrowserProcess());
+
   for (auto& observer : observer_list_) {
     observer.OnNewEligiblePrefetchStarted();
   }
@@ -1529,6 +1524,10 @@ void PrefetchProxyTabHelper::CopyIsolatedCookiesOnAfterSRPClick(
     // Not set in unit tests.
     return;
   }
+
+  // We don't want the cookie listener for this URL to get the changes from the
+  // copy.
+  page_->cookie_listeners_[url]->StopListening();
 
   page_->cookie_copy_status_ = CookieCopyStatus::kWaitingForCopy;
 
@@ -1676,6 +1675,13 @@ void PrefetchProxyTabHelper::CreateIsolatedURLLoaderFactory() {
   page_->isolated_url_loader_factory_ = network::SharedURLLoaderFactory::Create(
       std::make_unique<network::WrapperPendingSharedURLLoaderFactory>(
           std::move(isolated_factory_remote)));
+}
+
+bool PrefetchProxyTabHelper::HaveCookiesChanged(const GURL& url) const {
+  auto cookie_listener_itr = page_->cookie_listeners_.find(url);
+  if (cookie_listener_itr == page_->cookie_listeners_.cend())
+    return false;
+  return cookie_listener_itr->second->HaveCookiesChanged();
 }
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(PrefetchProxyTabHelper);

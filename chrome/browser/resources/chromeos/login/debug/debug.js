@@ -211,7 +211,10 @@ cr.define('cr.ui.login.debug', function() {
         {
           id: 'success',
           trigger: (screen) => {
-            screen.updateCountdownString('60 seconds');
+            screen.updateCountdownString(
+                'Remove the USB and restart your device to start using \
+                 CloudReady 2.0. Otherwise your device will shut down in \
+                 60 seconds.');
             screen.showStep('success');
           },
         },
@@ -300,7 +303,7 @@ cr.define('cr.ui.login.debug', function() {
           id: 'require-permission-celluar',
           trigger: (screen) => {
             screen.onBeforeShow();
-            screen.setRequiresPermissionForCellular(true);
+            screen.setUpdateState('cellular');
           },
         },
       ],
@@ -890,7 +893,7 @@ cr.define('cr.ui.login.debug', function() {
     {
       id: 'consolidated-consent',
       kind: ScreenKind.NORMAL,
-      handledSteps: 'loaded,loading,error,eula,additional,arc,privacy',
+      handledSteps: 'loaded,loading,error,google-eula,cros-eula,arc,privacy',
       // TODO(crbug.com/1247174): Use localized URLs for eulaUrl and
       // additionalTosUrl.
       states: [
@@ -900,8 +903,8 @@ cr.define('cr.ui.login.debug', function() {
             isArcEnabled: true,
             isDemo: false,
             isChildAccount: false,
-            eulaUrl: 'https://policies.google.com/terms/embedded?hl=en',
-            additionalTosUrl: 'https://www.google.com/intl/en/chrome/terms/',
+            googleEulaUrl: 'https://policies.google.com/terms/embedded?hl=en',
+            crosEulaUrl: 'https://www.google.com/intl/en/chrome/terms/',
             countryCode: 'us',
           },
         },
@@ -911,8 +914,8 @@ cr.define('cr.ui.login.debug', function() {
             isArcEnabled: true,
             isDemo: false,
             isChildAccount: true,
-            eulaUrl: 'https://policies.google.com/terms/embedded?hl=en',
-            additionalTosUrl: 'https://www.google.com/intl/en/chrome/terms/',
+            googleEulaUrl: 'https://policies.google.com/terms/embedded?hl=en',
+            crosEulaUrl: 'https://www.google.com/intl/en/chrome/terms/',
             countryCode: 'us',
           },
         },
@@ -922,8 +925,8 @@ cr.define('cr.ui.login.debug', function() {
             isArcEnabled: true,
             isDemo: true,
             isChildAccount: false,
-            eulaUrl: 'https://policies.google.com/terms/embedded?hl=en',
-            additionalTosUrl: 'https://www.google.com/intl/en/chrome/terms/',
+            googleEulaUrl: 'https://policies.google.com/terms/embedded?hl=en',
+            crosEulaUrl: 'https://www.google.com/intl/en/chrome/terms/',
             countryCode: 'us',
           },
         },
@@ -933,8 +936,8 @@ cr.define('cr.ui.login.debug', function() {
             isArcEnabled: false,
             isDemo: false,
             isChildAccount: false,
-            eulaUrl: 'https://policies.google.com/terms/embedded?hl=en',
-            additionalTosUrl: 'https://www.google.com/intl/en/chrome/terms/',
+            googleEulaUrl: 'https://policies.google.com/terms/embedded?hl=en',
+            crosEulaUrl: 'https://www.google.com/intl/en/chrome/terms/',
             countryCode: 'us',
           },
         },
@@ -947,8 +950,8 @@ cr.define('cr.ui.login.debug', function() {
             isArcEnabled: true,
             isDemo: false,
             isChildAccount: false,
-            eulaUrl: 'https://policies.google.com/terms/embedded?hl=en',
-            additionalTosUrl: 'https://www.google.com/intl/en/chrome/terms/',
+            googleEulaUrl: 'https://policies.google.com/terms/embedded?hl=en',
+            crosEulaUrl: 'https://www.google.com/intl/en/chrome/terms/',
             countryCode: 'us',
           },
         },
@@ -1042,6 +1045,28 @@ cr.define('cr.ui.login.debug', function() {
     {
       id: 'pin-setup',
       kind: ScreenKind.NORMAL,
+      states: [
+        {
+          id: 'clear-error',
+          trigger: (screen) => {
+            (screen.$).pinKeyboard.hideProblem_();
+          }
+        },
+        {
+          id: 'error-warning',
+          trigger: (screen) => {
+            (screen.$).pinKeyboard.showProblem_(
+                MessageType.TOO_WEAK, ProblemType.WARNING);
+          }
+        },
+        {
+          id: 'error-error',
+          trigger: (screen) => {
+            (screen.$).pinKeyboard.showProblem_(
+                MessageType.TOO_LONG, ProblemType.ERROR);
+          }
+        }
+      ]
     },
     {
       id: 'arc-tos',

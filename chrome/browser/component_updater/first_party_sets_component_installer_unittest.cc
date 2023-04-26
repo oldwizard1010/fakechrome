@@ -63,6 +63,20 @@ TEST_F(FirstPartySetsComponentInstallerTest, FeatureDisabled) {
   env_.RunUntilIdle();
 }
 
+TEST_F(FirstPartySetsComponentInstallerTest, NonexistentFile_OnComponentReady) {
+  SEQUENCE_CHECKER(sequence_checker);
+
+  ASSERT_TRUE(
+      base::DeleteFile(FirstPartySetsComponentInstallerPolicy::GetInstalledPath(
+          component_install_dir_.GetPath())));
+
+  FirstPartySetsComponentInstallerPolicy(base::DoNothing())
+      .ComponentReady(base::Version(), component_install_dir_.GetPath(),
+                      base::Value(base::Value::Type::DICTIONARY));
+
+  base::RunLoop().RunUntilIdle();
+}
+
 TEST_F(FirstPartySetsComponentInstallerTest, LoadsSets_OnComponentReady) {
   SEQUENCE_CHECKER(sequence_checker);
   const std::string expectation = "some first party sets";
@@ -223,9 +237,12 @@ TEST_F(FirstPartySetsComponentInstallerTest, GetInstallerAttributes_Disabled) {
   FirstPartySetsComponentInstallerPolicy policy(base::DoNothing());
 
   EXPECT_THAT(policy.GetInstallerAttributes(),
-              UnorderedElementsAre(Pair(FirstPartySetsComponentInstallerPolicy::
-                                            kDogfoodInstallerAttributeName,
-                                        "false")));
+              UnorderedElementsAre(
+                  Pair(FirstPartySetsComponentInstallerPolicy::
+                           kDogfoodInstallerAttributeName,
+                       "false"),
+                  Pair(FirstPartySetsComponentInstallerPolicy::kV2FormatOptIn,
+                       "true")));
 }
 
 TEST_F(FirstPartySetsComponentInstallerTest,
@@ -238,9 +255,12 @@ TEST_F(FirstPartySetsComponentInstallerTest,
   FirstPartySetsComponentInstallerPolicy policy(base::DoNothing());
 
   EXPECT_THAT(policy.GetInstallerAttributes(),
-              UnorderedElementsAre(Pair(FirstPartySetsComponentInstallerPolicy::
-                                            kDogfoodInstallerAttributeName,
-                                        "false")));
+              UnorderedElementsAre(
+                  Pair(FirstPartySetsComponentInstallerPolicy::
+                           kDogfoodInstallerAttributeName,
+                       "false"),
+                  Pair(FirstPartySetsComponentInstallerPolicy::kV2FormatOptIn,
+                       "true")));
 }
 
 TEST_F(FirstPartySetsComponentInstallerTest, GetInstallerAttributes_Dogfooder) {
@@ -252,9 +272,29 @@ TEST_F(FirstPartySetsComponentInstallerTest, GetInstallerAttributes_Dogfooder) {
   FirstPartySetsComponentInstallerPolicy policy(base::DoNothing());
 
   EXPECT_THAT(policy.GetInstallerAttributes(),
-              UnorderedElementsAre(Pair(FirstPartySetsComponentInstallerPolicy::
-                                            kDogfoodInstallerAttributeName,
-                                        "true")));
+              UnorderedElementsAre(
+                  Pair(FirstPartySetsComponentInstallerPolicy::
+                           kDogfoodInstallerAttributeName,
+                       "true"),
+                  Pair(FirstPartySetsComponentInstallerPolicy::kV2FormatOptIn,
+                       "true")));
+}
+
+TEST_F(FirstPartySetsComponentInstallerTest, GetInstallerAttributes_V2OptOut) {
+  scoped_feature_list_.Reset();
+  scoped_feature_list_.InitWithFeatures(
+      {}, {net::features::kFirstPartySets,
+           net::features::kFirstPartySetsV2ComponentFormat});
+
+  FirstPartySetsComponentInstallerPolicy policy(base::DoNothing());
+
+  EXPECT_THAT(policy.GetInstallerAttributes(),
+              UnorderedElementsAre(
+                  Pair(FirstPartySetsComponentInstallerPolicy::
+                           kDogfoodInstallerAttributeName,
+                       "false"),
+                  Pair(FirstPartySetsComponentInstallerPolicy::kV2FormatOptIn,
+                       "false")));
 }
 
 }  // namespace component_updater

@@ -11,7 +11,6 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/format_macros.h"
-#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/single_thread_task_runner.h"
@@ -1724,6 +1723,25 @@ TEST_F(AudioRendererImplTest, UnmuteWhilePlaying) {
 
   StopTicking();
   EXPECT_CALL(*mock_sink_, Stop());
+}
+
+TEST_F(AudioRendererImplTest, DecodeAudioReadyPreemptsFlush) {
+  Initialize();
+
+  Preroll();
+  StartTicking();
+  EXPECT_TRUE(ConsumeBufferedDataUntilNotFull());
+  WaitForPendingRead();
+  EXPECT_CALL(*this, OnError(PIPELINE_ERROR_DECODE));
+  StopTicking();
+  EXPECT_TRUE(IsDecodePending());
+
+  // Imitate the behavior of a pending seek as flush_cb_;
+  renderer_->Flush(base::BindOnce(&AudioRendererImpl::StartPlaying,
+                                  base::Unretained(renderer_.get())));
+
+  // This shouldn't cause a deadlock.
+  renderer_->decoded_audio_ready_for_testing();
 }
 
 }  // namespace media

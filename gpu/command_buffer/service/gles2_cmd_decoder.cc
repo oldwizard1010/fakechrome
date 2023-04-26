@@ -122,10 +122,6 @@
 #include <OpenGL/CGLIOSurface.h>
 #endif  // OS_MAC
 
-#if defined(USE_OZONE)
-#include "ui/base/ui_base_features.h"  // nogncheck
-#endif
-
 // Note: this undefs far and near so include this after other Windows headers.
 #include "third_party/angle/src/image_util/loadimage.h"
 
@@ -3266,8 +3262,7 @@ bool BackTexture::AllocateNativeGpuMemoryBuffer(const gfx::Size& size,
     // buffer queue and is as a result guaranteed to work on all devices.
     // TODO(reveman): Define this format in one place instead of having to
     // duplicate BGRX_8888.
-    if (features::IsUsingOzonePlatform())
-      buffer_format = gfx::BufferFormat::BGRX_8888;
+    buffer_format = gfx::BufferFormat::BGRX_8888;
 #endif
   }
   scoped_refptr<gl::GLImage> image =
@@ -13775,7 +13770,8 @@ error::Error GLES2DecoderImpl::HandleScheduleOverlayPlaneCHROMIUM(
               c.enable_blend,
               /*damage_rect=*/gfx::Rect(), /*opacity*/ 1.0f,
               gfx::OverlayPriorityHint::kNone,
-              /*rounded_corners*/ gfx::RRectF()))) {
+              /*rounded_corners*/ gfx::RRectF(), image->color_space(),
+              /*hdr_metadata=*/absl::nullopt))) {
     LOCAL_SET_GL_ERROR(GL_INVALID_OPERATION,
                        "glScheduleOverlayPlaneCHROMIUM",
                        "failed to schedule overlay");
@@ -18527,7 +18523,7 @@ void GLES2DecoderImpl::CopySubTextureHelper(const char* function_name,
       source_type, dest_binding_target, dest_level, dest_internal_format,
       unpack_flip_y == GL_TRUE, unpack_premultiply_alpha == GL_TRUE,
       unpack_unmultiply_alpha == GL_TRUE, dither == GL_TRUE);
-#if BUILDFLAG(IS_CHROMEOS_ASH) && defined(ARCH_CPU_X86_FAMILY)
+#if defined(OS_CHROMEOS) && defined(ARCH_CPU_X86_FAMILY)
   // glDrawArrays is faster than glCopyTexSubImage2D on IA Mesa driver,
   // although opposite in Android.
   // TODO(dshwang): After Mesa fixes this issue, remove this hack.

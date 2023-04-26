@@ -66,7 +66,9 @@ class VIZ_COMMON_EXPORT CopyOutputResult {
   // We need at most 3 planes to support the formats we're interested in (RGBA
   // format requires 1 plane, NV12 requires 2, I420 requires 3 planes).
   static constexpr size_t kMaxPlanes = 3;
+  static constexpr size_t kRGBAMaxPlanes = 1;
   static constexpr size_t kNV12MaxPlanes = 2;
+  static constexpr size_t kI420MaxPlanes = 3;
 
   CopyOutputResult(Format format,
                    Destination destination,
@@ -267,7 +269,8 @@ class VIZ_COMMON_EXPORT CopyOutputSkBitmapResult : public CopyOutputResult {
 class VIZ_COMMON_EXPORT CopyOutputTextureResult : public CopyOutputResult {
  public:
   // Construct a non-empty texture result:
-  CopyOutputTextureResult(const gfx::Rect& rect,
+  CopyOutputTextureResult(Format format,
+                          const gfx::Rect& rect,
                           TextureResult texture_result,
                           ReleaseCallbacks release_callbacks);
 

@@ -9,7 +9,6 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "chromeos/dbus/hps/fake_hps_dbus_client.h"
@@ -25,7 +24,7 @@ namespace {
 
 HpsDBusClient* g_instance = nullptr;
 
-// Extracts the HPS notify data out of a DBus response.
+// Extracts snooping data out of a DBus response.
 absl::optional<bool> UnwrapHpsNotifyResult(dbus::Response* response) {
   if (response == nullptr) {
     return absl::nullopt;
@@ -55,12 +54,13 @@ class HpsDBusClientImpl : public HpsDBusClient {
         base::BindOnce(&HpsDBusClientImpl::HpsNotifyChangedConnected,
                        weak_ptr_factory_.GetWeakPtr()));
   }
+
   ~HpsDBusClientImpl() override = default;
 
   HpsDBusClientImpl(const HpsDBusClientImpl&) = delete;
   HpsDBusClientImpl& operator=(const HpsDBusClientImpl&) = delete;
 
-  // Called when the notify changed signal is received.
+  // Called when snooping signal is received.
   void HpsNotifyChangedReceived(dbus::Signal* signal) {
     dbus::MessageReader reader(signal);
     bool state = false;
@@ -83,7 +83,6 @@ class HpsDBusClientImpl : public HpsDBusClient {
   }
 
   // HpsDBusClient:
-
   void GetResultHpsNotify(GetResultHpsNotifyCallback cb) override {
     dbus::MethodCall method_call(hps::kHpsServiceInterface,
                                  hps::kGetResultHpsNotify);
@@ -101,7 +100,49 @@ class HpsDBusClientImpl : public HpsDBusClient {
     observers_.RemoveObserver(observer);
   }
 
+  void EnableHpsSense(const hps::FeatureConfig& config) override {
+    EnableHpsFeature(hps::kEnableHpsSense, config);
+  }
+
+  void DisableHpsSense() override { DisableHpsFeature(hps::kDisableHpsSense); }
+
+  void EnableHpsNotify(const hps::FeatureConfig& config) override {
+    EnableHpsFeature(hps::kEnableHpsNotify, config);
+  }
+
+  void DisableHpsNotify() override {
+    DisableHpsFeature(hps::kDisableHpsNotify);
+  }
+
+  void WaitForServiceToBeAvailable(
+      dbus::ObjectProxy::WaitForServiceToBeAvailableCallback callback)
+      override {
+    hps_proxy_->WaitForServiceToBeAvailable(std::move(callback));
+  }
+
  private:
+  // Send a method call to HpsDBus with given method name and config.
+  void EnableHpsFeature(const std::string& method_name,
+                        const hps::FeatureConfig& config) {
+    dbus::MethodCall method_call(hps::kHpsServiceInterface, method_name);
+    dbus::MessageWriter writer(&method_call);
+
+    if (!writer.AppendProtoAsArrayOfBytes(config)) {
+      LOG(ERROR) << "Failed to encode protobuf for " << method_name;
+    } else {
+      hps_proxy_->CallMethod(&method_call,
+                             dbus::ObjectProxy::TIMEOUT_USE_DEFAULT,
+                             base::DoNothing());
+    }
+  }
+
+  // Send a method call to HpsDBus with given method name.
+  void DisableHpsFeature(const std::string& method_name) {
+    dbus::MethodCall method_call(hps::kHpsServiceInterface, method_name);
+    hps_proxy_->CallMethod(&method_call, dbus::ObjectProxy::TIMEOUT_USE_DEFAULT,
+                           base::DoNothing());
+  }
+
   dbus::ObjectProxy* const hps_proxy_;
 
   base::ObserverList<Observer> observers_;
@@ -133,7 +174,10 @@ void HpsDBusClient::Initialize(dbus::Bus* bus) {
 
 // static
 void HpsDBusClient::InitializeFake() {
-  new FakeHpsDBusClient();
+  // Do not create a new fake if it was initialized early in a test, to allow
+  // the test to set its own client.
+  if (!FakeHpsDBusClient::Get())
+    new FakeHpsDBusClient();
 }
 
 // static

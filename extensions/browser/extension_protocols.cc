@@ -448,8 +448,14 @@ scoped_refptr<net::HttpResponseHeaders> BuildHttpHeaders(
 
 void AddCacheHeaders(net::HttpResponseHeaders& headers,
                      base::Time last_modified_time) {
-  if (last_modified_time.is_null())
+  // On Fuchsia, some resources are served from read-only filesystems which
+  // don't manage creation timestamps. Cache-control headers should still
+  // be generated for those resources.
+#if !defined(OS_FUCHSIA)
+  if (last_modified_time.is_null()) {
     return;
+  }
+#endif  // !defined(OS_FUCHSIA)
 
   // Hash the time and make an etag to avoid exposing the exact
   // user installation time of the extension.
@@ -663,6 +669,24 @@ class ExtensionURLLoaderFactory : public network::SelfDeletingURLLoaderFactory {
     bool send_cors_header = false;
     bool follow_symlinks_anywhere = false;
     bool include_allow_service_worker_header = false;
+
+    // Log if loading an extension resource not listed as a web accessible
+    // resource from a sandboxed page.
+    if (request.request_initiator.has_value() &&
+        request.request_initiator->opaque() &&
+        request.request_initiator->GetTupleOrPrecursorTupleIfOpaque()
+                .scheme() == kExtensionScheme) {
+      // Surface opaque origin for web accessible resource verification.
+      auto origin = url::Origin::Create(
+          request.request_initiator->GetTupleOrPrecursorTupleIfOpaque()
+              .GetURL());
+      bool is_web_accessible_resource =
+          WebAccessibleResourcesInfo::IsResourceWebAccessible(
+              extension.get(), request.url.path(), origin);
+      base::UmaHistogramBoolean(
+          "Extensions.SandboxedPageLoad.IsWebAccessibleResource",
+          is_web_accessible_resource);
+    }
 
     if (extension) {
       GetSecurityPolicyForURL(

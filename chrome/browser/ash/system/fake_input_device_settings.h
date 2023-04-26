@@ -6,7 +6,6 @@
 #define CHROME_BROWSER_ASH_SYSTEM_FAKE_INPUT_DEVICE_SETTINGS_H_
 
 #include "base/compiler_specific.h"
-#include "base/macros.h"
 #include "chrome/browser/ash/system/input_device_settings.h"
 
 namespace ash {
@@ -29,6 +28,7 @@ class FakeInputDeviceSettings : public InputDeviceSettings,
   void SetTouchpadSensitivity(int value) override;
   void SetTouchpadScrollSensitivity(int value) override;
   void SetTouchpadHapticFeedback(bool enabled) override;
+  void SetTouchpadHapticClickSensitivity(int value) override;
   void SetTapToClick(bool enabled) override;
   void SetThreeFingerClick(bool enabled) override;
   void SetTapDragging(bool enabled) override;

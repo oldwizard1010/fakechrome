@@ -6,7 +6,7 @@
 
 #include <utility>
 
-#include "base/macros.h"
+#include "ui/aura/native_window_occlusion_tracker.h"
 #include "ui/aura/window_event_dispatcher.h"
 #include "ui/aura/window_tree_host.h"
 
@@ -30,6 +30,10 @@ class WindowTreeHostTestApi {
 
   void disable_ime() { host_->dispatcher_->set_skip_ime(true); }
 
+  static const base::flat_set<WindowTreeHost*>& GetThrottledHosts() {
+    return WindowTreeHost::GetThrottledHostsForTesting();
+  }
+
  private:
   WindowTreeHost* host_;
 };
@@ -47,6 +51,14 @@ void SetHostDispatcher(WindowTreeHost* host,
 
 void DisableIME(WindowTreeHost* host) {
   WindowTreeHostTestApi(host).disable_ime();
+}
+
+void DisableNativeWindowOcclusionTracking(WindowTreeHost* host) {
+  NativeWindowOcclusionTracker::DisableNativeWindowOcclusionTracking(host);
+}
+
+const base::flat_set<WindowTreeHost*>& GetThrottledHosts() {
+  return WindowTreeHostTestApi::GetThrottledHosts();
 }
 
 }  // namespace test

@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "base/bind.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/time/time.h"
 #include "base/values.h"
@@ -99,10 +98,12 @@ content::WebUIDataSource* CreateBrowserSwitchUIHTMLSource(
   auto* service = GetBrowserSwitcherService(web_ui);
   source->AddInteger("launchDelay", service->prefs().GetDelay());
 
-  std::string browser_name = service->driver()->GetBrowserName();
-  source->AddString("browserName", browser_name);
+  std::string alt_browser_name = service->driver()->GetBrowserName();
+  source->AddString("altBrowserName", alt_browser_name);
 
-  if (browser_name.empty()) {
+  source->AddLocalizedString("browserName", IDS_PRODUCT_NAME);
+
+  if (alt_browser_name.empty()) {
     // Browser name could not be auto-detected. Say "alternative browser"
     // instead of naming the browser.
     source->AddLocalizedString(

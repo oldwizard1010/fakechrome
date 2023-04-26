@@ -26,10 +26,6 @@ GetSwitchDependentFeatureOverrides(const base::CommandLine& command_line) {
     // State to override the feature with.
     base::FeatureList::OverrideState override_state;
   } override_info[] = {
-      {switches::kAppCacheForceEnabled,
-       std::cref(blink::features::kAppCacheRequireOriginTrial),
-       base::FeatureList::OVERRIDE_DISABLE_FEATURE},
-
       // Overrides for --enable-experimental-web-platform-features.
       {switches::kEnableExperimentalWebPlatformFeatures,
        std::cref(net::features::kCookieSameSiteConsidersRedirectChain),
@@ -57,6 +53,9 @@ GetSwitchDependentFeatureOverrides(const base::CommandLine& command_line) {
        base::FeatureList::OVERRIDE_ENABLE_FEATURE},
       {switches::kEnableExperimentalWebPlatformFeatures,
        std::cref(features::kOriginIsolationHeader),
+       base::FeatureList::OVERRIDE_ENABLE_FEATURE},
+      {switches::kEnableExperimentalWebPlatformFeatures,
+       std::cref(features::kEnableCanvasContextLostInBackground),
        base::FeatureList::OVERRIDE_ENABLE_FEATURE},
       {switches::kEnableExperimentalWebPlatformFeatures,
        std::cref(features::kEnableNewCanvas2DAPI),
@@ -88,6 +87,9 @@ GetSwitchDependentFeatureOverrides(const base::CommandLine& command_line) {
       {switches::kEnableExperimentalWebPlatformFeatures,
        std::cref(blink::features::kViewportHeightClientHintHeader),
        base::FeatureList::OVERRIDE_ENABLE_FEATURE},
+      {switches::kEnableExperimentalWebPlatformFeatures,
+       std::cref(blink::features::kUserAgentClientHintFullVersionList),
+       base::FeatureList::OVERRIDE_ENABLE_FEATURE},
 
       // Overrides for --enable-experimental-cookie-features.
       {switches::kEnableExperimentalCookieFeatures,
@@ -115,6 +117,11 @@ GetSwitchDependentFeatureOverrides(const base::CommandLine& command_line) {
       // Overrides for headless
       {::switches::kHeadless, std::cref(blink::features::kPaintHolding),
        base::FeatureList::OVERRIDE_DISABLE_FEATURE},
+
+      // Override for --force-major-version-to-100.
+      {switches::kForceMajorVersionTo100,
+       std::cref(blink::features::kForceMajorVersion100InUserAgent),
+       base::FeatureList::OVERRIDE_ENABLE_FEATURE},
   };
 
   std::vector<base::FeatureList::FeatureOverrideInfo> overrides;

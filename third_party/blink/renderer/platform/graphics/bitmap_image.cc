@@ -34,6 +34,7 @@
 #include "base/metrics/histogram_macros.h"
 #include "third_party/blink/renderer/platform/geometry/float_rect.h"
 #include "third_party/blink/renderer/platform/graphics/bitmap_image_metrics.h"
+#include "third_party/blink/renderer/platform/graphics/dark_mode_filter_helper.h"
 #include "third_party/blink/renderer/platform/graphics/deferred_image_decoder.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_context.h"
 #include "third_party/blink/renderer/platform/graphics/image_observer.h"
@@ -165,7 +166,7 @@ void BitmapImage::RecordDecodedImageType(UseCounter* use_counter) {
                                             use_counter);
 }
 
-bool BitmapImage::GetHotSpot(IntPoint& hot_spot) const {
+bool BitmapImage::GetHotSpot(gfx::Point& hot_spot) const {
   return decoder_ && decoder_->HotSpot(hot_spot);
 }
 
@@ -227,9 +228,9 @@ Image::SizeAvailability BitmapImage::DataChanged(bool all_data_received) {
   // Report the image density metric right after we received all the data. The
   // SetData() call on the decoder_ (if there is one) should have decoded the
   // images and we should know the image size at this point.
-  if (ShouldReportByteSizeUMAs(all_data_received) &&
-      decoder_->FilenameExtension() == "jpg") {
-    BitmapImageMetrics::CountImageJpegDensity(
+  if (ShouldReportByteSizeUMAs(all_data_received)) {
+    BitmapImageMetrics::CountDecodedImageDensity(
+        decoder_->FilenameExtension(),
         std::min(Size().width(), Size().height()),
         ImageDensityInCentiBpp(Size(), decoder_->ByteSize()),
         decoder_->ByteSize());
@@ -310,9 +311,16 @@ void BitmapImage::Draw(cc::PaintCanvas* canvas,
 
   uint32_t stable_id = image.stable_id();
   bool is_lazy_generated = image.IsLazyGenerated();
+
+  cc::PaintFlags image_flags(flags);
+  if (draw_options.apply_dark_mode) {
+    DarkModeFilter* dark_mode_filter = draw_options.dark_mode_filter;
+    DarkModeFilterHelper::ApplyToImageIfNeeded(
+        *dark_mode_filter, this, &image_flags, src_rect, dst_rect);
+  }
   canvas->drawImageRect(
       std::move(image), adjusted_src_rect, adjusted_dst_rect,
-      draw_options.sampling_options, &flags,
+      draw_options.sampling_options, &image_flags,
       WebCoreClampingModeToSkiaRectConstraint(draw_options.clamping_mode));
 
   if (is_lazy_generated) {

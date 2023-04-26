@@ -14,7 +14,7 @@ import {Cluster, PageCallbackRouter, URLVisit} from './history_clusters.mojom-we
 import {ClusterAction, MetricsProxyImpl} from './metrics_proxy.js';
 
 /**
- * @fileoverview This file provides a custom element displaying a Cluster.
+ * @fileoverview This file provides a custom element displaying a cluster.
  */
 
 declare global {
@@ -43,7 +43,7 @@ class HistoryClusterElement extends PolymerElement {
       },
 
       /**
-       * The Cluster displayed by this element.
+       * The cluster displayed by this element.
        */
       cluster: Object,
     };
@@ -65,6 +65,11 @@ class HistoryClusterElement extends PolymerElement {
   constructor() {
     super();
     this.callbackRouter_ = BrowserProxyImpl.getInstance().callbackRouter;
+
+    // This element receives a tabindex, because it's an iron-list item.
+    // However, what we really want to do is to pass that focus onto an
+    // eligible child, so we set `delegatesFocus` to true.
+    this.attachShadow({mode: 'open', delegatesFocus: true});
   }
 
   connectedCallback() {

@@ -10,9 +10,10 @@
 #include <utility>
 #include <vector>
 
+#include "ash/components/settings/cros_settings_names.h"
+#include "ash/components/settings/timezone_settings.h"
 #include "base/bind.h"
 #include "base/environment.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
@@ -48,8 +49,6 @@
 #include "chromeos/dbus/seneschal/seneschal_client.h"
 #include "chromeos/dbus/update_engine/fake_update_engine_client.h"
 #include "chromeos/login/login_state/login_state.h"
-#include "chromeos/settings/cros_settings_names.h"
-#include "chromeos/settings/timezone_settings.h"
 #include "chromeos/system/fake_statistics_provider.h"
 #include "components/account_id/account_id.h"
 #include "components/policy/proto/device_management_backend.pb.h"
@@ -237,9 +236,9 @@ class ChildStatusCollectorTest : public testing::Test {
 
     // Disable network reporting since it requires additional setup.
     scoped_testing_cros_settings_.device_settings()->SetBoolean(
-        chromeos::kReportDeviceNetworkConfiguration, false);
+        ash::kReportDeviceNetworkConfiguration, false);
     scoped_testing_cros_settings_.device_settings()->SetBoolean(
-        chromeos::kReportDeviceNetworkStatus, false);
+        ash::kReportDeviceNetworkStatus, false);
 
     // Mock clock in task environment is set to Unix Epoch, advance it to avoid
     // using times from before Unix Epoch in some tests.
@@ -476,9 +475,8 @@ TEST_F(ChildStatusCollectorTest, ReportingPartialVersionInfo) {
 }
 
 TEST_F(ChildStatusCollectorTest, TimeZoneReporting) {
-  const std::string timezone =
-      base::UTF16ToUTF8(chromeos::system::TimezoneSettings::GetInstance()
-                            ->GetCurrentTimezoneID());
+  const std::string timezone = base::UTF16ToUTF8(
+      ash::system::TimezoneSettings::GetInstance()->GetCurrentTimezoneID());
 
   GetStatus();
 

@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "base/containers/flat_set.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "components/performance_manager/public/mojom/coordination_unit.mojom-forward.h"
@@ -120,6 +119,8 @@ class PerformanceManagerTabHelper
   friend class content::WebContentsUserData<PerformanceManagerTabHelper>;
   friend class PerformanceManagerRegistryImpl;
   friend class WebContentsProxyImpl;
+  FRIEND_TEST_ALL_PREFIXES(PerformanceManagerFencedFrameBrowserTest,
+                           FencedFrameDoesNotHaveParentFrameNode);
 
   explicit PerformanceManagerTabHelper(content::WebContents* web_contents);
 

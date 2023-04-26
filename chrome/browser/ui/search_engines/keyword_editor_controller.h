@@ -8,8 +8,6 @@
 #include <memory>
 #include <string>
 
-#include "base/macros.h"
-
 class Profile;
 class TemplateURL;
 class TemplateURLService;
@@ -44,7 +42,9 @@ class KeywordEditorController {
   // Return true if the given |url| can be made the default.
   bool CanMakeDefault(const TemplateURL* url) const;
 
-  // Return true if the given |url| can be removed.
+  // Return true if the given |url| can be removed. A `url` can be removed if it
+  // is a normal entry (non-extension) and is not a prepopulated or default
+  // search engine.
   bool CanRemove(const TemplateURL* url) const;
 
   // Return true if the given `url` can be activated. A `url` can be activated

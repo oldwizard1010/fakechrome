@@ -11,8 +11,8 @@
 #include "base/callback.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
-#include "base/macros.h"
 #include "base/scoped_multi_source_observation.h"
+#include "third_party/skia/include/core/SkRegion.h"
 #include "ui/aura/aura_export.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_observer.h"
@@ -20,7 +20,6 @@
 #include "ui/compositor/layer_animation_observer.h"
 
 struct SkIRect;
-class SkRegion;
 
 namespace gfx {
 class Transform;
@@ -177,6 +176,8 @@ class AURA_EXPORT WindowOcclusionTracker : public ui::LayerAnimationObserver,
 
     // The occlusion state of the root window's host.
     Window::OcclusionState occlusion_state = Window::OcclusionState::UNKNOWN;
+
+    SkRegion occluded_region;
   };
 
   WindowOcclusionTracker();
@@ -354,7 +355,8 @@ class AURA_EXPORT WindowOcclusionTracker : public ui::LayerAnimationObserver,
 
   // WindowTreeHostObserver
   void OnOcclusionStateChanged(WindowTreeHost* host,
-                               Window::OcclusionState new_state) override;
+                               Window::OcclusionState new_state,
+                               const SkRegion& occluded_region) override;
 
   // Windows whose occlusion data is tracked.
   base::flat_map<Window*, OcclusionData> tracked_windows_;

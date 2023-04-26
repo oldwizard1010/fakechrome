@@ -35,8 +35,15 @@ namespace paint_preview {
 namespace {
 
 // To minimize peak memory usage limit the number of concurrent bitmap requests.
-constexpr size_t kMaxParallelBitmapRequests = 3;
-constexpr size_t kMaxParallelBitmapRequestsLowMemory = 1;
+// These correspond to memory pressure levels None, Moderate, Critical
+// respectively. If a value of 0 is used for any level the process will abort
+// once that memory level is reached.
+constexpr std::
+    array<size_t, PlayerCompositorDelegateAndroid::PressureLevelCount::kLevels>
+        kMaxParallelBitmapRequests = {2, 1, 0};
+constexpr std::
+    array<size_t, PlayerCompositorDelegateAndroid::PressureLevelCount::kLevels>
+        kMaxParallelBitmapRequestsLowMemory = {1, 0, 0};
 
 ScopedJavaLocalRef<jobjectArray> ToJavaUnguessableTokenArray(
     JNIEnv* env,
@@ -299,6 +306,14 @@ void PlayerCompositorDelegateAndroid::OnBitmapCallback(
       "paint_preview", "PlayerCompositorDelegateAndroid::RequestBitmap",
       TRACE_ID_LOCAL(request_id), "status", static_cast<int>(status), "bytes",
       sk_bitmap.computeByteSize());
+
+  if (status == mojom::PaintPreviewCompositor::BitmapStatus::kAllocFailed) {
+    base::android::RunRunnableAndroid(j_error_callback);
+    // Treat this as a critical memory pressure failure. We should abort.
+    OnMemoryPressure(
+        base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_CRITICAL);
+    return;
+  }
 
   if (status != mojom::PaintPreviewCompositor::BitmapStatus::kSuccess ||
       sk_bitmap.isNull() || sk_bitmap.info().width() <= 0 ||

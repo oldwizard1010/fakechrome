@@ -48,6 +48,7 @@ using WorkspaceDeskSpecifics_App = sync_pb::WorkspaceDeskSpecifics_App;
 namespace {
 
 using ash::DeskTemplate;
+using ash::DeskTemplateSource;
 using sync_pb::ModelTypeState;
 using sync_pb::WorkspaceDeskSpecifics;
 using syncer::EntityChange;
@@ -86,7 +87,8 @@ const std::string kPolicyWithTwoTemplates =
     "[{\"version\":1,\"uuid\":\"" + base::StringPrintf(kUuidFormat, 8) +
     "\",\"name\":\""
     "Example Template"
-    "\",\"created_time_usec\":\"1633535632\",\"desk\":{\"apps\":[{\"window_"
+    "\",\"created_time_usec\":\"1633535632\",\"updated_time_usec\": "
+    "\"1633535632\",\"desk\":{\"apps\":[{\"window_"
     "bound\":{\"left\":0,\"top\":1,\"height\":121,\"width\":120},\"window_"
     "state\":\"NORMAL\",\"z_index\":1,\"app_type\":\"BROWSER\",\"tabs\":[{"
     "\"url\":\"https://example.com\",\"title\":\"Example\"},{\"url\":\"https://"
@@ -97,7 +99,8 @@ const std::string kPolicyWithTwoTemplates =
     base::StringPrintf(kUuidFormat, 9) +
     "\",\"name\":\""
     "Example Template 2"
-    "\",\"created_time_usec\":\"1633535632\",\"desk\":{\"apps\":[{\"window_"
+    "\",\"created_time_usec\":\"1633535632\",\"updated_time_usec\": "
+    "\"1633535632\",\"desk\":{\"apps\":[{\"window_"
     "bound\":{\"left\":0,\"top\":1,\"height\":121,\"width\":120},\"window_"
     "state\":\"NORMAL\",\"z_index\":1,\"app_type\":\"BROWSER\",\"tabs\":[{"
     "\"url\":\"https://google.com\",\"title\":\"Example "
@@ -170,8 +173,12 @@ WorkspaceDeskSpecifics ExampleWorkspaceDeskSpecifics(
   WorkspaceDeskSpecifics specifics;
   specifics.set_uuid(uuid);
   specifics.set_name(template_name);
-  specifics.set_created_time_usec(
+  specifics.set_created_time_windows_epoch_micros(
       created_time.ToDeltaSinceWindowsEpoch().InMicroseconds());
+  specifics.set_updated_time_windows_epoch_micros(
+      (created_time + base::Minutes(5))
+          .ToDeltaSinceWindowsEpoch()
+          .InMicroseconds());
   Desk* desk = specifics.mutable_desk();
   FillExampleBrowserAppWindow(desk->add_apps());
   FillExampleChromeAppWindow(desk->add_apps());
@@ -195,7 +202,7 @@ std::unique_ptr<ash::DeskTemplate> CreateTemplateWithBrowserFromScratch(
   const std::string template_name =
       base::StringPrintf(kNameFormat, template_index);
   auto desk_template = std::make_unique<ash::DeskTemplate>(
-      template_uuid, template_name, created_time);
+      template_uuid, DeskTemplateSource::kUser, template_name, created_time);
 
   auto restore_data = std::make_unique<app_restore::RestoreData>();
   auto browser_info = std::make_unique<app_restore::AppLaunchInfo>(
@@ -217,7 +224,7 @@ WorkspaceDeskSpecifics CreateBrowserTemplateExpectedValue(
       base::StringPrintf(kUuidFormat, template_index));
   expected_desk_specifics.set_name(
       base::StringPrintf(kNameFormat, template_index));
-  expected_desk_specifics.set_created_time_usec(
+  expected_desk_specifics.set_created_time_windows_epoch_micros(
       created_time.ToDeltaSinceWindowsEpoch().InMicroseconds());
   Desk* expected_desk = expected_desk_specifics.mutable_desk();
   WorkspaceDeskSpecifics_App* app = expected_desk->add_apps();
@@ -550,6 +557,16 @@ TEST_F(DeskSyncBridgeTest, GetAllEntriesIncludesPolicyEntries) {
                                      std::vector<ash::DeskTemplate*> entries) {
         EXPECT_EQ(status, DeskModel::GetAllEntriesStatus::kOk);
         EXPECT_EQ(entries.size(), 4ul);
+
+        // Two of these templates should be from policy.
+        EXPECT_EQ(
+            base::ranges::count_if(entries,
+                                   [](const ash::DeskTemplate* entry) {
+                                     return entry->source() ==
+                                            ash::DeskTemplateSource::kPolicy;
+                                   }),
+            2l);
+
         loop.Quit();
       }));
   loop.Run();
@@ -615,7 +632,8 @@ TEST_F(DeskSyncBridgeTest, AddEntryShouldSucceedWheSyncIsDisabled) {
   base::RunLoop loop;
   bridge()->AddOrUpdateEntry(
       std::make_unique<DeskTemplate>(kTestUuid1.AsLowercaseString(),
-                                     "template 1", AdvanceAndGetTime()),
+                                     DeskTemplateSource::kUser, "template 1",
+                                     AdvanceAndGetTime()),
       base::BindLambdaForTesting([&](DeskModel::AddOrUpdateEntryStatus status) {
         EXPECT_EQ(status, DeskModel::AddOrUpdateEntryStatus::kOk);
         loop.Quit();
@@ -636,7 +654,8 @@ TEST_F(DeskSyncBridgeTest, AddEntryShouldFailWhenBridgeIsNotReady) {
   base::RunLoop loop;
   bridge()->AddOrUpdateEntry(
       std::make_unique<DeskTemplate>(kTestUuid1.AsLowercaseString(),
-                                     "template 1", AdvanceAndGetTime()),
+                                     DeskTemplateSource::kUser, "template 1",
+                                     AdvanceAndGetTime()),
       base::BindLambdaForTesting([&](DeskModel::AddOrUpdateEntryStatus status) {
         EXPECT_EQ(status, DeskModel::AddOrUpdateEntryStatus::kFailure);
         loop.Quit();
@@ -719,6 +738,7 @@ TEST_F(DeskSyncBridgeTest, UpdateEntryLocally) {
   base::RunLoop loop;
   bridge()->AddOrUpdateEntry(
       std::make_unique<DeskTemplate>(kTestUuid1.AsLowercaseString(),
+                                     DeskTemplateSource::kUser,
                                      "updated template 1", AdvanceAndGetTime()),
       base::BindLambdaForTesting([&](DeskModel::AddOrUpdateEntryStatus status) {
         EXPECT_EQ(status, DeskModel::AddOrUpdateEntryStatus::kOk);

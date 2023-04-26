@@ -40,7 +40,7 @@
 #include "sandbox/mac/system_services.h"
 #include "sandbox/policy/sandbox.h"
 #elif defined(OS_ANDROID)
-#include "base/cpu_affinity_posix.h"
+#include "content/common/android/cpu_affinity_setter.h"
 #endif
 
 #if BUILDFLAG(ENABLE_LIBRARY_CDMS)
@@ -69,6 +69,7 @@ extern sandbox::TargetServices* g_utility_target_services;
 
 #if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "sandbox/linux/services/libc_interceptor.h"
+#include "sandbox/policy/mojom/sandbox.mojom.h"
 #include "sandbox/policy/sandbox_type.h"
 #endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 
@@ -149,8 +150,7 @@ auto RunNetworkService(
   if (base::GetFieldTrialParamByFeatureAsBool(
           features::kBigLittleScheduling,
           features::kBigLittleSchedulingNetworkMainBigParam, false)) {
-    base::SetThreadCpuAffinityMode(base::PlatformThread::CurrentId(),
-                                   base::CpuAffinityMode::kBigCoresOnly);
+    SetCpuAffinityForCurrentThread(base::CpuAffinityMode::kBigCoresOnly);
   }
 #endif
 
@@ -201,7 +201,7 @@ auto RunAudio(mojo::PendingReceiver<audio::mojom::AudioService> receiver) {
 #if defined(OS_LINUX) || defined(OS_CHROMEOS)
   auto* command_line = base::CommandLine::ForCurrentProcess();
   if (sandbox::policy::SandboxTypeFromCommandLine(*command_line) ==
-      sandbox::policy::SandboxType::kNoSandbox) {
+      sandbox::mojom::Sandbox::kNoSandbox) {
     // This is necessary to avoid crashes in certain environments.
     // See https://crbug.com/1109346
     sandbox::InitLibcLocaltimeFunctions();

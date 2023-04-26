@@ -23,7 +23,6 @@
 
 #include <memory>
 
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/power_monitor/power_observer.h"
 #include "base/synchronization/lock.h"
@@ -113,6 +112,10 @@ class MEDIA_EXPORT AudioRendererImpl
 
   void SetPlayDelayCBForTesting(PlayDelayCBForTesting cb);
   bool was_unmuted_for_testing() const { return was_unmuted_; }
+
+  void decoded_audio_ready_for_testing() {
+    DecodedAudioReady(StatusCode::kCodeOnlyForTesting);
+  }
 
  private:
   friend class AudioRendererImplTest;

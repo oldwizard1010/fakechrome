@@ -209,7 +209,7 @@ class AX_EXPORT AXPlatformNodeDelegate {
 
   // Get the parent of the node, which may be an AXPlatformNode or it may
   // be a native accessible object implemented by another class.
-  virtual gfx::NativeViewAccessible GetParent() = 0;
+  virtual gfx::NativeViewAccessible GetParent() const = 0;
 
   // Get the index in parent. Typically this is the AXNode's index_in_parent_.
   // This should return -1 if the index in parent is unknown.
@@ -486,8 +486,9 @@ class AX_EXPORT AXPlatformNodeDelegate {
 
   // Return a vector of all the descendants of this delegate's node. This method
   // is only meaningful for Windows UIA.
-  virtual const std::vector<gfx::NativeViewAccessible> GetUIADescendants()
-      const = 0;
+  virtual const std::vector<gfx::NativeViewAccessible>
+  GetUIADirectChildrenInRange(ui::AXPlatformNodeDelegate* start,
+                              ui::AXPlatformNodeDelegate* end) = 0;
 
   // Return a string representing the language code.
   //
@@ -537,6 +538,9 @@ class AX_EXPORT AXPlatformNodeDelegate {
   // Returns true if this node is a cell or a row/column header in an ARIA grid
   // or treegrid.
   virtual bool IsCellOrHeaderOfAriaGrid() const = 0;
+
+  // True if this is a web area, and its grandparent is a presentational iframe.
+  virtual bool IsWebAreaForPresentationalIframe() const = 0;
 
   // Ordered-set-like and item-like nodes.
   virtual bool IsOrderedSetItem() const = 0;

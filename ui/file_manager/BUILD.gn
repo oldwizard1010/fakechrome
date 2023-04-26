@@ -131,6 +131,7 @@ preprocess_if_expr("preprocess_static") {
     "file_manager/common/js/async_util.js",
     "file_manager/common/js/dialog_type.js",
     "file_manager/common/js/error_counter.js",
+    "file_manager/common/js/glitch.js",
     "file_manager/common/js/file_operation_common.js",
     "file_manager/common/js/file_type.js",
     "file_manager/common/js/files_app_entry_types.js",
@@ -370,6 +371,7 @@ preprocess_if_expr("preprocess_generated") {
     "file_manager/foreground/elements/xf_circular_progress.js",
     "file_manager/foreground/elements/xf_display_panel.js",
     "file_manager/foreground/elements/xf_panel_item.js",
+    "file_manager/foreground/js/ui/banners/drive_low_space_banner.js",
     "file_manager/foreground/js/ui/banners/drive_offline_pinning_banner.js",
     "file_manager/foreground/js/ui/banners/drive_welcome_banner.js",
     "file_manager/foreground/js/ui/banners/educational_banner.js",
@@ -431,6 +433,8 @@ generate_grd("build_grd") {
     "file_manager/images/files/ui/state_banner_icon.svg",
     "file_manager/images/files/ui/warning_banner_icon.svg",
     "file_manager/images/files/ui/menu_ng.svg",
+
+    "image_loader/background.m.rollup.js",
   ]
 
   resource_path_rewrites = [
@@ -451,7 +455,6 @@ generate_grd("build_grd") {
       "file_manager/foreground/js/metadata_dispatcher.rollup.js",
       "file_manager/foreground/js/shared.m.rollup.js",
 
-      "image_loader/background.m.rollup.js",
       "image_loader/image_orientation.js",
       "image_loader/lru_cache.js",
     ]

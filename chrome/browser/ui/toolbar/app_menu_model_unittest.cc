@@ -4,7 +4,6 @@
 
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
 
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "build/branding_buildflags.h"
 #include "build/chromeos_buildflags.h"
@@ -27,7 +26,7 @@
 #include "ui/gfx/color_palette.h"
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/policy/handlers/system_features_disable_list_policy_handler.h"
+#include "chrome/browser/policy/system_features_disable_list_policy_handler.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 

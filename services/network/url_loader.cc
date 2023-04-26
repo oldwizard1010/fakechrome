@@ -27,7 +27,6 @@
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
-#include "base/trace_event/trace_id_helper.h"
 #include "base/trace_event/typed_macros.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/system/simple_watcher.h"
@@ -290,6 +289,9 @@ class SSLPrivateKeyInternal : public net::SSLPrivateKey {
                        base::Unretained(this)));
   }
 
+  SSLPrivateKeyInternal(const SSLPrivateKeyInternal&) = delete;
+  SSLPrivateKeyInternal& operator=(const SSLPrivateKeyInternal&) = delete;
+
   // net::SSLPrivateKey:
   std::string GetProviderName() override { return provider_name_; }
 
@@ -331,8 +333,6 @@ class SSLPrivateKeyInternal : public net::SSLPrivateKey {
   std::string provider_name_;
   std::vector<uint16_t> algorithm_preferences_;
   mojo::Remote<mojom::SSLPrivateKey> ssl_private_key_;
-
-  DISALLOW_COPY_AND_ASSIGN(SSLPrivateKeyInternal);
 };
 
 bool ShouldNotifyAboutCookie(net::CookieInclusionStatus status) {
@@ -453,6 +453,33 @@ bool ShouldSendClientCertificates(mojom::CredentialsMode credentials_mode) {
 
 }  // namespace
 
+URLLoader::MaybeSyncURLLoaderClient::MaybeSyncURLLoaderClient(
+    mojo::PendingRemote<mojom::URLLoaderClient> mojo_client,
+    base::WeakPtr<mojom::URLLoaderClient> sync_client)
+    : mojo_client_(std::move(mojo_client)),
+      sync_client_(std::move(sync_client)) {}
+
+URLLoader::MaybeSyncURLLoaderClient::~MaybeSyncURLLoaderClient() = default;
+
+void URLLoader::MaybeSyncURLLoaderClient::Reset() {
+  mojo_client_.reset();
+  sync_client_.reset();
+}
+
+mojo::PendingReceiver<mojom::URLLoaderClient>
+URLLoader::MaybeSyncURLLoaderClient::BindNewPipeAndPassReceiver() {
+  sync_client_.reset();
+  return mojo_client_.BindNewPipeAndPassReceiver();
+}
+
+mojom::URLLoaderClient* URLLoader::MaybeSyncURLLoaderClient::Get() {
+  if (sync_client_)
+    return sync_client_.get();
+  if (mojo_client_)
+    return mojo_client_.get();
+  return nullptr;
+}
+
 URLLoader::URLLoader(
     net::URLRequestContext* url_request_context,
     URLLoaderFactory* url_loader_factory,
@@ -462,6 +489,7 @@ URLLoader::URLLoader(
     int32_t options,
     const ResourceRequest& request,
     mojo::PendingRemote<mojom::URLLoaderClient> url_loader_client,
+    base::WeakPtr<mojom::URLLoaderClient> sync_url_loader_client,
     const net::NetworkTrafficAnnotationTag& traffic_annotation,
     const mojom::URLLoaderFactoryParams* factory_params,
     mojom::CrossOriginEmbedderPolicyReporter* coep_reporter,
@@ -494,7 +522,8 @@ URLLoader::URLLoader(
       keepalive_(request.keepalive),
       do_not_prompt_for_login_(request.do_not_prompt_for_login),
       receiver_(this, std::move(url_loader_receiver)),
-      url_loader_client_(std::move(url_loader_client)),
+      url_loader_client_(std::move(url_loader_client),
+                         std::move(sync_url_loader_client)),
       writable_handle_watcher_(FROM_HERE,
                                mojo::SimpleWatcher::ArmingPolicy::MANUAL,
                                base::SequencedTaskRunnerHandle::Get()),
@@ -520,9 +549,9 @@ URLLoader::URLLoader(
       allow_http1_for_streaming_upload_(
           request.request_body &&
           request.request_body->AllowHTTP1ForStreamingUpload()),
-      accept_ch_frame_observer_(std::move(accept_ch_frame_observer)),
-      trace_id_(base::trace_event::GetNextGlobalTraceId()) {
-  TRACE_EVENT("loading", "URLLoader::URLLoader", perfetto::Flow(trace_id_));
+      accept_ch_frame_observer_(std::move(accept_ch_frame_observer)) {
+  TRACE_EVENT("loading", "URLLoader::URLLoader",
+              perfetto::Flow::FromPointer(this));
   DCHECK(delete_callback_);
   DCHECK(factory_params_);
 
@@ -554,6 +583,10 @@ URLLoader::URLLoader(
   url_request_->set_site_for_cookies(request.site_for_cookies);
   if (ShouldForceIgnoreSiteForCookies(request))
     url_request_->set_force_ignore_site_for_cookies(true);
+  if (!request.navigation_redirect_chain.empty()) {
+    DCHECK_EQ(request.mode, mojom::RequestMode::kNavigate);
+    url_request_->SetURLChain(request.navigation_redirect_chain);
+  }
   url_request_->SetReferrer(request.referrer.GetAsReferrer().spec());
   url_request_->set_referrer_policy(request.referrer_policy);
   url_request_->set_upgrade_if_insecure(request.upgrade_if_insecure);
@@ -579,6 +612,18 @@ URLLoader::URLLoader(
 
   if (ShouldForceIgnoreTopFramePartyForCookies())
     url_request_->set_force_ignore_top_frame_party_for_cookies(true);
+
+  // When a service worker forwards a navigation request it uses the
+  // service worker's IsolationInfo.  This causes the cookie code to fail
+  // to send SameSite=Lax cookies for main-frame navigations passed through
+  // a service worker.  To fix this we check to see if the original destination
+  // of the request was a main frame document and then set a flag indicating
+  // SameSite cookies should treat it as a main frame navigation.
+  if (request.mode == mojom::RequestMode::kNavigate &&
+      request.destination == mojom::RequestDestination::kEmpty &&
+      request.original_destination == mojom::RequestDestination::kDocument) {
+    url_request_->set_force_main_frame_for_same_site_cookies(true);
+  }
 
   if (factory_params_->disable_secure_dns ||
       (request.trusted_params && request.trusted_params->disable_secure_dns)) {
@@ -941,6 +986,8 @@ void URLLoader::ScheduleStart() {
 }
 
 URLLoader::~URLLoader() {
+  TRACE_EVENT("loading", "URLLoader::~URLLoader",
+              perfetto::TerminatingFlow::FromPointer(this));
   RecordBodyReadFromNetBeforePausedIfNeeded();
   if (keepalive_ && keepalive_statistics_recorder_) {
     keepalive_statistics_recorder_->OnLoadFinished(
@@ -1183,7 +1230,10 @@ void URLLoader::OnReceivedRedirect(net::URLRequest* url_request,
                           &redirect_info.new_url, *factory_params_,
                           origin_access_list_);
 
-  url_loader_client_->OnReceiveRedirect(redirect_info, std::move(response));
+  DCHECK_EQ(emitted_devtools_raw_request_, emitted_devtools_raw_response_);
+  response->emitted_extra_info = emitted_devtools_raw_request_;
+  url_loader_client_.Get()->OnReceiveRedirect(redirect_info,
+                                              std::move(response));
 }
 
 // static
@@ -1333,7 +1383,8 @@ void URLLoader::ContinueOnResponseStarted() {
   options.flags = MOJO_CREATE_DATA_PIPE_FLAG_NONE;
   options.element_num_bytes = 1;
   options.capacity_num_bytes =
-      network::features::GetDataPipeDefaultAllocationSize();
+      network::features::GetDataPipeDefaultAllocationSize(
+          features::DataPipeAllocationSize::kLargerSizeIfPossible);
   MojoResult result =
       mojo::CreateDataPipe(&options, response_body_stream_, consumer_handle_);
   if (result != MOJO_RESULT_OK) {
@@ -1530,7 +1581,7 @@ void URLLoader::DidRead(int num_bytes, bool completed_synchronously) {
       int64_t delta = total_encoded_bytes - reported_total_encoded_bytes_;
       DCHECK_LE(0, delta);
       if (delta)
-        url_loader_client_->OnTransferSizeUpdated(delta);
+        url_loader_client_.Get()->OnTransferSizeUpdated(delta);
       reported_total_encoded_bytes_ = total_encoded_bytes;
     }
   }
@@ -1830,7 +1881,7 @@ void URLLoader::NotifyCompleted(int error_code) {
         url_request_->GetTotalSentBytes());
   }
 
-  if (url_loader_client_) {
+  if (url_loader_client_.Get()) {
     if (consumer_handle_.is_valid())
       SendResponseToClient();
 
@@ -1858,7 +1909,7 @@ void URLLoader::NotifyCompleted(int error_code) {
       status.ssl_info = url_request_->ssl_info();
     }
 
-    url_loader_client_->OnComplete(status);
+    url_loader_client_.Get()->OnComplete(status);
   }
 
   DeleteSelf();
@@ -1887,9 +1938,12 @@ void URLLoader::DeleteSelf() {
 
 void URLLoader::SendResponseToClient() {
   TRACE_EVENT("loading", "network::URLLoader::SendResponseToClient",
-              perfetto::Flow(trace_id_), "url", url_request_->url());
-  url_loader_client_->OnReceiveResponse(std::move(response_));
-  url_loader_client_->OnStartLoadingResponseBody(std::move(consumer_handle_));
+              perfetto::Flow::FromPointer(this), "url", url_request_->url());
+  DCHECK_EQ(emitted_devtools_raw_request_, emitted_devtools_raw_response_);
+  response_->emitted_extra_info = emitted_devtools_raw_request_;
+  url_loader_client_.Get()->OnReceiveResponse(std::move(response_));
+  url_loader_client_.Get()->OnStartLoadingResponseBody(
+      std::move(consumer_handle_));
 }
 
 void URLLoader::CompletePendingWrite(bool success) {
@@ -1917,7 +1971,7 @@ void URLLoader::SetRawResponseHeaders(
 void URLLoader::NotifyEarlyResponse(
     scoped_refptr<const net::HttpResponseHeaders> headers) {
   DCHECK(!has_received_response_);
-  DCHECK(url_loader_client_);
+  DCHECK(url_loader_client_.Get());
   DCHECK(headers);
   DCHECK_EQ(headers->response_code(), 103);
 
@@ -1942,7 +1996,7 @@ void URLLoader::NotifyEarlyResponse(
     origin_trial_tokens.push_back(value);
   }
 
-  url_loader_client_->OnReceiveEarlyHints(
+  url_loader_client_.Get()->OnReceiveEarlyHints(
       mojom::EarlyHints::New(std::move(parsed_headers), ip_address_space,
                              std::move(origin_trial_tokens)));
 }
@@ -2005,6 +2059,7 @@ void URLLoader::DispatchOnRawRequest(
   net::LoadTimingInfo load_timing_info;
   url_request_->GetLoadTimingInfo(&load_timing_info);
 
+  emitted_devtools_raw_request_ = true;
   devtools_observer->OnRawRequest(
       devtools_request_id().value(), url_request_->maybe_sent_cookies(),
       std::move(headers), load_timing_info.request_start,
@@ -2062,6 +2117,7 @@ bool URLLoader::DispatchOnRawResponse() {
     DispatchOnRawRequest({});
   }
 
+  emitted_devtools_raw_response_ = true;
   devtools_observer->OnRawResponse(
       devtools_request_id().value(), url_request_->maybe_stored_cookies(),
       std::move(header_array), raw_response_headers,
@@ -2072,7 +2128,7 @@ bool URLLoader::DispatchOnRawResponse() {
 }
 
 void URLLoader::SendUploadProgress(const net::UploadProgress& progress) {
-  url_loader_client_->OnUploadProgress(
+  url_loader_client_.Get()->OnUploadProgress(
       progress.position(), progress.size(),
       base::BindOnce(&URLLoader::OnUploadProgressACK,
                      weak_ptr_factory_.GetWeakPtr()));
@@ -2160,11 +2216,11 @@ void URLLoader::CompleteBlockedResponse(
   status.decoded_body_length = 0;
   status.should_report_corb_blocking = should_report_corb_blocking;
   status.blocked_by_response_reason = reason;
-  url_loader_client_->OnComplete(status);
+  url_loader_client_.Get()->OnComplete(status);
 
   // Reset the connection to the URLLoaderClient.  This helps ensure that we
   // won't accidentally leak any data to the renderer from this point on.
-  url_loader_client_.reset();
+  url_loader_client_.Reset();
 }
 
 URLLoader::BlockResponseForCorbResult URLLoader::BlockResponseForCorb(
@@ -2178,7 +2234,7 @@ URLLoader::BlockResponseForCorbResult URLLoader::BlockResponseForCorb(
 
   // Send stripped headers to the real URLLoaderClient.
   corb::SanitizeBlockedResponseHeaders(*response_);
-  url_loader_client_->OnReceiveResponse(response_->Clone());
+  url_loader_client_.Get()->OnReceiveResponse(response_->Clone());
 
   // Send empty body to the real URLLoaderClient.
   mojo::ScopedDataPipeProducerHandle producer_handle;
@@ -2187,7 +2243,8 @@ URLLoader::BlockResponseForCorbResult URLLoader::BlockResponseForCorb(
                                 consumer_handle),
            MOJO_RESULT_OK);
   producer_handle.reset();
-  url_loader_client_->OnStartLoadingResponseBody(std::move(consumer_handle));
+  url_loader_client_.Get()->OnStartLoadingResponseBody(
+      std::move(consumer_handle));
 
   // Tell the real URLLoaderClient that the response has been completed.
   if (corb_detachable_) {
@@ -2423,9 +2480,7 @@ void URLLoader::SetRequestCredentials(const GURL& url) {
   // aren't used for those requests.
   if (!coep_allow_credentials) {
     DCHECK(base::FeatureList::IsEnabled(
-               features::kCrossOriginEmbedderPolicyCredentialless) ||
-           base::FeatureList::IsEnabled(
-               features::kCrossOriginEmbedderPolicyCredentiallessOriginTrial));
+        features::kCrossOriginEmbedderPolicyCredentialless));
     url_request_->SetLoadFlags(url_request_->load_flags() |
                                net::LOAD_BYPASS_CACHE);
   }
@@ -2452,9 +2507,7 @@ bool URLLoader::CoepAllowCredentials(const GURL& url) {
   if (coep_policy != mojom::CrossOriginEmbedderPolicyValue::kCredentialless)
     return true;
   DCHECK(base::FeatureList::IsEnabled(
-             features::kCrossOriginEmbedderPolicyCredentialless) ||
-         base::FeatureList::IsEnabled(
-             features::kCrossOriginEmbedderPolicyCredentiallessOriginTrial));
+      features::kCrossOriginEmbedderPolicyCredentialless));
 
   url::Origin request_origin = url::Origin::Create(url);
   url::Origin request_initiator =

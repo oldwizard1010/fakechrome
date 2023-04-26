@@ -11,7 +11,6 @@
 #include <string>
 #include <vector>
 
-#include "base/macros.h"
 #include "base/observer_list.h"
 #include "base/threading/thread_checker.h"
 #include "components/arc/intent_helper/activity_icon_loader.h"
@@ -100,8 +99,12 @@ class ArcIntentHelperBridge : public KeyedService,
   void CloseCameraApp() override;
   void IsChromeAppEnabled(arc::mojom::ChromeApp app,
                           IsChromeAppEnabledCallback callback) override;
-  void OnPreferredAppsChanged(std::vector<IntentFilter> added,
-                              std::vector<IntentFilter> deleted) override;
+  void OnPreferredAppsChangedDeprecated(
+      std::vector<IntentFilter> added,
+      std::vector<IntentFilter> deleted) override;
+  void OnSupportedLinksChanged(
+      std::vector<arc::mojom::SupportedLinksPtr> added_packages,
+      std::vector<arc::mojom::SupportedLinksPtr> removed_packages) override;
   void OnDownloadAdded(const std::string& relative_path,
                        const std::string& owner_package_name) override;
   void OnOpenAppWithIntent(const GURL& start_url,

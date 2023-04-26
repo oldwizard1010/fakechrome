@@ -91,6 +91,10 @@
 #include "third_party/blink/public/mojom/manifest/display_mode.mojom.h"
 #include "ui/views/image_model_utils.h"
 
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+#include "ash/constants/ash_features.h"
+#endif
+
 using content::RenderFrameHost;
 using content::WebContents;
 using extensions::Extension;
@@ -177,8 +181,12 @@ class HostedOrWebAppTest : public extensions::ExtensionBrowserTest,
   HostedOrWebAppTest()
       : app_browser_(nullptr),
         https_server_(net::EmbeddedTestServer::TYPE_HTTPS) {
-    scoped_feature_list_.InitAndDisableFeature(
-        predictors::kSpeculativePreconnectFeature);
+    scoped_feature_list_.InitWithFeatures({}, {
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+      features::kWebAppsCrosapi, chromeos::features::kLacrosPrimary,
+#endif
+          predictors::kSpeculativePreconnectFeature
+    });
   }
 
   HostedOrWebAppTest(const HostedOrWebAppTest&) = delete;
@@ -356,7 +364,7 @@ IN_PROC_BROWSER_TEST_P(HostedOrWebAppTest, DISABLED_OpenLinkInNewTab) {
             params.page_url = app_contents->GetLastCommittedURL();
             params.link_url = target_url;
 
-            TestRenderViewContextMenu menu(app_contents->GetMainFrame(),
+            TestRenderViewContextMenu menu(*app_contents->GetMainFrame(),
                                            params);
             menu.Init();
             menu.ExecuteCommand(IDC_CONTENT_CONTEXT_OPENLINKNEWTAB,
@@ -368,7 +376,13 @@ IN_PROC_BROWSER_TEST_P(HostedOrWebAppTest, DISABLED_OpenLinkInNewTab) {
 }
 
 // Tests that Ctrl + Clicking a link opens a foreground tab.
-IN_PROC_BROWSER_TEST_P(HostedOrWebAppTest, CtrlClickLink) {
+// TODO(crbug.com/1190448): Flaky on Linux.
+#if defined(OS_LINUX)
+#define MAYBE_CtrlClickLink DISABLED_CtrlClickLink
+#else
+#define MAYBE_CtrlClickLink CtrlClickLink
+#endif
+IN_PROC_BROWSER_TEST_P(HostedOrWebAppTest, MAYBE_CtrlClickLink) {
   ASSERT_TRUE(embedded_test_server()->Start());
 
   // Set up an app which covers app.com URLs.

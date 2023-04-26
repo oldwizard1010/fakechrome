@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/macros.h"
 #include "base/timer/elapsed_timer.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -79,7 +78,6 @@ enum AppMenuAction {
   MENU_ACTION_APP_INFO = 50,
   // Only used by WebAppMenuModel:
   MENU_ACTION_UNINSTALL_APP = 51,
-  MENU_ACTION_SHOW_KALEIDOSCOPE = 52,
   MENU_ACTION_CHROME_TIPS = 53,
   MENU_ACTION_CHROME_WHATS_NEW = 54,
   LIMIT_MENU_ACTION

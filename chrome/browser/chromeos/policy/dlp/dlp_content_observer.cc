@@ -24,7 +24,8 @@ static DlpContentObserver* g_testing_dlp_content_observer = nullptr;
 DlpContentObserver* DlpContentObserver::Get() {
   if (g_testing_dlp_content_observer)
     return g_testing_dlp_content_observer;
-    // Initializes DlpContentManager if needed.
+
+    // Initializes DlpContentManager(Lacros) if needed.
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   return DlpContentManager::Get();
 #else

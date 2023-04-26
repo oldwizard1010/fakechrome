@@ -14,7 +14,6 @@
 #include <string>
 
 #include "base/callback_forward.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_base.h"
 #include "base/strings/string_piece_forward.h"
 #include "base/time/time.h"
@@ -181,11 +180,9 @@ class MetricsLog {
       DelegatingProvider* delegating_provider);
 
   // Loads the environment proto that was saved by the last RecordEnvironment()
-  // call from prefs. On success, returns true and |app_version| contains the
-  // recovered version. Otherwise (if there was no saved environment in prefs
-  // or it could not be decoded), returns false and |app_version| is empty.
-  bool LoadSavedEnvironmentFromPrefs(PrefService* local_state,
-                                     std::string* app_version);
+  // call from prefs. On success, returns true. Otherwise, (if there was no
+  // saved environment in prefs or it could not be decoded), returns false.
+  bool LoadSavedEnvironmentFromPrefs(PrefService* local_state);
 
   // Records the log_written_by_app_version system_profile field if the client's
   // version is different from the system_profile's app_version.

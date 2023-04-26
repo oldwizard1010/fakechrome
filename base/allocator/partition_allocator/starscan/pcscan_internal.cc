@@ -26,7 +26,6 @@
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
-#include "base/allocator/partition_allocator/partition_alloc_features.h"
 #include "base/allocator/partition_allocator/partition_page.h"
 #include "base/allocator/partition_allocator/reservation_offset_table.h"
 #include "base/allocator/partition_allocator/starscan/metadata_allocator.h"
@@ -36,6 +35,7 @@
 #include "base/allocator/partition_allocator/starscan/snapshot.h"
 #include "base/allocator/partition_allocator/starscan/stack/stack.h"
 #include "base/allocator/partition_allocator/starscan/stats_collector.h"
+#include "base/allocator/partition_allocator/starscan/stats_reporter.h"
 #include "base/allocator/partition_allocator/thread_cache.h"
 #include "base/bits.h"
 #include "base/compiler_specific.h"
@@ -92,17 +92,17 @@ struct [[maybe_unused]] ReentrantScannerGuard final{};
 // state while scanning. Unmarking on the step 3) ensures that unmarking
 // actually happens (and we don't hit too many false positives).
 //
-// The code here relies on the fact that |ptr| is in the non-BRP pool and that
+// The code here relies on the fact that |ptr| is in the regular pool and that
 // the card table (this object) is allocated at the very beginning of that pool.
 class QuarantineCardTable final {
  public:
-  // Avoid the load of the base of the non-BRP pool.
+  // Avoid the load of the base of the regular pool.
   ALWAYS_INLINE static QuarantineCardTable& GetFrom(uintptr_t ptr) {
     PA_SCAN_DCHECK(
-        IsManagedByPartitionAllocNonBRPPool(reinterpret_cast<void*>(ptr)));
-    constexpr uintptr_t kNonBRPPoolBaseMask =
-        PartitionAddressSpace::NonBRPPoolBaseMask();
-    return *reinterpret_cast<QuarantineCardTable*>(ptr & kNonBRPPoolBaseMask);
+        IsManagedByPartitionAllocRegularPool(reinterpret_cast<void*>(ptr)));
+    constexpr uintptr_t kRegularPoolBaseMask =
+        PartitionAddressSpace::RegularPoolBaseMask();
+    return *reinterpret_cast<QuarantineCardTable*>(ptr & kRegularPoolBaseMask);
   }
 
   ALWAYS_INLINE void Quarantine(uintptr_t begin, size_t size) {
@@ -130,9 +130,9 @@ class QuarantineCardTable final {
   QuarantineCardTable() = default;
 
   ALWAYS_INLINE static constexpr size_t Byte(uintptr_t address) {
-    constexpr uintptr_t kNonBRPPoolBaseMask =
-        PartitionAddressSpace::NonBRPPoolBaseMask();
-    return (address & ~kNonBRPPoolBaseMask) / kCardSize;
+    constexpr uintptr_t kRegularPoolBaseMask =
+        PartitionAddressSpace::RegularPoolBaseMask();
+    return (address & ~kRegularPoolBaseMask) / kCardSize;
   }
 
   ALWAYS_INLINE void SetImpl(uintptr_t begin, size_t size, bool value) {
@@ -140,7 +140,7 @@ class QuarantineCardTable final {
     const size_t need_bytes = (size + (kCardSize - 1)) / kCardSize;
     PA_SCAN_DCHECK(bytes_.size() >= byte + need_bytes);
     PA_SCAN_DCHECK(
-        IsManagedByPartitionAllocNonBRPPool(reinterpret_cast<void*>(begin)));
+        IsManagedByPartitionAllocRegularPool(reinterpret_cast<void*>(begin)));
     for (size_t i = byte; i < byte + need_bytes; ++i)
       bytes_[i] = value;
   }
@@ -164,6 +164,16 @@ using MetadataHashMap =
                        std::equal_to<>,
                        MetadataAllocator<std::pair<const K, V>>>;
 
+struct GetSlotStartResult final {
+  ALWAYS_INLINE bool is_found() const {
+    PA_SCAN_DCHECK(!slot_start || slot_size);
+    return slot_start;
+  }
+
+  uintptr_t slot_start = 0;
+  size_t slot_size = 0;
+};
+
 // Returns the start of a slot, or nullptr if |maybe_inner_ptr| is not inside of
 // an existing slot span. The function may return a non-nullptr pointer even
 // inside a decommitted or free slot span, it's the caller responsibility to
@@ -171,8 +181,8 @@ using MetadataHashMap =
 //
 // |maybe_inner_ptr| must be within a normal-bucket super page and can also
 // point to guard pages or slot-span metadata.
-ALWAYS_INLINE uintptr_t GetObjectStartInSuperPage(uintptr_t maybe_inner_ptr,
-                                                  const PCScan::Root& root) {
+ALWAYS_INLINE GetSlotStartResult
+GetSlotStartInSuperPage(uintptr_t maybe_inner_ptr) {
   char* maybe_inner_ptr_as_char_ptr = reinterpret_cast<char*>(maybe_inner_ptr);
   PA_SCAN_DCHECK(IsManagedByNormalBuckets(maybe_inner_ptr_as_char_ptr));
   // Don't use FromSlotInnerPtr() or FromPtr() because they expect a pointer to
@@ -188,7 +198,7 @@ ALWAYS_INLINE uintptr_t GetObjectStartInSuperPage(uintptr_t maybe_inner_ptr,
   // Check if page is valid. The check also works for the guard pages and the
   // metadata page.
   if (!page->is_valid)
-    return 0;
+    return {};
 
   page -= page->slot_span_metadata_offset;
   PA_SCAN_DCHECK(page->is_valid);
@@ -196,7 +206,7 @@ ALWAYS_INLINE uintptr_t GetObjectStartInSuperPage(uintptr_t maybe_inner_ptr,
   auto* slot_span = &page->slot_span_metadata;
   // Check if the slot span is actually used and valid.
   if (!slot_span->bucket)
-    return 0;
+    return {};
   PA_SCAN_DCHECK(PartitionRoot<ThreadSafe>::IsValidSlotSpan(slot_span));
   char* const slot_span_begin = static_cast<char*>(
       SlotSpanMetadata<ThreadSafe>::ToSlotSpanStartPtr(slot_span));
@@ -210,10 +220,11 @@ ALWAYS_INLINE uintptr_t GetObjectStartInSuperPage(uintptr_t maybe_inner_ptr,
   // the quarantine bit will anyway return false in this case.
   const size_t slot_size = slot_span->bucket->slot_size;
   const size_t slot_number = slot_span->bucket->GetSlotNumber(ptr_offset);
-  char* const result = slot_span_begin + (slot_number * slot_size);
-  PA_SCAN_DCHECK(result <= maybe_inner_ptr_as_char_ptr &&
-                 maybe_inner_ptr_as_char_ptr < result + slot_size);
-  return reinterpret_cast<uintptr_t>(root.AdjustPointerForExtrasAdd(result));
+  char* const slot_start = slot_span_begin + (slot_number * slot_size);
+  PA_SCAN_DCHECK(slot_start <= maybe_inner_ptr_as_char_ptr &&
+                 maybe_inner_ptr_as_char_ptr < slot_start + slot_size);
+  return {.slot_start = reinterpret_cast<uintptr_t>(slot_start),
+          .slot_size = slot_size};
 }
 
 #if PA_SCAN_DCHECK_IS_ON()
@@ -241,7 +252,7 @@ SimdSupport DetectSimdSupport() {
 void CommitCardTable() {
 #if PA_STARSCAN_USE_CARD_TABLE
   RecommitSystemPages(
-      reinterpret_cast<void*>(PartitionAddressSpace::NonBRPPoolBase()),
+      reinterpret_cast<void*>(PartitionAddressSpace::RegularPoolBase()),
       sizeof(QuarantineCardTable), PageReadWrite, PageUpdatePermissions);
 #endif
 }
@@ -580,7 +591,7 @@ class PCScanTask final : public base::RefCountedThreadSafe<PCScanTask>,
 ALWAYS_INLINE AllocationStateMap* PCScanTask::TryFindScannerBitmapForPointer(
     uintptr_t maybe_ptr) const {
   PA_SCAN_DCHECK(
-      IsManagedByPartitionAllocNonBRPPool(reinterpret_cast<void*>(maybe_ptr)));
+      IsManagedByPartitionAllocRegularPool(reinterpret_cast<void*>(maybe_ptr)));
   // First, check if |maybe_ptr| points to a valid super page or a quarantined
   // card.
 #if defined(PA_HAS_64_BITS_POINTERS)
@@ -593,16 +604,16 @@ ALWAYS_INLINE AllocationStateMap* PCScanTask::TryFindScannerBitmapForPointer(
   // |maybe_ptr| points to a valid super-page. It's not as precise (meaning that
   // we may have hit the slow path more frequently), but reduces the memory
   // overhead.  Since we are certain here, that |maybe_ptr| refers to the
-  // non-BRP pool, it's okay to use non-checking version of
+  // regular pool, it's okay to use non-checking version of
   // ReservationOffsetPointer().
   const uintptr_t offset =
-      maybe_ptr & ~PartitionAddressSpace::NonBRPPoolBaseMask();
-  if (LIKELY(*ReservationOffsetPointer(kNonBRPPoolHandle, offset) !=
+      maybe_ptr & ~PartitionAddressSpace::RegularPoolBaseMask();
+  if (LIKELY(*ReservationOffsetPointer(kRegularPoolHandle, offset) !=
              kOffsetTagNormalBuckets))
     return nullptr;
 #endif
 #else   // defined(PA_HAS_64_BITS_POINTERS)
-  if (LIKELY(!IsManagedByPartitionAllocNonBRPPool(
+  if (LIKELY(!IsManagedByPartitionAllocRegularPool(
           reinterpret_cast<void*>(maybe_ptr))))
     return nullptr;
 #endif  // defined(PA_HAS_64_BITS_POINTERS)
@@ -650,21 +661,19 @@ PCScanTask::TryMarkObjectInNormalBuckets(uintptr_t maybe_ptr) const {
 #endif
 
   // Check if pointer was in the quarantine bitmap.
-  const uintptr_t base = GetObjectStartInSuperPage(maybe_ptr, *root);
-  if (!base || !state_map->IsQuarantined(base))
+  const GetSlotStartResult object_start_result =
+      GetSlotStartInSuperPage(maybe_ptr);
+  if (!object_start_result.is_found())
+    return 0;
+
+  const uintptr_t base =
+      reinterpret_cast<uintptr_t>(root->AdjustPointerForExtrasAdd(
+          reinterpret_cast<char*>(object_start_result.slot_start)));
+  if (LIKELY(!state_map->IsQuarantined(base)))
     return 0;
 
   PA_SCAN_DCHECK((maybe_ptr & kSuperPageBaseMask) ==
                  (base & kSuperPageBaseMask));
-
-  auto* target_slot_span =
-      SlotSpan::FromSlotInnerPtr(reinterpret_cast<void*>(base));
-  PA_SCAN_DCHECK(root == Root::FromSlotSpan(target_slot_span));
-
-  const size_t usable_size = target_slot_span->GetUsableSize(root);
-  // Range check for inner pointers.
-  if (maybe_ptr >= base + usable_size)
-    return 0;
 
   if (UNLIKELY(immediatelly_free_objects_))
     return 0;
@@ -674,7 +683,7 @@ PCScanTask::TryMarkObjectInNormalBuckets(uintptr_t maybe_ptr) const {
   // PCScan has exclusive access to the scanner bitmap, we can avoid atomic rmw
   // operation for it.
   if (LIKELY(state_map->MarkQuarantinedAsReachable(base, pcscan_epoch_)))
-    return target_slot_span->bucket->slot_size;
+    return object_start_result.slot_size;
 
   return 0;
 }
@@ -736,7 +745,7 @@ class PCScanScanLoop final : public ScanLoop<PCScanScanLoop> {
   explicit PCScanScanLoop(const PCScanTask& task)
       : ScanLoop(PCScanInternal::Instance().simd_support()),
 #if defined(PA_HAS_64_BITS_POINTERS)
-        giga_cage_base_(PartitionAddressSpace::NonBRPPoolBase()),
+        giga_cage_base_(PartitionAddressSpace::RegularPoolBase()),
 #endif
         task_(task) {
   }
@@ -747,7 +756,7 @@ class PCScanScanLoop final : public ScanLoop<PCScanScanLoop> {
   ALWAYS_INLINE uintptr_t CageBase() const { return giga_cage_base_; }
   ALWAYS_INLINE static constexpr uintptr_t CageMask() {
 #if defined(PA_HAS_64_BITS_POINTERS)
-    return PartitionAddressSpace::NonBRPPoolBaseMask();
+    return PartitionAddressSpace::RegularPoolBaseMask();
 #else
     return 0;
 #endif
@@ -898,13 +907,14 @@ size_t FreeAndUnmarkInCardTable(PartitionRoot<ThreadSafe>* root,
   void* slot_start = root->AdjustPointerForExtrasSubtract(object);
   root->FreeNoHooksImmediate(object, slot_span, slot_start);
 #if PA_STARSCAN_USE_CARD_TABLE
+  const uintptr_t object_as_uintptr = reinterpret_cast<uintptr_t>(object);
   // Reset card(s) for this quarantined object. Please note that the
   // cards may still contain quarantined objects (which were
   // promoted in this scan cycle), but
   // ClearQuarantinedObjectsAndFilterSuperPages() will set them
   // again in the next PCScan cycle.
-  QuarantineCardTable::GetFrom(ptr).Unquarantine(
-      ptr, slot_span->GetUsableSize(root));
+  QuarantineCardTable::GetFrom(object_as_uintptr)
+      .Unquarantine(object_as_uintptr, slot_span->GetUsableSize(root));
 #endif
   return slot_size;
 }
@@ -1005,7 +1015,7 @@ void PCScanTask::SweepQuarantine() {
 }
 
 void PCScanTask::FinishScanner() {
-  stats_.ReportTracesAndHists();
+  stats_.ReportTracesAndHists(PCScanInternal::Instance().GetReporter());
 
   pcscan_.scheduler_.scheduling_backend().UpdateScheduleAfterScan(
       stats_.survived_quarantine_size(), stats_.GetOverallTime(),
@@ -1220,6 +1230,10 @@ void PCScanInternal::Initialize(PCScan::InitConfig config) {
   }
   scannable_roots_ = RootsMap();
   nonscannable_roots_ = RootsMap();
+
+  static StatsReporter s_no_op_reporter;
+  PCScan::Instance().RegisterStatsReporter(&s_no_op_reporter);
+
   // Don't initialize PCScanThread::Instance() as otherwise sandbox complains
   // about multiple threads running on sandbox initialization.
   is_initialized_ = true;
@@ -1504,6 +1518,16 @@ void PCScanInternal::FinishScanForTesting() {
   auto current_task = CurrentPCScanTask();
   PA_CHECK(current_task.get());
   current_task->RunFromScanner();
+}
+
+void PCScanInternal::RegisterStatsReporter(StatsReporter* reporter) {
+  PA_DCHECK(reporter);
+  stats_reporter_ = reporter;
+}
+
+StatsReporter& PCScanInternal::GetReporter() {
+  PA_DCHECK(stats_reporter_);
+  return *stats_reporter_;
 }
 
 }  // namespace internal

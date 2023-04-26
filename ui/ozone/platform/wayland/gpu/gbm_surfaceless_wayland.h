@@ -9,7 +9,6 @@
 
 #include "base/containers/small_map.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "ui/gfx/native_widget_types.h"
 #include "ui/gl/gl_surface_egl.h"
@@ -70,6 +69,8 @@ class GbmSurfacelessWayland : public gl::SurfacelessEGL,
               const gfx::ColorSpace& color_space,
               bool has_alpha) override;
 
+  BufferId GetOrCreateSolidColorBuffer(SkColor color, const gfx::Size& size);
+
  private:
   FRIEND_TEST_ALL_PREFIXES(WaylandSurfaceFactoryTest,
                            GbmSurfacelessWaylandCheckOrderOfCallbacksTest);
@@ -77,6 +78,44 @@ class GbmSurfacelessWayland : public gl::SurfacelessEGL,
                            GbmSurfacelessWaylandCommitOverlaysCallbacksTest);
   FRIEND_TEST_ALL_PREFIXES(WaylandSurfaceFactoryTest,
                            GbmSurfacelessWaylandGroupOnSubmissionCallbacksTest);
+
+  // Holds solid color buffers.
+  class SolidColorBufferHolder {
+   public:
+    SolidColorBufferHolder();
+    ~SolidColorBufferHolder();
+
+    BufferId GetOrCreateSolidColorBuffer(
+        SkColor color,
+        WaylandBufferManagerGpu* buffer_manager);
+
+    void OnSubmission(BufferId buffer_id,
+                      WaylandBufferManagerGpu* buffer_manager,
+                      gfx::AcceleratedWidget widget);
+    void EraseBuffers(WaylandBufferManagerGpu* buffer_manager,
+                      gfx::AcceleratedWidget widget);
+
+   private:
+    // Gpu-size holder for the solid color buffers. These are not backed by
+    // anything and stored on the gpu side for convenience so that WBHM doesn't
+    // become more complex.
+    struct SolidColorBuffer {
+      SolidColorBuffer(SkColor color, BufferId buffer_id)
+          : color(color), buffer_id(buffer_id) {}
+      SolidColorBuffer(SolidColorBuffer&& buffer) = default;
+      SolidColorBuffer& operator=(SolidColorBuffer&& buffer) = default;
+      ~SolidColorBuffer() = default;
+
+      // Color of the buffer.
+      SkColor color = SK_ColorWHITE;
+      // The buffer id that is mapped with the buffer id created on the browser
+      // side.
+      BufferId buffer_id = 0;
+    };
+
+    std::vector<SolidColorBuffer> inflight_solid_color_buffers_;
+    std::vector<SolidColorBuffer> available_solid_color_buffers_;
+  };
 
   ~GbmSurfacelessWayland() override;
 
@@ -92,7 +131,7 @@ class GbmSurfacelessWayland : public gl::SurfacelessEGL,
     ~PendingFrame();
 
     // Queues overlay configs to |planes|.
-    void ScheduleOverlayPlanes(gfx::AcceleratedWidget widget);
+    void ScheduleOverlayPlanes(GbmSurfacelessWayland* surfaceless);
     void Flush();
 
     bool ready = false;
@@ -104,6 +143,7 @@ class GbmSurfacelessWayland : public gl::SurfacelessEGL,
     absl::optional<gfx::Rect> damage_region_;
     // TODO(fangzhoug): This should be changed to support Vulkan.
     std::vector<gl::GLSurfaceOverlay> overlays;
+    std::vector<gfx::OverlayPlaneData> non_backed_overlays;
     SwapCompletionCallback completion_callback;
     PresentationCallback presentation_callback;
     // Merged release fence fd. This is taken as the union of all release
@@ -148,6 +188,9 @@ class GbmSurfacelessWayland : public gl::SurfacelessEGL,
 
   // Scale factor of the current surface.
   float surface_scale_factor_ = 1.f;
+
+  // Holds gpu side reference (buffer_ids) for solid color wl_buffers.
+  std::unique_ptr<SolidColorBufferHolder> solid_color_buffers_holder_;
 
   base::WeakPtrFactory<GbmSurfacelessWayland> weak_factory_;
 };

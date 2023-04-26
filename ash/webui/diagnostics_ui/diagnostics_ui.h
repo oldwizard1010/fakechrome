@@ -7,11 +7,12 @@
 
 #include "ash/webui/common/backend/plural_string_handler.h"
 #include "ash/webui/diagnostics_ui/backend/session_log_handler.h"
+#include "ash/webui/diagnostics_ui/diagnostics_metrics.h"
+#include "ash/webui/diagnostics_ui/diagnostics_metrics_message_handler.h"
 #include "ash/webui/diagnostics_ui/mojom/input_data_provider.mojom-forward.h"
 #include "ash/webui/diagnostics_ui/mojom/network_health_provider.mojom-forward.h"
 #include "ash/webui/diagnostics_ui/mojom/system_data_provider.mojom-forward.h"
 #include "ash/webui/diagnostics_ui/mojom/system_routine_controller.mojom-forward.h"
-#include "base/macros.h"
 #include "base/time/time.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "ui/web_dialogs/web_dialog_ui.h"
@@ -64,8 +65,10 @@ class DiagnosticsDialogUI : public ui::MojoWebDialogUI {
   base::Time open_timestamp_;
 
   std::unique_ptr<diagnostics::DiagnosticsManager> diagnostics_manager_;
+  std::unique_ptr<diagnostics::metrics::DiagnosticsMetrics>
+      diagnostics_metrics_;
 };
 
-}  // namespace chromeos
+}  // namespace ash
 
 #endif  // ASH_WEBUI_DIAGNOSTICS_UI_DIAGNOSTICS_UI_H_

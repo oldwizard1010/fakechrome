@@ -9,7 +9,6 @@
 
 #include "base/auto_reset.h"
 #include "base/bind.h"
-#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -111,11 +110,14 @@ class BackgroundFetchServiceTest
                                                            net::IsolationInfo(),
                                                            /*rfhi=*/nullptr)) {}
 
+    ScopedCustomBackgroundFetchService(
+        const ScopedCustomBackgroundFetchService&) = delete;
+    ScopedCustomBackgroundFetchService& operator=(
+        const ScopedCustomBackgroundFetchService&) = delete;
+
    private:
     base::AutoReset<std::unique_ptr<BackgroundFetchServiceImpl>>
         scoped_service_;
-
-    DISALLOW_COPY_AND_ASSIGN(ScopedCustomBackgroundFetchService);
   };
 
   // Synchronous wrapper for BackgroundFetchServiceImpl::Fetch().

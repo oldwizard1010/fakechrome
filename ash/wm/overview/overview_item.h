@@ -12,7 +12,6 @@
 #include "ash/wm/overview/scoped_overview_transform_window.h"
 #include "ash/wm/window_state_observer.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/aura/scoped_window_event_targeting_blocker.h"
@@ -79,6 +78,11 @@ class ASH_EXPORT OverviewItem : public aura::WindowObserver,
   // Hides the overview item. This is used to hide any overview items that may
   // be present when entering the desk templates UI.
   void HideForDesksTemplatesGrid();
+
+  // This shows overview items that were hidden by the desk templates grid.
+  // Called when exiting the desk templates UI and going back to the overview
+  // grid.
+  void RevertHideForDesksTemplatesGrid();
 
   // Dispatched before beginning window overview. This will do any necessary
   // one time actions such as restoring minimized windows.

@@ -13,7 +13,6 @@
 #include "base/command_line.h"
 #include "base/i18n/time_formatting.h"
 #include "base/json/json_writer.h"
-#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/mock_callback.h"
 #include "base/values.h"
@@ -219,8 +218,7 @@ class PeopleHandlerTest : public ChromeRenderViewHostTestHarness {
         SyncServiceFactory::GetInstance()->SetTestingFactoryAndUse(
             profile(), base::BindRepeating(&BuildMockSyncService)));
 
-    ON_CALL(*mock_sync_service_, IsAuthenticatedAccountPrimary())
-        .WillByDefault(Return(true));
+    ON_CALL(*mock_sync_service_, HasSyncConsent()).WillByDefault(Return(true));
 
     ON_CALL(*mock_sync_service_->GetMockUserSettings(), GetPassphraseType())
         .WillByDefault(Return(syncer::PassphraseType::kImplicitPassphrase));
@@ -1248,7 +1246,9 @@ TEST_F(PeopleHandlerTest, DashboardClearWhileSettingsOpen_ConfirmLater) {
   handler_->OnDidClosePage(&did_abort);
 }
 
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
+// TODO(crbug.com/1220066): Remove the lacros exclusion when DICE is disabled on
+// Lacros.
+#if BUILDFLAG(ENABLE_DICE_SUPPORT) && !BUILDFLAG(IS_CHROMEOS_LACROS)
 TEST(PeopleHandlerDiceUnifiedConsentTest, StoredAccountsList) {
   ScopedTestingLocalState local_state(TestingBrowserProcess::GetGlobal());
 
@@ -1290,7 +1290,7 @@ TEST(PeopleHandlerDiceUnifiedConsentTest, StoredAccountsList) {
   EXPECT_EQ("a@gmail.com", accounts_list[0].FindKey("email")->GetString());
   EXPECT_EQ("b@gmail.com", accounts_list[1].FindKey("email")->GetString());
 }
-#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
+#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT) && !BUILDFLAG(IS_CHROMEOS_LACROS)
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 // Regression test for crash in guest mode. https://crbug.com/1040476

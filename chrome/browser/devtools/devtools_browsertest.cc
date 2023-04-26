@@ -45,6 +45,8 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/renderer_context_menu/render_view_context_menu.h"
+#include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
+#include "chrome/browser/sync/test/integration/sync_test.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_list.h"
@@ -2041,9 +2043,14 @@ IN_PROC_BROWSER_TEST_F(WorkerDevToolsTest, InspectSharedWorker) {
   CloseDevToolsWindow();
 }
 
-// Flaky on multiple platforms. See http://crbug.com/432444
+// Flaky on multiple platforms. See http://crbug.com/1263230
+#if defined(OS_WIN) || defined(OS_LINUX) || defined(OS_CHROMEOS)
+#define MAYBE_PauseInSharedWorkerInitialization DISABLED_PauseInSharedWorkerInitialization
+#else
+#define MAYBE_PauseInSharedWorkerInitialization PauseInSharedWorkerInitialization
+#endif
 IN_PROC_BROWSER_TEST_F(WorkerDevToolsTest,
-                       PauseInSharedWorkerInitialization) {
+                       MAYBE_PauseInSharedWorkerInitialization) {
   GURL url = embedded_test_server()->GetURL(kReloadSharedWorkerTestPage);
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
 
@@ -2510,7 +2517,13 @@ IN_PROC_BROWSER_TEST_F(DevToolsTest, NewWindowFromBrowserContext) {
   DevToolsWindowTesting::CloseDevToolsWindowSync(window_);
 }
 
-IN_PROC_BROWSER_TEST_F(SitePerProcessDevToolsTest, InspectElement) {
+// TODO(crbug.com/1268450): Flaky on ChromeOS.
+#if defined(OS_CHROMEOS)
+#define MAYBE_InspectElement DISABLED_InspectElement
+#else
+#define MAYBE_InspectElement InspectElement
+#endif  // defined(OS_CHROMEOS)
+IN_PROC_BROWSER_TEST_F(SitePerProcessDevToolsTest, MAYBE_InspectElement) {
   GURL url(embedded_test_server()->GetURL("a.com", "/devtools/oopif.html"));
   GURL iframe_url(
       embedded_test_server()->GetURL("b.com", "/devtools/oopif_frame.html"));
@@ -2706,6 +2719,22 @@ IN_PROC_BROWSER_TEST_F(DevToolsExtensionTest,
   CloseDevToolsWindow();
 }
 
+IN_PROC_BROWSER_TEST_F(DevToolsExtensionTest,
+                       ExtensionWebSocketOfflineNetworkConditions) {
+  net::SpawnedTestServer websocket_server(
+      net::SpawnedTestServer::TYPE_WS,
+      base::FilePath(FILE_PATH_LITERAL("net/data/websocket")));
+  websocket_server.set_websocket_basic_auth(false);
+  ASSERT_TRUE(websocket_server.Start());
+  uint16_t websocket_port = websocket_server.host_port_pair().port();
+
+  LoadExtension("web_request");
+  OpenDevToolsWindow(kEmptyTestPage, /* is_docked */ false);
+  DispatchOnTestSuite(window_, "testExtensionWebSocketOfflineNetworkConditions",
+                      base::NumberToString(websocket_port).c_str());
+  CloseDevToolsWindow();
+}
+
 namespace {
 
 class DevToolsLocalizationTest : public DevToolsTest {
@@ -2851,4 +2880,32 @@ IN_PROC_BROWSER_TEST_F(DevToolsTest, HostBindingsSyncIntegration) {
   EXPECT_EQ(*synced_settings->FindStringKey("synced_setting"), "synced value");
   EXPECT_EQ(*unsynced_settings->FindStringKey("unsynced_setting"),
             "unsynced value");
+}
+
+class DevToolsSyncTest : public SyncTest {
+ public:
+  DevToolsSyncTest() : SyncTest(SyncTest::SINGLE_CLIENT) {}
+};
+
+IN_PROC_BROWSER_TEST_F(DevToolsSyncTest, GetSyncInformation) {
+  // Smoke test to make sure that `getSyncInformation` works from JavaScript.
+  ASSERT_TRUE(SetupSync());
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
+
+  DevToolsWindow* window = DevToolsWindowTesting::OpenDevToolsWindowSync(
+      browser()->tab_strip_model()->GetActiveWebContents(), GetProfile(0),
+      true);
+
+  WebContents* wc = DevToolsWindowTesting::Get(window)->main_web_contents();
+  const auto result = content::EvalJs(wc, content::JsReplace(R"(
+      (async function() {
+        return new Promise(resolve => {
+          Host.InspectorFrontendHost.getSyncInformation(resolve);
+        });
+      })();
+    )"));
+  ASSERT_TRUE(result.value.is_dict());
+  EXPECT_TRUE(*result.value.FindBoolKey("isSyncActive"));
+  EXPECT_TRUE(*result.value.FindBoolKey("arePreferencesSynced"));
+  EXPECT_EQ(*result.value.FindStringKey("accountEmail"), "user@gmail.com");
 }

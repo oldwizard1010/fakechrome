@@ -19,6 +19,7 @@
 #include "base/compiler_specific.h"
 #include "base/debug/leak_annotations.h"
 #include "base/guid.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/numerics/safe_conversions.h"
@@ -352,7 +353,7 @@ void MetricsStateManager::InstantiateFieldTrialList(
   }
 
   // TODO(crbug/1257204): Some FieldTrial-setup-related code is here and some is
-  // in VariationsFieldTrialCreator::SetupFieldTrials(). It's not ideal that
+  // in VariationsFieldTrialCreator::SetUpFieldTrials(). It's not ideal that
   // it's in two places.
   //
   // When benchmarking is enabled, field trials' default groups are chosen, so
@@ -408,14 +409,11 @@ void MetricsStateManager::LogHasSessionShutdownCleanly(
 
 void MetricsStateManager::ForceClientIdCreation() {
   // TODO(asvitkine): Ideally, all tests would actually set up consent properly,
-  // so the command-line check wouldn't be needed here.
+  // so the command-line checks wouldn't be needed here.
   // Currently, kForceEnableMetricsReporting is used by Java UkmTest and
   // kMetricsRecordingOnly is used by Chromedriver tests.
   DCHECK(enabled_state_provider_->IsConsentGiven() ||
-         base::CommandLine::ForCurrentProcess()->HasSwitch(
-             switches::kForceEnableMetricsReporting) ||
-         base::CommandLine::ForCurrentProcess()->HasSwitch(
-             switches::kMetricsRecordingOnly));
+         IsMetricsReportingForceEnabled() || IsMetricsRecordingOnlyEnabled());
   if (!external_client_id_.empty()) {
     client_id_ = external_client_id_;
     base::UmaHistogramEnumeration("UMA.ClientIdSource",

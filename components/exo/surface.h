@@ -10,7 +10,6 @@
 #include <utility>
 
 #include "base/callback.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
@@ -61,7 +60,16 @@ class PropertyHelper;
 }
 
 // Counter-clockwise rotations.
-enum class Transform { NORMAL, ROTATE_90, ROTATE_180, ROTATE_270 };
+enum class Transform {
+  NORMAL,
+  ROTATE_90,
+  ROTATE_180,
+  ROTATE_270,
+  FLIPPED,
+  FLIPPED_ROTATE_90,
+  FLIPPED_ROTATE_180,
+  FLIPPED_ROTATE_270
+};
 
 // Priority for overlay promotion.
 enum class OverlayPriority { LOW, REGULAR, REQUIRED };
@@ -391,8 +399,6 @@ class Surface final : public ui::PropertyHandler {
 
   // Release the pinned mode and allows the user to do other things again.
   void Unpin();
-
-  void SetClientSubmitsSurfacesInPixelCoordinates(bool enabled);
 
  private:
   struct State {

@@ -466,7 +466,7 @@ export class Viewport {
    * Scroll the viewport to the specified position.
    * @param {!Point} position The position to scroll to.
    */
-  set position(position) {
+  setPosition(position) {
     this.window_.scrollTo(position.x, position.y);
   }
 
@@ -561,10 +561,10 @@ export class Viewport {
     this.contentSizeChanged_();
     // Scroll to the scaled scroll position.
     zoom = this.getZoom();
-    this.position = {
+    this.setPosition({
       x: currentScrollPos.x * zoom,
-      y: currentScrollPos.y * zoom
-    };
+      y: currentScrollPos.y * zoom,
+    });
   }
 
   /**
@@ -595,7 +595,7 @@ export class Viewport {
 
     this.contentSizeChanged_();
     // Scroll to the scaled scroll position.
-    this.position = {x: currentScrollPos.x, y: currentScrollPos.y};
+    this.setPosition(currentScrollPos);
   }
 
   /**
@@ -639,10 +639,10 @@ export class Viewport {
       this.contentSizeChanged_();
       const newZoom = this.getZoom();
       // Scroll to the scaled scroll position.
-      this.position = {
+      this.setPosition({
         x: currentScrollPos.x * newZoom,
-        y: currentScrollPos.y * newZoom
-      };
+        y: currentScrollPos.y * newZoom,
+      });
       this.updateViewport_();
     });
   }
@@ -944,10 +944,10 @@ export class Viewport {
       };
       this.setZoomInternal_(this.computeFittingZoom_(dimensions, false, true));
       if (scrollToTopOfPage) {
-        this.position = {
+        this.setPosition({
           x: 0,
           y: this.pageDimensions_[page].y * this.getZoom(),
-        };
+        });
       }
       this.updateViewport_();
     });
@@ -979,10 +979,10 @@ export class Viewport {
       };
       this.setZoomInternal_(this.computeFittingZoom_(dimensions, true, true));
       if (scrollToTopOfPage) {
-        this.position = {
+        this.setPosition({
           x: 0,
           y: this.pageDimensions_[page].y * this.getZoom(),
-        };
+        });
       }
       this.updateViewport_();
     });
@@ -1043,24 +1043,34 @@ export class Viewport {
 
   /**
    * @param {!KeyboardEvent} e
+   * @param {boolean} formFieldFocused
    * @private
    */
-  pageUpDownSpaceHandler_(e) {
-    const direction =
-        e.key === 'PageUp' || (e.key === ' ' && e.shiftKey) ? -1 : 1;
+  pageUpDownSpaceHandler_(e, formFieldFocused) {
+    // Avoid scrolling if the space key is down while a form field is focused
+    // on since the user might be typing space into the field.
+    if (formFieldFocused && e.key === ' ') {
+      this.window_.dispatchEvent(new CustomEvent('scroll-avoided-for-testing'));
+      return;
+    }
+
+    const isDown = e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey);
     // Go to the previous/next page if we are fit-to-page or fit-to-height.
     if (this.isPagedMode_()) {
-      direction === 1 ? this.goToNextPage() : this.goToPreviousPage();
+      isDown ? this.goToNextPage() : this.goToPreviousPage();
       // Since we do the movement of the page.
       e.preventDefault();
     } else if (
         /** @type {!{fromScriptingAPI: (boolean|undefined)}} */ (e)
             .fromScriptingAPI) {
-      this.position = {
+      const scrollOffset = (isDown ? 1 : -1) * this.size.height;
+      this.setPosition({
         x: this.position.x,
-        y: this.position.y + direction * this.size.height,
-      };
+        y: this.position.y + scrollOffset,
+      });
     }
+
+    this.window_.dispatchEvent(new CustomEvent('scroll-proceeded-for-testing'));
   }
 
   /**
@@ -1068,44 +1078,25 @@ export class Viewport {
    * @param {boolean} formFieldFocused
    * @private
    */
-  arrowLeftHandler_(e, formFieldFocused) {
-    if (hasKeyModifiers(e)) {
+  arrowLeftRightHandler_(e, formFieldFocused) {
+    if (formFieldFocused || hasKeyModifiers(e)) {
       return;
     }
 
-    // Go to the previous page if there are no horizontal scrollbars and
-    // no form field is focused.
-    if (!(this.documentHasScrollbars().horizontal || formFieldFocused)) {
-      this.goToPreviousPage();
+    // Go to the previous/next page if there are no horizontal scrollbars.
+    const isRight = e.key === 'ArrowRight';
+    if (!this.documentHasScrollbars().horizontal) {
+      isRight ? this.goToNextPage() : this.goToPreviousPage();
       // Since we do the movement of the page.
       e.preventDefault();
     } else if (
         /** @type {!{fromScriptingAPI: (boolean|undefined)}} */ (e)
             .fromScriptingAPI) {
-      this.position.x -= SCROLL_INCREMENT;
-    }
-  }
-
-  /**
-   * @param {!KeyboardEvent} e
-   * @param {boolean} formFieldFocused
-   * @private
-   */
-  arrowRightHandler_(e, formFieldFocused) {
-    if (hasKeyModifiers(e)) {
-      return;
-    }
-
-    // Go to the next page if there are no horizontal scrollbars and no
-    // form field is focused.
-    if (!(this.documentHasScrollbars().horizontal || formFieldFocused)) {
-      this.goToNextPage();
-      // Since we do the movement of the page.
-      e.preventDefault();
-    } else if (
-        /** @type {!{fromScriptingAPI: (boolean|undefined)}} */ (e)
-            .fromScriptingAPI) {
-      this.position.x += SCROLL_INCREMENT;
+      const scrollOffset = (isRight ? 1 : -1) * SCROLL_INCREMENT;
+      this.setPosition({
+        x: this.position.x + scrollOffset,
+        y: this.position.y,
+      });
     }
   }
 
@@ -1115,20 +1106,23 @@ export class Viewport {
    * @private
    */
   arrowUpDownHandler_(e, formFieldFocused) {
-    if (hasKeyModifiers(e)) {
+    if (formFieldFocused || hasKeyModifiers(e)) {
       return;
     }
 
-    // Go to the previous/next page if Presentation mode is on and no form field
-    // is focused.
-    if (!(document.fullscreenElement === null || formFieldFocused)) {
-      e.key === 'ArrowDown' ? this.goToNextPage() : this.goToPreviousPage();
+    // Go to the previous/next page if Presentation mode is on.
+    const isDown = e.key === 'ArrowDown';
+    if (document.fullscreenElement !== null) {
+      isDown ? this.goToNextPage() : this.goToPreviousPage();
       e.preventDefault();
     } else if (
         /** @type {!{fromScriptingAPI: (boolean|undefined)}} */ (e)
             .fromScriptingAPI) {
-      const direction = e.key === 'ArrowDown' ? 1 : -1;
-      this.position.y += direction * SCROLL_INCREMENT;
+      const scrollOffset = (isDown ? 1 : -1) * SCROLL_INCREMENT;
+      this.setPosition({
+        x: this.position.x,
+        y: this.position.y + scrollOffset,
+      });
     }
   }
 
@@ -1144,17 +1138,15 @@ export class Viewport {
       case ' ':
       case 'PageUp':
       case 'PageDown':
-        this.pageUpDownSpaceHandler_(e);
+        this.pageUpDownSpaceHandler_(e, formFieldFocused);
         return true;
       case 'ArrowLeft':
-        this.arrowLeftHandler_(e, formFieldFocused);
+      case 'ArrowRight':
+        this.arrowLeftRightHandler_(e, formFieldFocused);
         return true;
       case 'ArrowDown':
       case 'ArrowUp':
         this.arrowUpDownHandler_(e, formFieldFocused);
-        return true;
-      case 'ArrowRight':
-        this.arrowRightHandler_(e, formFieldFocused);
         return true;
       default:
         return false;
@@ -1225,10 +1217,10 @@ export class Viewport {
         y = currentCoords.y;
       }
 
-      this.position = {
+      this.setPosition({
         x: (dimensions.x + x) * this.getZoom(),
-        y: (dimensions.y + y) * this.getZoom()
-      };
+        y: (dimensions.y + y) * this.getZoom(),
+      });
       this.updateViewport_();
     });
   }
@@ -1258,7 +1250,7 @@ export class Viewport {
         this.setZoomInternal_(Math.min(
             this.defaultZoom_,
             this.computeFittingZoom_(this.documentDimensions_, true, false)));
-        this.position = {x: 0, y: 0};
+        this.setPosition({x: 0, y: 0});
       }
       this.contentSizeChanged_();
       this.resize_();
@@ -1377,7 +1369,7 @@ export class Viewport {
     }
 
     if (changed) {
-      this.position = newPosition;
+      this.setPosition(newPosition);
     }
   }
 
@@ -1401,6 +1393,14 @@ export class Viewport {
    * @param {!Gesture} gesture The gesture to dispatch.
    */
   dispatchGesture(gesture) {
+    // Transform gesture coordinates to be compatible with the Pepper plugin.
+    // TODO(crbug.com/702993): Remove this after the Pepper plugin is removed.
+    const containerRect =
+        this.content_.querySelector('#plugin').getBoundingClientRect();
+    gesture.detail.center = {
+      x: gesture.detail.center.x + containerRect.left,
+      y: gesture.detail.center.y + containerRect.top,
+    };
     this.gestureDetector_.getEventTarget().dispatchEvent(
         new CustomEvent(gesture.type, {detail: gesture.detail}));
   }

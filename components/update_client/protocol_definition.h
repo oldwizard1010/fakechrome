@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "base/containers/flat_map.h"
-#include "base/macros.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
@@ -101,6 +100,7 @@ struct App {
 
   std::string app_id;
   std::string version;
+  std::string ap;
   base::flat_map<std::string, std::string> installer_attributes;
   std::string lang;
   std::string brand_code;

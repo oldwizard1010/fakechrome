@@ -17,7 +17,7 @@
 #include "build/build_config.h"
 #include "components/autofill/core/browser/autofill_download_manager.h"
 #include "components/autofill/core/browser/autofill_driver.h"
-#include "components/autofill/core/browser/autofill_metrics.h"
+#include "components/autofill/core/browser/metrics/autofill_metrics.h"
 #include "components/autofill/core/common/dense_set.h"
 #include "components/autofill/core/common/form_data.h"
 #include "components/autofill/core/common/language_code.h"
@@ -134,8 +134,12 @@ class AutofillManager
                        bool known_success,
                        mojom::SubmissionSource source);
 
-  // Invoked when |forms| has been detected.
-  virtual void OnFormsSeen(const std::vector<FormData>& forms);
+  // Invoked when changes of the forms have been detected: the forms in
+  // |updated_forms| are either new or have changed, and the forms in
+  // |removed_forms| have been removed from the DOM (but may be re-added to the
+  // DOM later).
+  virtual void OnFormsSeen(const std::vector<FormData>& updated_forms,
+                           const std::vector<FormGlobalId>& removed_forms);
 
   // Invoked when focus is no longer on form. |had_interacted_form| indicates
   // whether focus was previously on a form with which the user had interacted.
@@ -350,9 +354,6 @@ class AutofillManager
   // |form_structures|.
   void OnFormsParsed(const std::vector<const FormData*>& forms);
 
-  void PropagateAutofillPredictionsToDriver(
-      const std::vector<FormStructure*>& forms);
-
   std::unique_ptr<AutofillMetrics::FormInteractionsUkmLogger>
   CreateFormInteractionsUkmLogger();
 
@@ -385,10 +386,6 @@ class AutofillManager
   // Utility for logging URL keyed metrics.
   std::unique_ptr<AutofillMetrics::FormInteractionsUkmLogger>
       form_interactions_ukm_logger_;
-
-  // Task to delay propagate the query result to driver for testing.
-  base::CancelableOnceCallback<void(const std::vector<FormStructure*>&)>
-      query_result_delay_task_;
 
   // Will be not null only for |SaveCardBubbleViewsFullFormBrowserTest|.
   ObserverForTest* observer_for_testing_ = nullptr;

@@ -18,7 +18,7 @@
 #include "components/autofill/core/browser/autofill_client.h"
 #include "components/autofill/core/browser/autofill_driver.h"
 #include "components/autofill/core/browser/data_model/credit_card.h"
-#include "components/autofill/core/browser/metrics/credit_card_form_event_logger.h"
+#include "components/autofill/core/browser/metrics/form_events/credit_card_form_event_logger.h"
 #include "components/autofill/core/browser/payments/credit_card_cvc_authenticator.h"
 #include "components/autofill/core/browser/payments/credit_card_otp_authenticator.h"
 #include "components/autofill/core/browser/payments/payments_client.h"
@@ -200,8 +200,14 @@ class CreditCardAccessManager : public CreditCardCVCAuthenticator::Requester,
   FRIEND_TEST_ALL_PREFIXES(
       CreditCardAccessManagerTest,
       RiskBasedVirtualCardUnmasking_AuthenticationRequired_FidoOnly_FidoNotOptedIn);
+  FRIEND_TEST_ALL_PREFIXES(
+      CreditCardAccessManagerTest,
+      RiskBasedVirtualCardUnmasking_Failure_NoOptionReturned);
+  FRIEND_TEST_ALL_PREFIXES(
+      CreditCardAccessManagerTest,
+      RiskBasedVirtualCardUnmasking_Failure_VirtualCardRetrievalError);
   FRIEND_TEST_ALL_PREFIXES(CreditCardAccessManagerTest,
-                           RiskBasedVirtualCardUnmasking_Failure);
+                           RiskBasedVirtualCardUnmasking_FlowCancelled);
   friend class AutofillAssistantTest;
   friend class BrowserAutofillManagerTest;
   friend class AutofillMetricsTest;
@@ -350,7 +356,7 @@ class CreditCardAccessManager : public CreditCardCVCAuthenticator::Requester,
   // Callback function invoked when the user has accepted the authentication
   // selection dialog and chosen an auth method to use.
   void OnUserAcceptedAuthenticationSelectionDialog(
-      const CardUnmaskChallengeOption& selected_challenge_option);
+      const std::string& selected_challenge_option_id);
 
   // Callback function invoked when the user has cancelled the virtual card
   // unmasking.
@@ -361,6 +367,10 @@ class CreditCardAccessManager : public CreditCardCVCAuthenticator::Requester,
 
   // Handles the FIDO opt-in status change.
   void HandleFidoOptInStatusChange();
+
+  // Shows the authenticator selection dialog for users to confirm their choice
+  // of authentication method.
+  void ShowUnmaskAuthenticatorSelectionDialog();
 
   // The current form of authentication in progress.
   UnmaskAuthFlowType unmask_auth_flow_type_ = UnmaskAuthFlowType::kNone;

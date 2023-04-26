@@ -10,7 +10,6 @@
 #include "base/check_op.h"
 #include "base/gtest_prod_util.h"
 #include "base/lazy_instance.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "content/browser/isolation_context.h"
 #include "content/browser/site_instance_group_manager.h"
@@ -69,6 +68,10 @@ struct UrlInfo;
 ///////////////////////////////////////////////////////////////////////////////
 class CONTENT_EXPORT BrowsingInstance final
     : public base::RefCounted<BrowsingInstance> {
+ public:
+  BrowsingInstance(const BrowsingInstance&) = delete;
+  BrowsingInstance& operator=(const BrowsingInstance&) = delete;
+
  private:
   friend class base::RefCounted<BrowsingInstance>;
   friend class SiteInstanceImpl;
@@ -243,8 +246,6 @@ class CONTENT_EXPORT BrowsingInstance final
   // See crbug.com/1212266 for more context on why we track the
   // StoragePartitionConfig here.
   absl::optional<StoragePartitionConfig> storage_partition_config_;
-
-  DISALLOW_COPY_AND_ASSIGN(BrowsingInstance);
 };
 
 }  // namespace content

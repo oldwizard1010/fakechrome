@@ -215,6 +215,11 @@ void CompositorFrameSinkSupport::OnSurfaceActivated(Surface* surface) {
       UpdateNeedsBeginFramesInternal();
   }
 
+  // The directives above generate TransferableResources which are required to
+  // replaced shared elements with the corresponding cached snapshots. This step
+  // must be done after processing directives above.
+  surface_animation_manager_.ReplaceSharedElementResources(surface);
+
   // If surface animation manager needs a frame, then we should interpolate
   // here. Note that we also interpolate in OnBeginFrame. The reason for two
   // calls is that we might not receive and active a frame from the client in
@@ -901,6 +906,10 @@ void CompositorFrameSinkSupport::UpdateNeedsBeginFramesInternal() {
   }
 }
 
+const FrameSinkId& CompositorFrameSinkSupport::GetFrameSinkId() const {
+  return frame_sink_id_;
+}
+
 void CompositorFrameSinkSupport::AttachCaptureClient(
     CapturableFrameSink::Client* client) {
   DCHECK(!base::Contains(capture_clients_, client));
@@ -1043,16 +1052,10 @@ gfx::Rect CompositorFrameSinkSupport::GetCaptureBounds(
       continue;
     }
 
-    // Capture bounds are only set on the root render pass, and thus
-    // there is only one instance for each active frame.
-    const RegionCaptureBounds* bounds =
-        surface->GetActiveFrame().capture_bounds();
-    if (!bounds) {
-      continue;
-    }
-
-    auto it = bounds->bounds().find(crop_id);
-    if (it != bounds->bounds().end()) {
+    const RegionCaptureBounds& bounds =
+        surface->GetActiveFrameMetadata().capture_bounds;
+    const auto it = bounds.bounds().find(crop_id);
+    if (it != bounds.bounds().end()) {
       return it->second;
     }
   }
@@ -1154,7 +1157,7 @@ void CompositorFrameSinkSupport::CheckPendingSurfaces() {
 
 bool CompositorFrameSinkSupport::ShouldThrottleBeginFrameAsRequested(
     base::TimeTicks frame_time) {
-  return begin_frame_interval_ > base::TimeDelta() &&
+  return begin_frame_interval_.is_positive() &&
          (frame_time - last_frame_time_) < begin_frame_interval_;
 }
 

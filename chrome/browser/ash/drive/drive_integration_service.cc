@@ -16,7 +16,6 @@
 #include "base/files/file_util.h"
 #include "base/hash/md5.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/stringprintf.h"
 #include "base/system/sys_info.h"
@@ -639,6 +638,9 @@ void DriveIntegrationService::Shutdown() {
   weak_ptr_factory_.InvalidateWeakPtrs();
 
   RemoveDriveMountPoint();
+
+  for (auto& observer : observers_)
+    observer.OnDriveIntegrationServiceDestroyed();
 }
 
 void DriveIntegrationService::SetEnabled(bool enabled) {
@@ -1163,6 +1165,18 @@ void DriveIntegrationService::LocateFilesByItemIds(
     return;
   }
   GetDriveFsInterface()->LocateFilesByItemIds(item_ids, std::move(callback));
+}
+
+void DriveIntegrationService::GetQuotaUsage(
+    drivefs::mojom::DriveFs::GetQuotaUsageCallback callback) {
+  if (!IsMounted() || !GetDriveFsInterface()) {
+    std::move(callback).Run(drive::FILE_ERROR_SERVICE_UNAVAILABLE, nullptr);
+    return;
+  }
+
+  GetDriveFsInterface()->GetQuotaUsage(
+      mojo::WrapCallbackWithDefaultInvokeIfNotRun(
+          std::move(callback), drive::FILE_ERROR_SERVICE_UNAVAILABLE, nullptr));
 }
 
 void DriveIntegrationService::RestartDrive() {

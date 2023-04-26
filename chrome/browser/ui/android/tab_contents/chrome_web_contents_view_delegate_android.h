@@ -6,7 +6,6 @@
 #define CHROME_BROWSER_UI_ANDROID_TAB_CONTENTS_CHROME_WEB_CONTENTS_VIEW_DELEGATE_ANDROID_H_
 
 #include "base/compiler_specific.h"
-#include "base/macros.h"
 #include "content/public/browser/web_contents_view_delegate.h"
 
 namespace content {
@@ -29,7 +28,7 @@ class ChromeWebContentsViewDelegateAndroid
   ~ChromeWebContentsViewDelegateAndroid() override;
 
   // WebContentsViewDelegate:
-  void ShowContextMenu(content::RenderFrameHost* render_frame_host,
+  void ShowContextMenu(content::RenderFrameHost& render_frame_host,
                        const content::ContextMenuParams& params) override;
 
   // WebContentsViewDelegate:

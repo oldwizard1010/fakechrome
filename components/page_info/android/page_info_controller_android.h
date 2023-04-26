@@ -10,7 +10,6 @@
 #include <memory>
 
 #include "base/android/scoped_java_ref.h"
-#include "base/macros.h"
 #include "components/page_info/page_info_ui.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
@@ -34,6 +33,9 @@ class PageInfoControllerAndroid : public PageInfoUI {
   void RecordPageInfoAction(JNIEnv* env,
                             const base::android::JavaParamRef<jobject>& obj,
                             jint action);
+  void SetAboutThisSiteShown(JNIEnv* env,
+                             const base::android::JavaParamRef<jobject>& obj,
+                             jboolean was_about_this_site_shown);
   void UpdatePermissions(JNIEnv* env,
                          const base::android::JavaParamRef<jobject>& obj);
 

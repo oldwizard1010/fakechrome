@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "base/location.h"
-#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
@@ -115,8 +114,8 @@ class SyncServiceImpl : public SyncService,
   DisableReasonSet GetDisableReasons() const override;
   TransportState GetTransportState() const override;
   bool IsLocalSyncEnabled() const override;
-  CoreAccountInfo GetAuthenticatedAccountInfo() const override;
-  bool IsAuthenticatedAccountPrimary() const override;
+  CoreAccountInfo GetAccountInfo() const override;
+  bool HasSyncConsent() const override;
   GoogleServiceAuthError GetAuthError() const override;
   base::Time GetAuthErrorTime() const override;
   bool RequiresClientUpgrade() const override;

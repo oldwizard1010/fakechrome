@@ -4,6 +4,10 @@
 
 #include "ash/system/phonehub/phone_hub_tray.h"
 
+#include "ash/components/phonehub/fake_connection_scheduler.h"
+#include "ash/components/phonehub/fake_notification_access_manager.h"
+#include "ash/components/phonehub/fake_phone_hub_manager.h"
+#include "ash/components/phonehub/phone_model_test_util.h"
 #include "ash/constants/ash_features.h"
 #include "ash/public/cpp/test/test_new_window_delegate.h"
 #include "ash/shell.h"
@@ -16,10 +20,6 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
-#include "chromeos/components/phonehub/fake_connection_scheduler.h"
-#include "chromeos/components/phonehub/fake_notification_access_manager.h"
-#include "chromeos/components/phonehub/fake_phone_hub_manager.h"
-#include "chromeos/components/phonehub/phone_model_test_util.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/events/event.h"
@@ -157,12 +157,12 @@ class PhoneHubTrayTest : public AshTestBase {
 
   views::Button* notification_opt_in_set_up_button() {
     return static_cast<views::Button*>(bubble_view()->GetViewByID(
-        PhoneHubViewID::kNotificationOptInSetUpButton));
+        PhoneHubViewID::kSubFeatureOptInConfirmButton));
   }
 
   views::Button* notification_opt_in_dismiss_button() {
     return static_cast<views::Button*>(bubble_view()->GetViewByID(
-        PhoneHubViewID::kNotificationOptInDismissButton));
+        PhoneHubViewID::kSubFeatureOptInDismissButton));
   }
 
  protected:

@@ -21,6 +21,7 @@
 #include "base/test/test_timeouts.h"
 #include "base/time/time.h"
 #include "base/version.h"
+#include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "chrome/updater/constants.h"
 #include "chrome/updater/persisted_data.h"
@@ -144,6 +145,10 @@ class IntegrationTest : public ::testing::Test {
     test_commands_->ExpectLegacyUpdate3WebSucceeds(app_id);
   }
 
+  void ExpectLegacyProcessLauncherSucceeds() {
+    test_commands_->ExpectLegacyProcessLauncherSucceeds();
+  }
+
 #endif  // OS_WIN
 
   void SetupFakeUpdaterHigherVersion() {
@@ -218,6 +223,18 @@ class IntegrationTest : public ::testing::Test {
                                          to_version);
   }
 
+  void ExpectRegistrationEvent(ScopedServer* test_server,
+                               const std::string& app_id) {
+    test_server->ExpectOnce(
+        {base::BindRepeating(
+            RequestMatcherRegex,
+            base::StrCat({R"(.*"appid":")", app_id, R"(","enabled":true,")",
+                          R"(event":\[{"eventresult":1,"eventtype":2,.*)"}))},
+        "");
+  }
+
+  void StressUpdateService() { test_commands_->StressUpdateService(); }
+
   scoped_refptr<IntegrationTestCommands> test_commands_;
 
  private:
@@ -232,6 +249,7 @@ class IntegrationTest : public ::testing::Test {
 
 TEST_F(IntegrationTest, InstallUninstall) {
   Install();
+  WaitForServerExit();
   ExpectInstalled();
   ExpectVersionActive(kUpdaterVersion);
   ExpectActiveUpdater();
@@ -269,12 +287,14 @@ TEST_F(IntegrationTest, SelfUninstallOutdatedUpdater) {
 
 TEST_F(IntegrationTest, QualifyUpdater) {
   ScopedServer test_server(test_commands_);
+  ExpectRegistrationEvent(&test_server, kUpdaterAppId);
   Install();
   ExpectInstalled();
   WaitForServerExit();
   SetupFakeUpdaterLowerVersion();
   ExpectVersionNotActive(kUpdaterVersion);
 
+  ExpectRegistrationEvent(&test_server, kQualificationAppId);
   ExpectUpdateSequence(&test_server, kQualificationAppId, base::Version("0.1"),
                        base::Version("0.2"));
 
@@ -297,6 +317,7 @@ TEST_F(IntegrationTest, QualifyUpdater) {
 
 TEST_F(IntegrationTest, SelfUpdate) {
   ScopedServer test_server(test_commands_);
+  ExpectRegistrationEvent(&test_server, kUpdaterAppId);
   Install();
 
   base::Version next_version(base::StringPrintf("%s1", kUpdaterVersion));
@@ -319,12 +340,14 @@ TEST_F(IntegrationTest, ReportsActive) {
   base::test::ScopedRunLoopTimeout timeout(FROM_HERE, base::Seconds(18));
 
   ScopedServer test_server(test_commands_);
+  ExpectRegistrationEvent(&test_server, kUpdaterAppId);
   Install();
   ExpectInstalled();
 
   // Register apps test1 and test2. Expect registration pings for each.
-  // TODO(crbug.com/1159525): Registration pings are currently not being sent.
+  ExpectRegistrationEvent(&test_server, "test1");
   RegisterApp("test1");
+  ExpectRegistrationEvent(&test_server, "test2");
   RegisterApp("test2");
 
   // Set test1 to be active and do a background updatecheck.
@@ -352,9 +375,11 @@ TEST_F(IntegrationTest, ReportsActive) {
 
 TEST_F(IntegrationTest, UpdateApp) {
   ScopedServer test_server(test_commands_);
+  ExpectRegistrationEvent(&test_server, kUpdaterAppId);
   Install();
 
   const std::string kAppId("test");
+  ExpectRegistrationEvent(&test_server, kAppId);
   RegisterApp(kAppId);
   base::Version v1("1");
   ExpectUpdateSequence(&test_server, kAppId, base::Version("0.1"), v1);
@@ -372,6 +397,7 @@ TEST_F(IntegrationTest, UpdateApp) {
 
 TEST_F(IntegrationTest, MultipleWakesOneNetRequest) {
   ScopedServer test_server(test_commands_);
+  ExpectRegistrationEvent(&test_server, kUpdaterAppId);
   Install();
 
   // Only one sequence visible to the server despite multiple wakes.
@@ -385,6 +411,7 @@ TEST_F(IntegrationTest, MultipleWakesOneNetRequest) {
 
 TEST_F(IntegrationTest, MultipleUpdateAllsMultipleNetRequests) {
   ScopedServer test_server(test_commands_);
+  ExpectRegistrationEvent(&test_server, kUpdaterAppId);
   Install();
 
   ExpectNoUpdateSequence(&test_server, kUpdaterAppId);
@@ -396,12 +423,14 @@ TEST_F(IntegrationTest, MultipleUpdateAllsMultipleNetRequests) {
   Clean();
 }
 
-#if defined(OS_WIN)
+#if defined(OS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
 TEST_F(IntegrationTest, LegacyUpdate3Web) {
   ScopedServer test_server(test_commands_);
+  ExpectRegistrationEvent(&test_server, kUpdaterAppId);
   Install();
 
   const char kAppId[] = "test1";
+  ExpectRegistrationEvent(&test_server, kAppId);
   RegisterApp(kAppId);
 
   ExpectNoUpdateSequence(&test_server, kAppId);
@@ -413,7 +442,13 @@ TEST_F(IntegrationTest, LegacyUpdate3Web) {
 
   Uninstall();
 }
-#endif  // OS_WIN
+
+TEST_F(IntegrationTest, LegacyProcessLauncher) {
+  Install();
+  ExpectLegacyProcessLauncherSucceeds();
+  Uninstall();
+}
+#endif  // defined(OS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
 TEST_F(IntegrationTest, UnregisterUninstalledApp) {
   Install();
@@ -486,6 +521,13 @@ TEST_F(IntegrationTest, UnregisterUnownedApp) {
   Uninstall();
 }
 #endif  // defined(OS_MAC)
+
+TEST_F(IntegrationTest, UpdateServiceStress) {
+  Install();
+  ExpectInstalled();
+  StressUpdateService();
+  Uninstall();
+}
 
 #endif  // defined(OS_WIN) || !defined(COMPONENT_BUILD)
 

@@ -10,7 +10,6 @@
 #include <memory>
 #include <string>
 
-#include "base/macros.h"
 #include "content/public/browser/site_instance.h"
 #include "content/public/browser/web_contents_delegate.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -94,7 +93,8 @@ class BackgroundContents : public extensions::DeferredStartRenderHost,
   bool IsNeverComposited(content::WebContents* web_contents) override;
 
   // content::WebContentsObserver implementation:
-  void RenderProcessGone(base::TerminationStatus status) override;
+  void PrimaryMainFrameRenderProcessGone(
+      base::TerminationStatus status) override;
 
  protected:
   // Exposed for testing.

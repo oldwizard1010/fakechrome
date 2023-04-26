@@ -13,6 +13,7 @@
 #include <utility>
 
 #include "ash/components/quick_answers/public/cpp/quick_answers_prefs.h"
+#include "ash/components/settings/cros_settings_names.h"
 #include "ash/constants/app_types.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/public/cpp/accelerators.h"
@@ -127,7 +128,6 @@
 #include "chromeos/services/assistant/public/cpp/assistant_prefs.h"
 #include "chromeos/services/assistant/public/cpp/assistant_service.h"
 #include "chromeos/services/machine_learning/public/cpp/service_connection.h"
-#include "chromeos/settings/cros_settings_names.h"
 #include "chromeos/ui/base/window_properties.h"
 #include "chromeos/ui/frame/default_frame_header.h"
 #include "chromeos/ui/frame/frame_header.h"
@@ -174,6 +174,7 @@
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
 #include "ui/base/ime/ash/ime_bridge.h"
 #include "ui/base/ui_base_features.h"
+#include "ui/compositor/compositor.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/throughput_tracker.h"
 #include "ui/compositor/throughput_tracker_host.h"
@@ -3259,7 +3260,7 @@ AutotestPrivateGetAllInstalledAppsFunction::Run() {
   DVLOG(1) << "AutotestPrivateGetAllInstalledAppsFunction";
 
   Profile* const profile = Profile::FromBrowserContext(browser_context());
-  apps::AppServiceProxyChromeOs* proxy =
+  apps::AppServiceProxy* proxy =
       apps::AppServiceProxyFactory::GetForProfile(profile);
 
   std::vector<api::autotest_private::App> installed_apps;
@@ -4625,8 +4626,7 @@ AutotestPrivateSetMetricsEnabledFunction::Run() {
   Profile* profile = Profile::FromBrowserContext(browser_context());
 
   bool value;
-  if (ash::CrosSettings::Get()->GetBoolean(chromeos::kStatsReportingPref,
-                                           &value) &&
+  if (ash::CrosSettings::Get()->GetBoolean(ash::kStatsReportingPref, &value) &&
       value == target_value_) {
     VLOG(1) << "Value at target; returning early";
     return RespondNow(NoArguments());
@@ -4646,13 +4646,12 @@ AutotestPrivateSetMetricsEnabledFunction::Run() {
 
 void AutotestPrivateSetMetricsEnabledFunction::OnDeviceSettingsStored() {
   bool actual;
-  if (!ash::CrosSettings::Get()->GetBoolean(chromeos::kStatsReportingPref,
+  if (!ash::CrosSettings::Get()->GetBoolean(ash::kStatsReportingPref,
                                             &actual)) {
     NOTREACHED() << "AutotestPrivateSetMetricsEnabledFunction: "
                  << "kStatsReportingPref should be set";
-    Respond(Error(base::StrCat(
-        {"Failed to set metrics consent: ", chromeos::kStatsReportingPref,
-         " is not set."})));
+    Respond(Error(base::StrCat({"Failed to set metrics consent: ",
+                                ash::kStatsReportingPref, " is not set."})));
     return;
   }
   VLOG(1) << "AutotestPrivateSetMetricsEnabledFunction: actual: "
@@ -4662,7 +4661,7 @@ void AutotestPrivateSetMetricsEnabledFunction::OnDeviceSettingsStored() {
     Respond(NoArguments());
   } else {
     Respond(Error(base::StrCat(
-        {"Failed to set metrics consent: ", chromeos::kStatsReportingPref,
+        {"Failed to set metrics consent: ", ash::kStatsReportingPref,
          " has wrong value."})));
   }
 }
@@ -5061,6 +5060,11 @@ AutotestPrivateStopSmoothnessTrackingFunction::Run() {
   it->second.stopping = true;
   it->second.tracker->Stop();
 
+  // Trigger a repaint after ThroughputTracker::Stop() to generate a frame to
+  // ensure the tracker report will be sent back.
+  auto* root_window = ash::Shell::GetRootWindowForDisplayId(display_id);
+  root_window->GetHost()->compositor()->ScheduleFullRedraw();
+
   return did_respond() ? AlreadyResponded() : RespondLater();
 }
 
@@ -5231,6 +5235,36 @@ AutotestPrivateStopThroughputTrackerDataCollectionFunction::Run() {
   return RespondNow(
       ArgumentList(api::autotest_private::StopThroughputTrackerDataCollection::
                        Results::Create(result_data)));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// AutotestPrivateGetDisplaySmoothnessFunction
+//////////////////////////////////////////////////////////////////////////////
+
+AutotestPrivateGetDisplaySmoothnessFunction::
+    AutotestPrivateGetDisplaySmoothnessFunction() = default;
+
+AutotestPrivateGetDisplaySmoothnessFunction::
+    ~AutotestPrivateGetDisplaySmoothnessFunction() = default;
+
+ExtensionFunction::ResponseAction
+AutotestPrivateGetDisplaySmoothnessFunction::Run() {
+  auto params(
+      api::autotest_private::GetDisplaySmoothness::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  int64_t display_id;
+  if (!GetDisplayIdFromOptionalArg(params->display_id, &display_id)) {
+    return RespondNow(
+        Error(base::StrCat({"Invalid display id: ", *params->display_id})));
+  }
+
+  auto* root_window = ash::Shell::GetRootWindowForDisplayId(display_id);
+  const uint32_t smoothness =
+      root_window->GetHost()->compositor()->GetAverageThroughput();
+  return RespondNow(
+      ArgumentList(api::autotest_private::GetDisplaySmoothness::Results::Create(
+          smoothness)));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

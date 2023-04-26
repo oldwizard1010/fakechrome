@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "base/containers/span.h"
-#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "base/types/id_type.h"
 #include "base/types/pass_key.h"
@@ -243,8 +242,8 @@ class SkiaOutputSurfaceImplOnGpu
 
   const scoped_refptr<AsyncReadResultLock> GetAsyncReadResultLock() const;
 
-  void AddAsyncReadResultHelper(AsyncReadResultHelper* helper);
-  void RemoveAsyncReadResultHelper(AsyncReadResultHelper* helper);
+  void AddAsyncReadResultHelperWithLock(AsyncReadResultHelper* helper);
+  void RemoveAsyncReadResultHelperWithLock(AsyncReadResultHelper* helper);
 
  private:
   class DisplayContext;
@@ -359,6 +358,13 @@ class SkiaOutputSurfaceImplOnGpu
       const gfx::ColorSpace& color_space,
       std::array<PlaneAccessData, CopyOutputResult::kNV12MaxPlanes>&
           plane_access_datas);
+  // Imports surfaces needed to store the data in NV12 format from a blit
+  // request. |plane_access_datas| will be populated with information needed to
+  // access the NV12 planes.
+  bool ImportSurfacesForNV12Planes(
+      const BlitRequest& blit_request,
+      std::array<PlaneAccessData, CopyOutputResult::kNV12MaxPlanes>&
+          plane_access_datas);
 
   // Schedules a task to check if any skia readback requests have completed
   // after a short delay. Will not schedule a task if there is already a
@@ -417,6 +423,10 @@ class SkiaOutputSurfaceImplOnGpu
   // release callback from the client, so this vector holds all pending release
   // callbacks so resources can still be cleaned up in the dtor.
   std::vector<std::unique_ptr<ReleaseCallback>> release_on_gpu_callbacks_;
+
+  // Helper, creates a release callback for the passed in |representation|.
+  ReleaseCallback CreateDestroyCopyOutputResourcesOnGpuThreadCallback(
+      std::unique_ptr<gpu::SharedImageRepresentationSkia> representation);
 
 #if defined(USE_OZONE)
   // This should outlive gl_surface_ and vulkan_surface_.

@@ -11,7 +11,6 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/json/json_reader.h"
-#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "chromeos/network/managed_network_configuration_handler_impl.h"
@@ -31,16 +30,19 @@ class ProhibitedTechnologiesHandlerTest : public testing::Test {
       : task_environment_(
             base::test::SingleThreadTaskEnvironment::MainThreadType::UI) {}
 
+  ProhibitedTechnologiesHandlerTest(const ProhibitedTechnologiesHandlerTest&) =
+      delete;
+  ProhibitedTechnologiesHandlerTest& operator=(
+      const ProhibitedTechnologiesHandlerTest&) = delete;
+
   void SetUp() override {
     LoginState::Initialize();
 
     helper_.manager_test()->AddTechnology(shill::kTypeCellular,
                                           true /* enabled */);
 
-    network_config_handler_.reset(
-        NetworkConfigurationHandler::InitializeForTest(
-            helper_.network_state_handler(),
-            nullptr /* network_device_handler */));
+    network_config_handler_ = NetworkConfigurationHandler::InitializeForTest(
+        helper_.network_state_handler(), nullptr /* network_device_handler */);
 
     network_profile_handler_.reset(new NetworkProfileHandler());
     network_profile_handler_->Init();
@@ -123,8 +125,6 @@ class ProhibitedTechnologiesHandlerTest : public testing::Test {
   std::unique_ptr<ManagedNetworkConfigurationHandlerImpl>
       managed_config_handler_;
   std::unique_ptr<NetworkProfileHandler> network_profile_handler_;
-
-  DISALLOW_COPY_AND_ASSIGN(ProhibitedTechnologiesHandlerTest);
 };
 
 TEST_F(ProhibitedTechnologiesHandlerTest,

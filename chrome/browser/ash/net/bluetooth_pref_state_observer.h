@@ -11,7 +11,7 @@
 
 class Profile;
 
-namespace chromeos {
+namespace ash {
 
 // Class to update CrosBluetoothConfig when the PrefService state changes. The
 // implementation currently relies on g_browser_process since it holds the
@@ -38,6 +38,6 @@ class BluetoothPrefStateObserver
       session_observation_{this};
 };
 
-}  // namespace chromeos
+}  // namespace ash
 
 #endif  // CHROME_BROWSER_ASH_NET_BLUETOOTH_PREF_STATE_OBSERVER_H_

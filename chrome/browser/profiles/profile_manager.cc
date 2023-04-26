@@ -70,6 +70,7 @@
 #include "chrome/browser/profiles/profiles_state.h"
 #include "chrome/browser/signin/account_reconcilor_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
+#include "chrome/browser/signin/signin_features.h"
 #include "chrome/browser/signin/signin_util.h"
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/ui/startup/startup_browser_creator.h"
@@ -118,11 +119,8 @@
 #endif
 
 #if BUILDFLAG(ENABLE_SESSION_SERVICE)
-#include "chrome/browser/sessions/session_service_factory.h"
-#endif
-
-#if BUILDFLAG(ENABLE_SESSION_SERVICE) && BUILDFLAG(ENABLE_APP_SESSION_SERVICE)
 #include "chrome/browser/sessions/app_session_service_factory.h"
+#include "chrome/browser/sessions/session_service_factory.h"
 #endif
 
 #if BUILDFLAG(ENABLE_SUPERVISED_USERS)
@@ -550,7 +548,7 @@ void ProfileManager::ShutdownSessionServices() {
     // shut them down. If they were never created, just skip.
     if (SessionServiceFactory::GetForProfileIfExisting(profile))
       SessionServiceFactory::ShutdownForProfile(profile);
-#if BUILDFLAG(ENABLE_APP_SESSION_SERVICE)
+#if BUILDFLAG(ENABLE_SESSION_SERVICE)
     if (AppSessionServiceFactory::GetForProfileIfExisting(profile))
       AppSessionServiceFactory::ShutdownForProfile(profile);
 #endif
@@ -1019,7 +1017,8 @@ ProfileShortcutManager* ProfileManager::profile_shortcut_manager() {
 
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
 AccountProfileMapper* ProfileManager::GetAccountProfileMapper() {
-  if (!account_profile_mapper_) {
+  if (!account_profile_mapper_ &&
+      base::FeatureList::IsEnabled(kMultiProfileAccountConsistency)) {
     account_profile_mapper_ = std::make_unique<AccountProfileMapper>(
         GetAccountManagerFacade(/*profile_path=*/std::string()),
         &GetProfileAttributesStorage());

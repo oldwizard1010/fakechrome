@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "base/time/time.h"
@@ -19,7 +18,7 @@ namespace net {
 class NSSCertDatabase;
 }
 
-namespace chromeos {
+namespace ash {
 
 // Initializes a global NSSCertDatabase for the system token and stores it in a
 // global SystemTokenCertDbStorage instance which can be used by all ChromeOS
@@ -99,6 +98,6 @@ class SystemTokenCertDBInitializer : public TpmManagerClient::Observer {
   base::WeakPtrFactory<SystemTokenCertDBInitializer> weak_ptr_factory_{this};
 };
 
-}  // namespace chromeos
+}  // namespace ash
 
 #endif  // CHROME_BROWSER_ASH_SYSTEM_TOKEN_CERT_DB_INITIALIZER_H_

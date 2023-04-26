@@ -413,10 +413,6 @@ component("gfx") {
   if (use_ozone) {
     deps += [ "//ui/ozone:buildflags" ]
   }
-
-  if (ozone_platform_x11 || use_x11) {
-    deps += [ "//ui/gfx/x" ]
-  }
 }
 
 component("color_space") {
@@ -457,9 +453,6 @@ component("color_space") {
       "CoreFoundation.framework",
       "CoreGraphics.framework",
     ]
-  }
-  if (use_x11) {
-    deps += [ "//ui/gfx/x" ]
   }
   defines = [ "COLOR_SPACE_IMPLEMENTATION" ]
 }
@@ -792,6 +785,7 @@ test("gfx_unittests") {
       "geometry/size_unittest.cc",
       "geometry/skia_conversions_unittest.cc",
       "geometry/transform_util_unittest.cc",
+      "geometry/vector2d_f_unittest.cc",
       "geometry/vector2d_unittest.cc",
       "geometry/vector3d_unittest.cc",
       "half_float_unittest.cc",

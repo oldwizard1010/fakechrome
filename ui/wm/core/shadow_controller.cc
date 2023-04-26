@@ -10,7 +10,6 @@
 #include "base/command_line.h"
 #include "base/containers/contains.h"
 #include "base/containers/flat_set.h"
-#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "base/scoped_multi_source_observation.h"
 #include "ui/aura/client/aura_constants.h"
@@ -213,7 +212,7 @@ void ShadowController::Impl::OnWindowBoundsChanged(
     const gfx::Rect& new_bounds,
     ui::PropertyChangeReason reason) {
   ui::Shadow* shadow = GetShadowForWindow(window);
-  if (shadow)
+  if (shadow && window->GetProperty(aura::client::kUseWindowBoundsForShadow))
     shadow->SetContentBounds(gfx::Rect(new_bounds.size()));
 }
 

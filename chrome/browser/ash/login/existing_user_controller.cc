@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "ash/components/settings/cros_settings_names.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/constants/ash_switches.h"
 #include "ash/public/cpp/login_screen.h"
@@ -19,6 +20,7 @@
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/scoped_observation.h"
 #include "base/strings/string_util.h"
@@ -92,7 +94,6 @@
 #include "chromeos/dbus/userdataauth/userdataauth_client.h"
 #include "chromeos/login/auth/key.h"
 #include "chromeos/login/session/session_termination_manager.h"
-#include "chromeos/settings/cros_settings_names.h"
 #include "chromeos/strings/grit/chromeos_strings.h"
 #include "components/account_id/account_id.h"
 #include "components/arc/arc_util.h"
@@ -1180,7 +1181,7 @@ bool ExistingUserController::password_changed() const {
 user_manager::UserList ExistingUserController::ExtractLoginUsers(
     const user_manager::UserList& users) {
   bool show_users_on_signin;
-  CrosSettings::Get()->GetBoolean(chromeos::kAccountsPrefShowUserNamesOnSignIn,
+  CrosSettings::Get()->GetBoolean(kAccountsPrefShowUserNamesOnSignIn,
                                   &show_users_on_signin);
   user_manager::UserList filtered_users;
   for (auto* user : users) {

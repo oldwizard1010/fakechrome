@@ -13,11 +13,14 @@
 
 #include "base/callback.h"
 #include "base/callback_helpers.h"
+#include "base/cpu.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/macros.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/synchronization/waitable_event.h"
+#include "base/system/sys_info.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "crypto/openssl_util.h"
@@ -38,6 +41,7 @@
 #include "third_party/blink/public/web/web_local_frame_client.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
+#include "third_party/blink/renderer/core/peerconnection/execution_context_metronome_provider.h"
 #include "third_party/blink/renderer/modules/peerconnection/rtc_error_util.h"
 #include "third_party/blink/renderer/modules/peerconnection/rtc_peer_connection_handler.h"
 #include "third_party/blink/renderer/modules/webrtc/webrtc_audio_device_impl.h"
@@ -57,6 +61,7 @@
 #include "third_party/blink/renderer/platform/wtf/cross_thread_copier.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
+#include "third_party/re2/src/re2/re2.h"
 #include "third_party/webrtc/api/call/call_factory_interface.h"
 #include "third_party/webrtc/api/peer_connection_interface.h"
 #include "third_party/webrtc/api/rtc_event_log/rtc_event_log_factory.h"
@@ -316,6 +321,88 @@ base::Thread& GetChromeNetworkThread() {
   return StaticDeps().GetChromeNetworkThread();
 }
 
+std::string GetTierName() {
+  int processors = base::SysInfo::NumberOfProcessors();
+  if (processors <= 2) {
+    base::CPU cpu;
+    DEFINE_THREAD_SAFE_STATIC_LOCAL(const re2::RE2, low_tier_regexp,
+                                    ("Atom|Celeron|Pentium|AMD [AE][0-9]-"));
+    if (re2::RE2::PartialMatch(cpu.cpu_brand(), low_tier_regexp)) {
+      return "LOW";
+    }
+  }
+
+  if (processors < 4) {
+    return "MID";
+  }
+  return "HIGH_OR_ULTRA";
+}
+
+struct UmaVideoConfig {
+  webrtc::SdpVideoFormat format;
+  absl::optional<std::string> scalability_mode;
+  int decoder_weight;
+  int encoder_weight;
+};
+
+void ReportUmaEncodeDecodeCapabilities(
+    media::GpuVideoAcceleratorFactories* gpu_factories,
+    media::DecoderFactory* media_decoder_factory) {
+  const gfx::ColorSpace& render_color_space =
+      Platform::Current()->GetRenderingColorSpace();
+  scoped_refptr<base::SequencedTaskRunner> media_task_runner =
+      Platform::Current()->MediaThreadTaskRunner();
+
+  // Create encoder/decoder factories.
+  std::unique_ptr<webrtc::VideoEncoderFactory> webrtc_encoder_factory =
+      blink::CreateWebrtcVideoEncoderFactory(gpu_factories);
+  std::unique_ptr<webrtc::VideoDecoderFactory> webrtc_decoder_factory =
+      blink::CreateWebrtcVideoDecoderFactory(
+          gpu_factories, media_decoder_factory, std::move(media_task_runner),
+          render_color_space);
+  if (webrtc_encoder_factory && webrtc_decoder_factory) {
+    using Sdp = webrtc::SdpVideoFormat;
+    // Query for encode/decode support for H264, VP8, VP9, VP9 k-SVC.
+    UmaVideoConfig video_configs[] = {
+        {Sdp{"H264", Sdp::Parameters{{"level-asymmetry-allowed", "1"},
+                                     {"packetization-mode", "1"},
+                                     {"profile-level-id", "42001f"}}},
+         absl::nullopt, 1, 32},
+        {Sdp{"H264", Sdp::Parameters{{"level-asymmetry-allowed", "1"},
+                                     {"packetization-mode", "1"},
+                                     {"profile-level-id", "4d0032"}}},
+         absl::nullopt, 2, 64},
+        {Sdp{"VP8"}, absl::nullopt, 4, 128},
+        {Sdp{"VP9"}, absl::nullopt, 8, 256},
+        {Sdp{"VP9"}, "L3T3_KEY", 16, 512}};
+    int uma_metric = 0;
+    for (const auto& config : video_configs) {
+      uma_metric += config.decoder_weight *
+                    webrtc_decoder_factory
+                        ->QueryCodecSupport(config.format,
+                                            config.scalability_mode.has_value())
+                        .is_power_efficient;
+
+      uma_metric +=
+          config.encoder_weight *
+          webrtc_encoder_factory
+              ->QueryCodecSupport(config.format, config.scalability_mode)
+              .is_power_efficient;
+    }
+
+    base::UmaHistogramSparse("WebRTC.Video.HwCapabilities." + GetTierName(),
+                             uma_metric);
+  }
+}
+
+void WaitForEncoderSupportReady(
+    media::GpuVideoAcceleratorFactories* gpu_factories,
+    media::DecoderFactory* media_decoder_factory) {
+  gpu_factories->NotifyEncoderSupportKnown(
+      base::BindOnce(&ReportUmaEncodeDecodeCapabilities, gpu_factories,
+                     media_decoder_factory));
+}
+
 }  // namespace
 
 // static
@@ -440,6 +527,13 @@ void PeerConnectionDependencyFactory::CreatePeerConnectionFactory() {
 
   if (!metronome_source_ &&
       base::FeatureList::IsEnabled(kWebRtcMetronomeTaskQueue)) {
+    // Store a reference to the context's metronome provider so that it can be
+    // used when cleaning up peer connections, even while the context is being
+    // destroyed.
+    metronome_provider_ =
+        ExecutionContextMetronomeProvider::From(*GetExecutionContext())
+            .metronome_provider();
+    DCHECK(metronome_provider_);
     metronome_source_ = base::MakeRefCounted<MetronomeSource>(
         kWebRtcMetronomeTaskQueueTick.Get());
   }
@@ -525,6 +619,17 @@ void PeerConnectionDependencyFactory::InitializeSignalingThread(
           gpu_factories, media_decoder_factory, std::move(media_task_runner),
           render_color_space);
 
+  if (!encode_decode_capabilities_reported_) {
+    encode_decode_capabilities_reported_ = true;
+    if (gpu_factories) {
+      // Wait until decoder and encoder support are known.
+      gpu_factories->NotifyDecoderSupportKnown(base::BindOnce(
+          &WaitForEncoderSupportReady, gpu_factories, media_decoder_factory));
+    } else {
+      ReportUmaEncodeDecodeCapabilities(gpu_factories, media_decoder_factory);
+    }
+  }
+
   // Enable Multiplex codec in SDP optionally.
   if (base::FeatureList::IsEnabled(blink::features::kWebRtcMultiplexCodec)) {
     webrtc_encoder_factory = std::make_unique<webrtc::MultiplexEncoderFactory>(
@@ -578,22 +683,6 @@ bool PeerConnectionDependencyFactory::PeerConnectionFactoryCreated() {
   return !!pc_factory_;
 }
 
-void PeerConnectionDependencyFactory::AddUseMetronomeSourceListener(
-    UseMetronomeSourceListener* use_metronome_source_listener) {
-  use_metronome_source_listeners_.push_back(use_metronome_source_listener);
-  if (open_peer_connections_ && metronome_source_) {
-    use_metronome_source_listener->OnCanUseMetronome(metronome_source_);
-  }
-}
-
-void PeerConnectionDependencyFactory::RemoveUseMetronomeSourceListener(
-    UseMetronomeSourceListener* use_metronome_source_listener) {
-  wtf_size_t pos =
-      use_metronome_source_listeners_.Find(use_metronome_source_listener);
-  DCHECK(pos != kNotFound);
-  use_metronome_source_listeners_.EraseAt(pos);
-}
-
 scoped_refptr<webrtc::PeerConnectionInterface>
 PeerConnectionDependencyFactory::CreatePeerConnection(
     const webrtc::PeerConnectionInterface::RTCConfiguration& config,
@@ -618,10 +707,7 @@ PeerConnectionDependencyFactory::CreatePeerConnection(
   if (pc_or_error.ok()) {
     ++open_peer_connections_;
     if (open_peer_connections_ == 1u && metronome_source_) {
-      for (auto* use_metronome_source_listener :
-           use_metronome_source_listeners_) {
-        use_metronome_source_listener->OnCanUseMetronome(metronome_source_);
-      }
+      metronome_provider_->OnStartUsingMetronome(metronome_source_);
     }
     // Convert from rtc::scoped_refptr to scoped_refptr
     return pc_or_error.value().get();
@@ -640,11 +726,13 @@ void PeerConnectionDependencyFactory::OnPeerConnectionClosed() {
   DCHECK(open_peer_connections_);
   --open_peer_connections_;
   if (!open_peer_connections_ && metronome_source_) {
-    for (auto* use_metronome_source_listener :
-         use_metronome_source_listeners_) {
-      use_metronome_source_listener->OnStopUsingMetronome(metronome_source_);
-    }
+    metronome_provider_->OnStopUsingMetronome();
   }
+}
+
+scoped_refptr<MetronomeProvider>
+PeerConnectionDependencyFactory::metronome_provider() const {
+  return metronome_provider_;
 }
 
 std::unique_ptr<cricket::PortAllocator>

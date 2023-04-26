@@ -80,6 +80,9 @@ class MockWifiDataProvider : public WifiDataProvider {
 
   MockWifiDataProvider() : start_calls_(0), stop_calls_(0), got_data_(true) {}
 
+  MockWifiDataProvider(const MockWifiDataProvider&) = delete;
+  MockWifiDataProvider& operator=(const MockWifiDataProvider&) = delete;
+
   // WifiDataProvider implementation.
   void StartDataProvider() override { ++start_calls_; }
 
@@ -117,8 +120,6 @@ class MockWifiDataProvider : public WifiDataProvider {
 
   WifiData data_;
   bool got_data_;
-
-  DISALLOW_COPY_AND_ASSIGN(MockWifiDataProvider);
 };
 
 MockWifiDataProvider* MockWifiDataProvider::instance_ = nullptr;
@@ -300,17 +301,21 @@ class GeolocationNetworkProviderTest : public testing::Test {
       ASSERT_TRUE(
           JsonGetList("wifiAccessPoints", *request_json, &wifi_aps_json));
       for (size_t i = 0; i < expected_wifi_aps_json.GetList().size(); ++i) {
-        const base::DictionaryValue* expected_json;
-        ASSERT_TRUE(expected_wifi_aps_json.GetDictionary(i, &expected_json));
-        const base::DictionaryValue* actual_json;
-        ASSERT_TRUE(wifi_aps_json->GetDictionary(i, &actual_json));
+        const base::Value& expected_json_value =
+            expected_wifi_aps_json.GetList()[i];
+        ASSERT_TRUE(expected_json_value.is_dict());
+        const base::DictionaryValue& expected_json =
+            base::Value::AsDictionaryValue(expected_json_value);
+        const base::Value& actual_json_value = wifi_aps_json->GetList()[i];
+        ASSERT_TRUE(actual_json_value.is_dict());
+        const base::DictionaryValue& actual_json =
+            base::Value::AsDictionaryValue(actual_json_value);
+        ASSERT_TRUE(JsonFieldEquals("macAddress", expected_json, actual_json));
         ASSERT_TRUE(
-            JsonFieldEquals("macAddress", *expected_json, *actual_json));
+            JsonFieldEquals("signalStrength", expected_json, actual_json));
+        ASSERT_TRUE(JsonFieldEquals("channel", expected_json, actual_json));
         ASSERT_TRUE(
-            JsonFieldEquals("signalStrength", *expected_json, *actual_json));
-        ASSERT_TRUE(JsonFieldEquals("channel", *expected_json, *actual_json));
-        ASSERT_TRUE(JsonFieldEquals("signalToNoiseRatio", *expected_json,
-                                    *actual_json));
+            JsonFieldEquals("signalToNoiseRatio", expected_json, actual_json));
       }
     } else {
       ASSERT_FALSE(request_json->HasKey("wifiAccessPoints"));

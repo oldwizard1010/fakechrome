@@ -20,17 +20,21 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/webui/tab_strip/tab_strip_ui_util.h"
 #include "chrome/common/channel_info.h"
+#include "chrome/common/webui_url_constants.h"
 #include "chromeos/crosapi/mojom/crosapi.mojom.h"
 #include "chromeos/lacros/lacros_service.h"
 #include "components/feedback/feedback_common.h"
 #include "components/feedback/feedback_report.h"
 #include "components/feedback/feedback_util.h"
 #include "components/feedback/system_logs/system_logs_fetcher.h"
+#include "components/keep_alive_registry/keep_alive_types.h"
+#include "components/keep_alive_registry/scoped_keep_alive.h"
 #include "content/public/browser/browser_thread.h"
 #include "google_apis/gaia/gaia_auth_util.h"
 #include "ui/platform_window/platform_window.h"
@@ -54,18 +58,67 @@ std::string GetCompressedHistograms() {
   }
 }
 
+// Finds any (Lacros) Browser which has a tab matching a given URL
+// without ref (e.g. chrome://flags == chrome://flags/#).
+// If such a tab exists, it gets activated, and true gets returned.
+bool ActivateTabMatchingURLWithoutRef(Profile* profile, const GURL& url) {
+  BrowserList* browser_list = BrowserList::GetInstance();
+  for (Browser* browser : *browser_list) {
+    if (browser->profile() == profile) {
+      TabStripModel* tab_strip = browser->tab_strip_model();
+      for (int i = 0; i < tab_strip->count(); ++i) {
+        if (tab_strip->ContainsIndex(i) && !tab_strip->IsTabBlocked(i)) {
+          content::WebContents* content = tab_strip->GetWebContentsAt(i);
+          if (content->GetVisibleURL().EqualsIgnoringRef(url)) {
+            browser->window()->Activate();
+            tab_strip->ActivateTabAt(i);
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
 }  // namespace
 
 BrowserServiceLacros::BrowserServiceLacros() {
   auto* lacros_service = chromeos::LacrosService::Get();
-  if (!lacros_service->IsAvailable<crosapi::mojom::BrowserServiceHost>())
-    return;
+  const auto* init_params = lacros_service->init_params();
 
-  lacros_service->GetRemote<crosapi::mojom::BrowserServiceHost>()
-      ->AddBrowserService(receiver_.BindNewPipeAndPassRemoteWithVersion());
+  if (init_params->initial_keep_alive ==
+      crosapi::mojom::BrowserInitParams::InitialKeepAlive::kUnknown) {
+    // ash-chrome is too old, so for backward compatibility fallback to the old
+    // way, which is "if launched with kDoNotOpenWindow, run the lacro process
+    // on background, and reset the state when a Browser instance is created."
+    // Thus, if a user creates a browser window then close it, Lacros is
+    // terminated, but ash-chrome has responsibility to re-launch it soon.
+    if (init_params->initial_browser_action ==
+        crosapi::mojom::InitialBrowserAction::kDoNotOpenWindow) {
+      keep_alive_ = std::make_unique<ScopedKeepAlive>(
+          KeepAliveOrigin::BROWSER_PROCESS_LACROS,
+          KeepAliveRestartOption::ENABLED);
+      BrowserList::AddObserver(this);
+    }
+  } else {
+    if (init_params->initial_keep_alive ==
+        crosapi::mojom::BrowserInitParams::InitialKeepAlive::kEnabled) {
+      keep_alive_ = std::make_unique<ScopedKeepAlive>(
+          KeepAliveOrigin::BROWSER_PROCESS_LACROS,
+          KeepAliveRestartOption::ENABLED);
+    }
+  }
+
+  if (lacros_service->IsAvailable<crosapi::mojom::BrowserServiceHost>()) {
+    lacros_service->GetRemote<crosapi::mojom::BrowserServiceHost>()
+        ->AddBrowserService(receiver_.BindNewPipeAndPassRemoteWithVersion());
+  }
 }
 
-BrowserServiceLacros::~BrowserServiceLacros() = default;
+BrowserServiceLacros::~BrowserServiceLacros() {
+  BrowserList::RemoveObserver(this);
+}
 
 void BrowserServiceLacros::REMOVED_0(REMOVED_0Callback callback) {
   NOTIMPLEMENTED();
@@ -195,6 +248,18 @@ void BrowserServiceLacros::OpenUrl(const GURL& url, OpenUrlCallback callback) {
   // TODO(crbug.com/1102815): Find what profile should be used.
   Profile* profile = ProfileManager::GetLastUsedProfileAllowedByPolicy();
   DCHECK(profile) << "No last used profile is found.";
+
+  // Try to re-activate an existing tab for a few specified URLs.
+  if (url.SchemeIs(content::kChromeUIScheme) &&
+      (url.host() == chrome::kChromeUIFlagsHost ||
+       url.host() == chrome::kChromeUIVersionHost ||
+       url.host() == chrome::kChromeUIComponentsHost)) {
+    if (ActivateTabMatchingURLWithoutRef(profile, url)) {
+      std::move(callback).Run();
+      return;
+    }
+  }
+
   Browser* browser = chrome::FindBrowserWithProfile(profile);
   DCHECK(browser) << "No browser is found.";
   NavigateParams navigate_params(
@@ -255,6 +320,19 @@ void BrowserServiceLacros::UpdateDeviceAccountPolicy(
   chromeos::LacrosService::Get()->NotifyPolicyUpdated(policy);
 }
 
+void BrowserServiceLacros::UpdateKeepAlive(bool enabled) {
+  if (enabled == static_cast<bool>(keep_alive_))
+    return;
+
+  if (enabled) {
+    keep_alive_ = std::make_unique<ScopedKeepAlive>(
+        KeepAliveOrigin::BROWSER_PROCESS_LACROS,
+        KeepAliveRestartOption::ENABLED);
+  } else {
+    keep_alive_.reset();
+  }
+}
+
 void BrowserServiceLacros::OnSystemInformationReady(
     GetFeedbackDataCallback callback,
     std::unique_ptr<system_logs::SystemLogsResponse> sys_info) {
@@ -285,4 +363,11 @@ void BrowserServiceLacros::OnGetCompressedHistograms(
     const std::string& compressed_histograms) {
   DCHECK(!callback.is_null());
   std::move(callback).Run(compressed_histograms);
+}
+
+void BrowserServiceLacros::OnBrowserAdded(Browser* broser) {
+  // Note: this happens only when ash-chrome is too old.
+  // Please see the comment in the ctor for the detail.
+  BrowserList::RemoveObserver(this);
+  keep_alive_.reset();
 }

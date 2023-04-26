@@ -206,6 +206,10 @@ IntRect ChromeClientImpl::RootWindowRect(LocalFrame& frame) {
   return IntRect(frame.GetWidgetForLocalRoot()->WindowRect());
 }
 
+void ChromeClientImpl::DidAccessInitialMainDocument() {
+  web_view_->DidAccessInitialMainDocument();
+}
+
 void ChromeClientImpl::FocusPage() {
   web_view_->Focus();
 }
@@ -563,7 +567,7 @@ void ChromeClientImpl::ShowMouseOverURL(const HitTestResult& result) {
               result.InnerNode()->GetLayoutObject())) {
         if (WebPluginContainerImpl* plugin_view = embedded->Plugin()) {
           url = plugin_view->Plugin()->LinkAtPosition(
-              ToGfxPoint(result.RoundedPointInInnerNodeFrame()));
+              result.RoundedPointInInnerNodeFrame());
         }
       }
     }
@@ -985,19 +989,6 @@ void ChromeClientImpl::SetEventListenerProperties(
   }
 
   widget->SetEventListenerProperties(event_class, properties);
-}
-
-cc::EventListenerProperties ChromeClientImpl::EventListenerProperties(
-    LocalFrame* frame,
-    cc::EventListenerClass event_class) const {
-  if (!frame)
-    return cc::EventListenerProperties::kNone;
-
-  WebFrameWidgetImpl* widget =
-      WebLocalFrameImpl::FromFrame(frame)->LocalRootFrameWidget();
-  if (!widget)
-    return cc::EventListenerProperties::kNone;
-  return widget->EventListenerProperties(event_class);
 }
 
 void ChromeClientImpl::BeginLifecycleUpdates(LocalFrame& main_frame) {

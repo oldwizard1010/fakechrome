@@ -69,12 +69,20 @@ public class AssistantCollectUserDataModel extends PropertyModel {
 
     /** Model wrapper for an {@code AutofillContact}. */
     public static class ContactModel extends OptionModel<AutofillContact> {
-        public ContactModel(AutofillContact contact, List<String> errors) {
+        private final boolean mCanEdit;
+
+        public ContactModel(AutofillContact contact, List<String> errors, boolean canEdit) {
             super(contact, errors);
+            mCanEdit = canEdit;
         }
 
         public ContactModel(AutofillContact contact) {
             super(contact);
+            mCanEdit = true;
+        }
+
+        public boolean canEdit() {
+            return mCanEdit;
         }
     }
 
@@ -138,7 +146,7 @@ public class AssistantCollectUserDataModel extends PropertyModel {
             new WritableObjectPropertyKey<>();
 
     /** The chosen login option. */
-    public static final WritableObjectPropertyKey<AssistantLoginChoice> SELECTED_LOGIN =
+    public static final WritableObjectPropertyKey<LoginChoiceModel> SELECTED_LOGIN =
             new WritableObjectPropertyKey<>();
 
     /** The status of the third party terms & conditions. */
@@ -384,9 +392,10 @@ public class AssistantCollectUserDataModel extends PropertyModel {
     }
 
     @CalledByNative
-    private void setSelectedContactDetails(@Nullable AutofillContact contact, String[] errors) {
+    private void setSelectedContactDetails(
+            @Nullable AutofillContact contact, String[] errors, boolean canEdit) {
         set(SELECTED_CONTACT_DETAILS,
-                contact == null ? null : new ContactModel(contact, Arrays.asList(errors)));
+                contact == null ? null : new ContactModel(contact, Arrays.asList(errors), canEdit));
     }
 
     @CalledByNative
@@ -409,16 +418,30 @@ public class AssistantCollectUserDataModel extends PropertyModel {
                         : new PaymentInstrumentModel(paymentInstrument, Arrays.asList(errors)));
     }
 
+    @CalledByNative
+    private void setSelectedLoginChoice(@Nullable AssistantLoginChoice loginChoice) {
+        set(SELECTED_LOGIN, loginChoice == null ? null : new LoginChoiceModel(loginChoice));
+    }
+
     /** Creates an empty list of login options. */
     @CalledByNative
     private static List<AssistantLoginChoice> createLoginChoiceList() {
         return new ArrayList<>();
     }
 
+    /** Creates a login choice. */
+    @CalledByNative
+    private static AssistantLoginChoice createLoginChoice(String identifier, String label,
+            String sublabel, @Nullable String sublabelAccessibilityHint, int priority,
+            @Nullable AssistantInfoPopup infoPopup, @Nullable String editButtonContentDescription) {
+        return new AssistantLoginChoice(identifier, label, sublabel, sublabelAccessibilityHint,
+                priority, infoPopup, editButtonContentDescription);
+    }
+
     /** Appends a login choice to {@code loginChoices}. */
     @CalledByNative
     private static void addLoginChoice(List<AssistantLoginChoice> loginChoices, String identifier,
-            String label, String sublabel, String sublabelAccessibilityHint, int priority,
+            String label, @Nullable String sublabel, String sublabelAccessibilityHint, int priority,
             @Nullable AssistantInfoPopup infoPopup, @Nullable String editButtonContentDescription) {
         loginChoices.add(new AssistantLoginChoice(identifier, label, sublabel,
                 sublabelAccessibilityHint, priority, infoPopup, editButtonContentDescription));
@@ -600,9 +623,9 @@ public class AssistantCollectUserDataModel extends PropertyModel {
     }
 
     @CalledByNative
-    private static void addAutofillContact(
-            List<ContactModel> contacts, AutofillContact contact, String[] errors) {
-        contacts.add(new ContactModel(contact, Arrays.asList(errors)));
+    private static void addAutofillContact(List<ContactModel> contacts, AutofillContact contact,
+            String[] errors, boolean canEdit) {
+        contacts.add(new ContactModel(contact, Arrays.asList(errors), canEdit));
     }
 
     @VisibleForTesting

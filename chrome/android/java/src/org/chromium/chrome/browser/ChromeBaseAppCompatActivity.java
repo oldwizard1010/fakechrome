@@ -56,10 +56,13 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
         // Make sure the "chrome" split is loaded before checking if ClassLoaders are equal.
         SplitChromeApplication.finishPreload(CHROME_SPLIT_NAME);
         ClassLoader chromeModuleClassLoader = ChromeBaseAppCompatActivity.class.getClassLoader();
-        if (!chromeModuleClassLoader.equals(
-                    ContextUtils.getApplicationContext().getClassLoader())) {
+        Context appContext = ContextUtils.getApplicationContext();
+        if (!chromeModuleClassLoader.equals(appContext.getClassLoader())) {
             // This should only happen on Android O. See crbug.com/1146745 for more info.
-            throw new IllegalStateException("ClassLoader mismatch detected.");
+            throw new IllegalStateException("ClassLoader mismatch detected.\nA: "
+                    + chromeModuleClassLoader + "\nB: " + appContext.getClassLoader()
+                    + "\nC: " + chromeModuleClassLoader.getParent()
+                    + "\nD: " + appContext.getClassLoader().getParent() + "\nE: " + appContext);
         }
         // If ClassLoader was corrected by SplitCompatAppComponentFactory, also need to correct
         // the reference in the associated Context.
@@ -81,7 +84,7 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
-        getSupportFragmentManager().setFragmentFactory(SplitCompatUtils.createFragmentFactory());
+        SplitCompatUtils.restoreLoadedSplits(savedInstanceState);
         mModalDialogManagerSupplier.set(createModalDialogManager());
 
         initializeNightModeStateProvider();
@@ -103,6 +106,21 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
             mModalDialogManagerSupplier.set(null);
         }
         super.onDestroy();
+    }
+
+    @Override
+    public ClassLoader getClassLoader() {
+        // Replace the default ClassLoader with a custom SplitAware one so that
+        // LayoutInflaters that use this ClassLoader can find view classes that
+        // live inside splits. Very useful when FragmentManger tries to inflate
+        // the UI automatically on restore.
+        return SplitCompatUtils.getSplitCompatClassLoader();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        SplitCompatUtils.saveLoadedSplits(outState);
     }
 
     @Override

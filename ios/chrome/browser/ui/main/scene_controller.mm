@@ -23,7 +23,6 @@
 #include "components/infobars/core/infobar_manager.h"
 #include "components/prefs/pref_service.h"
 #import "components/previous_session_info/previous_session_info.h"
-#include "components/signin/ios/browser/features.h"
 #include "components/signin/public/base/signin_metrics.h"
 #include "components/signin/public/base/signin_pref_names.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
@@ -252,6 +251,14 @@ bool IsSigninForcedByPolicy() {
 // TODO(crbug.com/1117041): Move this into a UserFeedback config object.
 @property(nonatomic, strong)
     NSDictionary<NSString*, NSString*>* specificProductData;
+
+// YES if the process of dismissing the sign-in prompt is from an external
+// trigger and is currently ongoing. An external trigger isn't done from the
+// signin prompt itself (i.e., tapping a button in the sign-in prompt that
+// dismisses the prompt). For example, the -dismissModalDialogswithCompletion
+// command is considered as an external trigger because it comes from something
+// outside the sign-in prompt UI.
+@property(nonatomic, assign) BOOL dismissingSigninPromptFromExternalTrigger;
 
 @end
 
@@ -1182,13 +1189,6 @@ bool IsSigninForcedByPolicy() {
 }
 
 - (BOOL)isIncognitoForced {
-  // TODO(crbug.com/1182280):remove the decision only for testing and set up a
-  // proper scene controller in unittests.
-  if (!self.incognitoInterface) {
-    // ONLY for testing.
-    return NO;
-  }
-
   return IsIncognitoModeForced(
       self.incognitoInterface.browser->GetBrowserState()->GetPrefs());
 }
@@ -2670,6 +2670,19 @@ bool IsSigninForcedByPolicy() {
 
 - (void)closeSettingsOrSigninAnimated:(BOOL)animated
                            completion:(ProceduralBlock)completion {
+  __weak __typeof(self) weakSelf = self;
+  BOOL resetSigninState = self.signinCoordinator != nil;
+  completion = ^{
+    __typeof(self) strongSelf = weakSelf;
+    if (completion) {
+      completion();
+    }
+    if (resetSigninState) {
+      strongSelf.sceneState.signinInProgress = NO;
+    }
+    strongSelf.dismissingSigninPromptFromExternalTrigger = NO;
+  };
+
   if (self.settingsNavigationController) {
     ProceduralBlock dismissSettings = ^() {
       [self.settingsNavigationController cleanUpSettings];
@@ -2715,6 +2728,8 @@ bool IsSigninForcedByPolicy() {
   SigninCoordinatorInterruptAction action =
       animated ? SigninCoordinatorInterruptActionDismissWithAnimation
                : SigninCoordinatorInterruptActionDismissWithoutAnimation;
+
+  self.dismissingSigninPromptFromExternalTrigger = YES;
   [self.signinCoordinator interruptWithAction:action completion:completion];
 }
 
@@ -2734,6 +2749,7 @@ bool IsSigninForcedByPolicy() {
   }
 
   DCHECK(self.signinCoordinator);
+  self.sceneState.signinInProgress = YES;
 
   __block std::unique_ptr<ScopedUIBlocker> uiBlocker =
       std::make_unique<ScopedUIBlocker>(self.sceneState);
@@ -2749,6 +2765,15 @@ bool IsSigninForcedByPolicy() {
 
         if (completion) {
           completion(result == SigninCoordinatorResultSuccess);
+        }
+
+        if (!weakSelf.dismissingSigninPromptFromExternalTrigger) {
+          // If the coordinator isn't stopped by an external trigger, sign-in
+          // is done. Otherwise, there might be extra steps to be done before
+          // considering sign-in as done. This is up to the handler that sets
+          // |self.dismissingSigninPromptFromExternalTrigger| to YES to set
+          // back |signinInProgress| to NO.
+          weakSelf.sceneState.signinInProgress = NO;
         }
 
         switch (info.signinCompletionAction) {

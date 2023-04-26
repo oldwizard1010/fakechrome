@@ -14,7 +14,6 @@
 #include "ash/app_list/model/app_list_item_list_observer.h"
 #include "ash/public/cpp/app_list/app_list_model_delegate.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/strings/stringprintf.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -38,11 +37,16 @@ class AppListItemListWithUpdater : public AppListModelDelegate {
   ~AppListItemListWithUpdater() override = default;
 
   // AppListModelDelegate:
-  void RequestPositionUpdate(
-      std::string id,
-      const syncer::StringOrdinal& new_position) override {
+  void RequestPositionUpdate(std::string id,
+                             const syncer::StringOrdinal& new_position,
+                             RequestPositionUpdateReason reason) override {
     item_list_->SetItemPosition(item_list_->FindItem(id), new_position);
   }
+  void RequestMoveItemToFolder(std::string id,
+                               const std::string& folder_id,
+                               RequestMoveToFolderReason reason) override {}
+  void RequestMoveItemToRoot(std::string id,
+                             syncer::StringOrdinal target_position) override {}
 
   AppListItemList* item_list() { return item_list_.get(); }
 

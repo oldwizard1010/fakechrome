@@ -5,7 +5,6 @@
 #ifndef UI_VIEWS_EXAMPLES_DIALOG_EXAMPLE_H_
 #define UI_VIEWS_EXAMPLES_DIALOG_EXAMPLE_H_
 
-#include "base/macros.h"
 #include "ui/base/models/simple_combobox_model.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/views/controls/textfield/textfield_controller.h"
@@ -16,10 +15,10 @@ namespace views {
 class Checkbox;
 class Combobox;
 class DialogDelegate;
-class GridLayout;
 class Label;
 class LabelButton;
 class Textfield;
+class View;
 
 namespace examples {
 
@@ -44,12 +43,12 @@ class VIEWS_EXAMPLES_EXPORT DialogExample : public ExampleBase,
   class Dialog;
 
   // Helper methods to setup the configuration Views.
-  void StartRowWithLabel(GridLayout* layout, const char* label);
-  void StartTextfieldRow(GridLayout* layout,
+  void StartTextfieldRow(View* parent,
                          Textfield** member,
-                         const char* label,
-                         const char* value);
-  void AddCheckbox(GridLayout* layout, Checkbox** member);
+                         std::u16string label,
+                         std::u16string value,
+                         Label** created_label = nullptr);
+  void AddCheckbox(View* parent, Checkbox** member, Label* label);
 
   // Checkbox callback
   void OnPerformAction();

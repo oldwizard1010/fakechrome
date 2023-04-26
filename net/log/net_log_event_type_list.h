@@ -2097,6 +2097,17 @@ EVENT_TYPE(QUIC_SESSION_TRANSPORT_PARAMETERS_SENT)
 //   }
 EVENT_TYPE(QUIC_SESSION_TRANSPORT_PARAMETERS_RESUMED)
 
+// A WebTransport client is alive.
+EVENT_TYPE(QUIC_SESSION_WEBTRANSPORT_CLIENT_ALIVE)
+
+// A WebTransport client state has changed.
+//   {
+//     "last_state": <The last client state>
+//     "next_state": <The next client state>
+//     "error": <Optionally, error codes and details when an error happened>
+//   }
+EVENT_TYPE(QUIC_SESSION_WEBTRANSPORT_CLIENT_STATE_CHANGED)
+
 // QUIC with TLS gets 0-RTT rejected.
 EVENT_TYPE(QUIC_SESSION_ZERO_RTT_REJECTED)
 
@@ -4018,6 +4029,10 @@ EVENT_TYPE(CHECK_CORS_PREFLIGHT_CACHE)
 //                                    `Access-Control-Allow-Methods`>
 //  }
 EVENT_TYPE(CORS_PREFLIGHT_RESULT)
+
+// This event identifies the NetLogSource() for a URLRequest of the preflight
+// request.
+EVENT_TYPE(CORS_PREFLIGHT_URL_REQUEST)
 
 // This event is logged when PreflightController gets CORS preflight result
 // from preflight cache.

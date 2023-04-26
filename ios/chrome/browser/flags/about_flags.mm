@@ -15,7 +15,6 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/check_op.h"
-#include "base/command_line.h"
 #include "base/cxx17_backports.h"
 #import "base/mac/foundation_util.h"
 #include "base/no_destructor.h"
@@ -203,6 +202,14 @@ const FeatureEntry::FeatureVariation
          base::size(kAutofillUseMobileLabelDisambiguationShowAll), nullptr},
         {"(show one)", kAutofillUseMobileLabelDisambiguationShowOne,
          base::size(kAutofillUseMobileLabelDisambiguationShowOne), nullptr}};
+
+const FeatureEntry::FeatureParam kCommercePriceTrackingWithOptimizationGuide[] =
+    {{"price_tracking_with_optimization_guide", "true"}};
+
+const FeatureEntry::FeatureVariation kCommercePriceTrackingVariations[] = {
+    {"Price Tracking with Optimization Guide",
+     kCommercePriceTrackingWithOptimizationGuide,
+     base::size(kCommercePriceTrackingWithOptimizationGuide), nullptr}};
 
 const FeatureEntry::FeatureParam
     kDefaultBrowserFullscreenPromoExperimentRemindMeLater[] = {
@@ -432,10 +439,6 @@ const flags_ui::FeatureEntry kFeatureEntries[] = {
          autofill::features::kAutofillUseMobileLabelDisambiguation,
          kAutofillUseMobileLabelDisambiguationVariations,
          "AutofillUseMobileLabelDisambiguation")},
-    {"autofill-prune-suggestions",
-     flag_descriptions::kAutofillPruneSuggestionsName,
-     flag_descriptions::kAutofillPruneSuggestionsDescription, flags_ui::kOsIos,
-     FEATURE_VALUE_TYPE(autofill::features::kAutofillPruneSuggestions)},
     {"metrickit-crash-reports", flag_descriptions::kMetrickitCrashReportName,
      flag_descriptions::kMetrickitCrashReportDescription, flags_ui::kOsIos,
      FEATURE_VALUE_TYPE(kMetrickitCrashReport)},
@@ -593,11 +596,6 @@ const flags_ui::FeatureEntry kFeatureEntries[] = {
      flags_ui::kOsIos,
      FEATURE_VALUE_TYPE(
          password_manager::features::kEnableManualPasswordGeneration)},
-    {"interest-feed-notice-card-auto-dismiss",
-     flag_descriptions::kInterestFeedNoticeCardAutoDismissName,
-     flag_descriptions::kInterestFeedNoticeCardAutoDismissDescription,
-     flags_ui::kOsIos,
-     FEATURE_VALUE_TYPE(feed::kInterestFeedNoticeCardAutoDismiss)},
     {"autofill-address-verification-in-save-prompt",
      flag_descriptions::kEnableAutofillAddressSavePromptAddressVerificationName,
      flag_descriptions::
@@ -635,6 +633,9 @@ const flags_ui::FeatureEntry kFeatureEntries[] = {
     {"tabs-bulkactions-ios", flag_descriptions::kTabsBulkActionsName,
      flag_descriptions::kTabsBulkActionsDescription, flags_ui::kOsIos,
      FEATURE_VALUE_TYPE(kTabsBulkActions)},
+    {"tabs-search-ios", flag_descriptions::kTabsSearchName,
+     flag_descriptions::kTabsSearchDescription, flags_ui::kOsIos,
+     FEATURE_VALUE_TYPE(kTabsSearch)},
     {"incognito-brand-consistency-for-ios",
      flag_descriptions::kIncognitoBrandConsistencyForIOSName,
      flag_descriptions::kIncognitoBrandConsistencyForIOSDescription,
@@ -661,10 +662,7 @@ const flags_ui::FeatureEntry kFeatureEntries[] = {
      flag_descriptions::kForceDisableExtendedSyncPromosDescription,
      flags_ui::kOsIos,
      FEATURE_VALUE_TYPE(switches::kForceDisableExtendedSyncPromos)},
-    {"download-mobileconfig-file",
-     flag_descriptions::kDownloadMobileConfigFileName,
-     flag_descriptions::kDownloadMobileConfigFileDescription, flags_ui::kOsIos,
-     FEATURE_VALUE_TYPE(kDownloadMobileConfigFile)},
+
     {"sync-trusted-vault-passphrase-ios-rpc",
      flag_descriptions::kSyncTrustedVaultPassphraseiOSRPCName,
      flag_descriptions::kSyncTrustedVaultPassphraseiOSRPCDescription,
@@ -680,10 +678,6 @@ const flags_ui::FeatureEntry kFeatureEntries[] = {
      flag_descriptions::kSyncTrustedVaultPassphraseRecoveryDescription,
      flags_ui::kOsIos,
      FEATURE_VALUE_TYPE(::switches::kSyncTrustedVaultPassphraseRecovery)},
-    {"enable-ntp-memory-enhancement",
-     flag_descriptions::kEnableNTPMemoryEnhancementName,
-     flag_descriptions::kEnableNTPMemoryEnhancementDescription,
-     flags_ui::kOsIos, FEATURE_VALUE_TYPE(kEnableNTPMemoryEnhancement)},
     {"enable-autofill-save-card-info-bar-account-indication-footer",
      flag_descriptions::
          kEnableAutofillSaveCardInfoBarAccountIndicationFooterName,
@@ -782,6 +776,37 @@ const flags_ui::FeatureEntry kFeatureEntries[] = {
      flag_descriptions::kIOSSharedHighlightingAmpName,
      flag_descriptions::kIOSSharedHighlightingAmpDescription, flags_ui::kOsIos,
      FEATURE_VALUE_TYPE(shared_highlighting::kSharedHighlightingAmp)},
+    {"enable-commerce-price-tracking",
+     flag_descriptions::kCommercePriceTrackingName,
+     flag_descriptions::kCommercePriceTrackingDescription, flags_ui::kOsIos,
+     FEATURE_WITH_PARAMS_VALUE_TYPE(kCommercePriceTracking,
+                                    kCommercePriceTrackingVariations,
+                                    "CommercePriceTracking")},
+    {"web-feed-ios", flag_descriptions::kEnableWebChannelsName,
+     flag_descriptions::kEnableWebChannelsDescription, flags_ui::kOsIos,
+     FEATURE_VALUE_TYPE(kEnableWebChannels)},
+    {"ntp-view-hierarchy-repair",
+     flag_descriptions::kNTPViewHierarchyRepairName,
+     flag_descriptions::kNTPViewHierarchyRepairDescription, flags_ui::kOsIos,
+     FEATURE_VALUE_TYPE(kNTPViewHierarchyRepair)},
+    {"single-ntp", flag_descriptions::kSingleNtpName,
+     flag_descriptions::kSingleNtpDescription, flags_ui::kOsIos,
+     FEATURE_VALUE_TYPE(kSingleNtp)},
+    {"synthesized-restore-session",
+     flag_descriptions::kSynthesizedRestoreSessionName,
+     flag_descriptions::kSynthesizedRestoreSessionDescription, flags_ui::kOsIos,
+     FEATURE_VALUE_TYPE(web::features::kSynthesizedRestoreSession)},
+    {"remove-extra-ntps", flag_descriptions::kRemoveExcessNTPsExperimentName,
+     flag_descriptions::kRemoveExcessNTPsExperimentDescription,
+     flags_ui::kOsIos, FEATURE_VALUE_TYPE(kRemoveExcessNTPs)},
+    {"lazily-create-web-state-on-restoration",
+     flag_descriptions::kLazilyCreateWebStateOnRestorationName,
+     flag_descriptions::kLazilyCreateWebStateOnRestorationDescription,
+     flags_ui::kOsIos,
+     FEATURE_VALUE_TYPE(web::features::kEnableUnrealizedWebStates)},
+    {"reading-list-time-to-read", flag_descriptions::kReadingListTimeToReadName,
+     flag_descriptions::kReadingListTimeToReadDescription, flags_ui::kOsIos,
+     FEATURE_VALUE_TYPE(kReadingListTimeToRead)},
 };
 
 bool SkipConditionalFeatureEntry(const flags_ui::FeatureEntry& entry) {
@@ -795,8 +820,7 @@ flags_ui::FlagsState& GetGlobalFlagsState() {
 }
 // Creates the experimental test policies map, used by AsyncPolicyLoader and
 // PolicyLoaderIOS to locally enable policies.
-NSMutableDictionary* CreateExperimentalTestingPolicies(
-    base::CommandLine* command_line) {
+NSMutableDictionary* CreateExperimentalTestingPolicies() {
   NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
 
   // Shared variables for all enterprise experimental flags.
@@ -920,13 +944,6 @@ NSMutableDictionary* CreateExperimentalTestingPolicies(
     --signin_policy_mode;
     DCHECK(signin_policy_mode >= 0);
 
-    if (signin_policy_mode ==
-        static_cast<NSInteger>(BrowserSigninMode::kForced)) {
-      // Allow the forced sign-in policy feature when the corresponding policy
-      // mode is specified.
-      command_line->AppendSwitch(switches::kEnableForcedSignInPolicy);
-    }
-
     [allowed_experimental_policies addObject:kSigninPolicyKey];
     [testing_policies addEntriesFromDictionary:@{
       kSigninPolicyKey : @(signin_policy_mode),
@@ -986,8 +1003,7 @@ void AppendSwitchesFromExperimentalSettings(base::CommandLine* command_line) {
   }
 
   // Shared variables for all enterprise experimental flags.
-  NSMutableDictionary* testing_policies =
-      CreateExperimentalTestingPolicies(command_line);
+  NSMutableDictionary* testing_policies = CreateExperimentalTestingPolicies();
 
   // If a CBCM enrollment token is provided, force Chrome Browser Cloud
   // Management to enabled and add the token to the list of policies.
@@ -1077,8 +1093,7 @@ void MonitorExperimentalSettingsChanges() {
         // Publish update.
         NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
         NSMutableDictionary* testing_policies =
-            CreateExperimentalTestingPolicies(
-                base::CommandLine::ForCurrentProcess());
+            CreateExperimentalTestingPolicies();
         NSDictionary* registration_defaults =
             @{kPolicyLoaderIOSConfigurationKey : testing_policies};
         [defaults registerDefaults:registration_defaults];

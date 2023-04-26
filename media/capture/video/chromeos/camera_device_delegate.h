@@ -9,7 +9,6 @@
 #include <queue>
 
 #include "base/containers/flat_map.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/single_thread_task_runner.h"
 #include "media/capture/video/chromeos/camera_device_context.h"
@@ -234,6 +233,8 @@ class CAPTURE_EXPORT CameraDeviceDelegate final
   mojom::RangePtr GetControlRangeByVendorTagName(
       const std::string& range_name,
       const absl::optional<int32_t>& current);
+
+  bool ShouldUseBlobVideoSnapshot();
 
   // CaptureMetadataDispatcher::ResultMetadataObserver implementation.
   void OnResultMetadataAvailable(

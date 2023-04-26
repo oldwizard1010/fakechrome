@@ -7,6 +7,8 @@
 
 #include "ash/ash_export.h"
 #include "ash/capture_mode/capture_mode_menu_group.h"
+#include "ash/capture_mode/capture_mode_session_focus_cycler.h"
+#include "base/callback_forward.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/view.h"
 
@@ -39,7 +41,8 @@ class ASH_EXPORT CaptureModeAdvancedSettingsView
  public:
   METADATA_HEADER(CaptureModeAdvancedSettingsView);
 
-  explicit CaptureModeAdvancedSettingsView(CaptureModeSession* session);
+  CaptureModeAdvancedSettingsView(CaptureModeSession* session,
+                                  bool is_in_projector_mode);
   CaptureModeAdvancedSettingsView(const CaptureModeAdvancedSettingsView&) =
       delete;
   CaptureModeAdvancedSettingsView& operator=(
@@ -66,9 +69,15 @@ class ASH_EXPORT CaptureModeAdvancedSettingsView
   // currently selected.
   void OnDefaultCaptureFolderSelectionChanged();
 
+  // Gets the highlightable `CaptureModeOption` and `CaptureModeMenuItem` inside
+  // this view.
+  std::vector<CaptureModeSessionFocusCycler::HighlightableView*>
+  GetHighlightableItems();
+
   // CaptureModeMenuGroup::Delegate:
   void OnOptionSelected(int option_id) const override;
   bool IsOptionChecked(int option_id) const override;
+  bool IsOptionEnabled(int option_id) const override;
 
   // For tests only:
   CaptureModeMenuGroup* GetAudioInputMenuGroupForTesting() {
@@ -85,6 +94,13 @@ class ASH_EXPORT CaptureModeAdvancedSettingsView
   // location in which captured files will be saved.
   void OnSelectFolderMenuItemPressed();
 
+  // Called back when the check for custom folder's availability is done, with
+  // `available` indicating whether the custom folder is available or not. We
+  // will check the custom folder's availability every time when
+  // `OnCaptureFolderMayHaveChanged` is triggered and custom folder is not
+  // empty.
+  void OnCustomFolderAvailabilityChecked(bool available);
+
   // A reference to the session that owns this view indirectly by owning its
   // containing widget.
   CaptureModeSession* const capture_mode_session_;  // Not null;
@@ -94,12 +110,26 @@ class ASH_EXPORT CaptureModeAdvancedSettingsView
   // "Off" is the default one which means no audio input selected.
   CaptureModeMenuGroup* audio_input_menu_group_;
 
-  views::Separator* separator_;
+  // Can be null when in Projector mode, since then it's not needed as the
+  // "Save-to" menu group will not be added at all.
+  views::Separator* separator_ = nullptr;
 
   // "Save to" menu group that users can select a folder to save the captured
   // files to. It will include the "Downloads" folder as the default one and
   // one more folder selected by users.
-  CaptureModeMenuGroup* save_to_menu_group_;
+  // This menu group is not added when in Projector mode, since the folder
+  // selection here doesn't affect where Projector saves the videos, and hence
+  // it doesn't make sense to show this option. In this case, it remains null.
+  CaptureModeMenuGroup* save_to_menu_group_ = nullptr;
+
+  // If not set, custom folder is not set. If true, customer folder is set and
+  // available. If false, customer folder is set but unavailable.
+  absl::optional<bool> is_custom_folder_available_;
+
+  // If set, it will be called when the settings menu is refreshed.
+  base::OnceClosure on_settings_menu_refreshed_callback_for_test_;
+
+  base::WeakPtrFactory<CaptureModeAdvancedSettingsView> weak_ptr_factory_{this};
 };
 
 }  // namespace ash

@@ -55,7 +55,6 @@
 #include "content/public/browser/render_widget_host_observer.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/browser/web_contents_observer.h"
 #include "third_party/perfetto/include/perfetto/tracing/traced_value.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/range/range.h"
@@ -172,7 +171,7 @@ class RenderWidgetHostVisibilityTracker final
 
 // An object to own a WebContents that is in a tabstrip, as well as other
 // various properties it has.
-class TabStripModel::WebContentsData : public content::WebContentsObserver {
+class TabStripModel::WebContentsData {
  public:
   explicit WebContentsData(std::unique_ptr<WebContents> a_contents);
   WebContentsData(const WebContentsData&) = delete;
@@ -212,10 +211,6 @@ class TabStripModel::WebContentsData : public content::WebContentsObserver {
   }
 
  private:
-  // Make sure that if someone deletes this WebContents out from under us, it
-  // is properly removed from the tab strip.
-  void WebContentsDestroyed() override;
-
   // The WebContents owned by this WebContentsData.
   std::unique_ptr<WebContents> contents_;
 
@@ -241,22 +236,12 @@ class TabStripModel::WebContentsData : public content::WebContentsObserver {
 
 TabStripModel::WebContentsData::WebContentsData(
     std::unique_ptr<WebContents> contents)
-    : content::WebContentsObserver(contents.get()),
-      contents_(std::move(contents)) {}
+    : contents_(std::move(contents)) {}
 
 std::unique_ptr<WebContents> TabStripModel::WebContentsData::ReplaceWebContents(
     std::unique_ptr<WebContents> contents) {
   contents_.swap(contents);
-  Observe(contents_.get());
   return contents;
-}
-
-void TabStripModel::WebContentsData::WebContentsDestroyed() {
-  // TODO(erikchen): Remove this NOTREACHED statement as well as the
-  // WebContents observer - this is just a temporary sanity check to make sure
-  // that unit tests are not destroyed a WebContents out from under a
-  // TabStripModel.
-  NOTREACHED();
 }
 
 TabStripModel::DetachedWebContents::DetachedWebContents(
@@ -523,8 +508,8 @@ void TabStripModel::SendDetachWebContentsNotifications(
 
   TabStripModelChange::Remove remove;
   for (auto& dwc : notifications->detached_web_contents) {
-    remove.contents.push_back(
-        {dwc->contents, dwc->index_before_any_removals, dwc->remove_reason});
+    remove.contents.push_back({dwc->contents, dwc->index_before_any_removals,
+                               dwc->remove_reason, dwc->id});
   }
   TabStripModelChange change(std::move(remove));
 
@@ -1786,8 +1771,7 @@ bool TabStripModel::CloseTabs(base::span<content::WebContents* const> items,
       observer.WillCloseAllTabs(this);
   }
 
-  DetachNotifications notifications(GetWebContentsAtImpl(active_index()),
-                                    selection_model_);
+  DetachNotifications notifications(GetActiveWebContents(), selection_model_);
   const bool closed_all =
       CloseWebContentses(items, close_types, &notifications);
 
@@ -1931,19 +1915,14 @@ TabStripSelectionChange TabStripModel::SetSelection(
       (selection.active_tab_changed() || selection.selection_changed())) {
     if (selection.active_tab_changed()) {
       auto now = base::TimeTicks::Now();
-      if (selection.new_contents &&
-          selection.new_contents->GetRenderWidgetHostView()) {
+      if (selection.new_contents) {
         auto input_event_timestamp =
             tab_switch_event_latency_recorder_.input_event_timestamp();
         // input_event_timestamp may be null in some cases, e.g. in tests.
-        selection.new_contents->GetRenderWidgetHostView()
-            ->SetRecordContentToVisibleTimeRequest(
-                !input_event_timestamp.is_null() ? input_event_timestamp : now,
-                resource_coordinator::ResourceCoordinatorTabHelper::IsLoaded(
-                    selection.new_contents),
-                /*show_reason_tab_switching=*/true,
-                /*show_reason_unoccluded=*/false,
-                /*show_reason_bfcache_restore=*/false);
+        selection.new_contents->SetTabSwitchStartTime(
+            !input_event_timestamp.is_null() ? input_event_timestamp : now,
+            resource_coordinator::ResourceCoordinatorTabHelper::IsLoaded(
+                selection.new_contents));
       }
       tab_switch_event_latency_recorder_.OnWillChangeActiveTab(now);
     }

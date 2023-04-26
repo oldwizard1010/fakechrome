@@ -101,6 +101,7 @@
 <translation id="3379938682270551431">{0,plural, =0{Chrome ახლა ხელახლა გაეშვება}=1{Chrome ხელახლა გაეშვება 1 წამში}other{Chrome ხელახლა გაეშვება # წამში}}</translation>
 <translation id="3395323229510056640">Chrome OS-თან დაკავშირებული დახმარების მიღება</translation>
 <translation id="3396977131400919238">ინსტალაციის დროს წარმოიქმნა ოპერატიული სისტემის შეცდომა. ხელახლა ჩამოტვირთეთ Google Chrome.</translation>
+<translation id="3428747202529429621">უზრუნველყოფს თქვენს უსაფრთხოებას Chrome-ში და Google-ის სხვა აპებში, როცა სისტემაში შესული ხართ</translation>
 <translation id="3434246496373299699">პაროლების Chrome-ის მეშვეობით შესამოწმებლად შედით სისტემაში თქვენი Google ანგარიშით</translation>
 <translation id="3451115285585441894">Chrome-ში დამატება…</translation>
 <translation id="345171907106878721">საკუთარი თავის დამატება Chrome-ში</translation>
@@ -188,6 +189,7 @@ Google Chrome ვერ შეძლებს თქვენი პარამ
 <translation id="5686916850681061684">მოირგეთ და გააკონტროლეთ Google Chrome. საჭიროა თქვენი ყურადღება — დააწკაპუნეთ დეტალური ინფორმაციისთვის.</translation>
 <translation id="5690427481109656848">Google LLC</translation>
 <translation id="5715063361988620182">{SECONDS,plural, =1{Google Chrome გადაიტვირთება 1 წამში}other{Google Chrome გადაიტვირთება # წამში}}</translation>
+<translation id="5736850870166430177">საიტის მიერ პაროლის მოპარვის მცდელობის ან თქვენ მიერ საზიანო ფაილის ჩამოტვირთვის შემთხვევაში Chrome-ის მიერ Safe Browsing-ს გაეგზავნება URL-ები და შესაბამისი გვერდის კონტენტის გარკვეული ნაწილი</translation>
 <translation id="573759479754913123">Chrome-ის OS-ის შესახებ</translation>
 <translation id="5756509061973259733">Chrome პროფილი ამ ანგარიშით უკვე არსებობს ამ მოწყობილობაზე</translation>
 <translation id="5795887333006832406"><ph name="PAGE_TITLE" /> — Google Chrome Canary</translation>
@@ -200,6 +202,7 @@ Google Chrome ვერ შეძლებს თქვენი პარამ
 <translation id="5941830788786076944">Google Chrome გახდეს ნაგულისხმევი ბრაუზერი</translation>
 <translation id="6070348360322141662">დამატებითი უსაფრთხოებისთვის, Google Chrome თქვენს მონაცემებს დაშიფრავს</translation>
 <translation id="608006075545470555">დაამატეთ სამსახურის პროფილი ამ ბრაუზერს</translation>
+<translation id="608496399798299674">CloudReady 2.0</translation>
 <translation id="6113794647360055231">Chrome უბრალოდ გაუმჯობესდა</translation>
 <translation id="6145313976051292476">PDF-ების გახსნა Chrome-ში</translation>
 <translation id="6169866489629082767"><ph name="PAGE_TITLE" /> - Google Chrome</translation>
@@ -208,6 +211,7 @@ Google Chrome ვერ შეძლებს თქვენი პარამ
 <translation id="6291089322031436445">Chrome Dev აპები</translation>
 <translation id="6291549208091401781">Google Chrome უკვე დაინსტალირებულია თქვენი კომპიუტერის ყველა მომხმარებლისთვის.</translation>
 <translation id="6368958679917195344">Chrome OS არსებობს დამატებითი <ph name="BEGIN_LINK_CROS_OSS" />ღია წყაროს პროგრამული უზრუნველყოფის<ph name="END_LINK_CROS_OSS" /> წყალობით.</translation>
+<translation id="6412673304250309937">შეამოწმებს URL-ების თანხვედრას Chrome-ში შენახულ არაუსაფრთხო საიტების სიასთან. საიტის მიერ პაროლის მოპარვის მცდელობის ან თქვენ მიერ საზიანო ფაილის ჩამოტვირთვის შემთხვევაში Chrome-ის მიერ Safe Browsing-ს გაეგზავნება URL-ები და შესაბამისი გვერდის კონტენტის გარკვეული ნაწილი.</translation>
 <translation id="6418662306461808273">გსურთ არსებულ Chrome პროფილზე გადართვა?</translation>
 <translation id="6506909944137591434">თქვენი შემოგარენის 3-განზომილებიანი რუკის შესაქმნელად Chrome საჭიროებს მეხსიერებაზე წვდომის ნებართვას</translation>
 <translation id="6515495397637126556"><ph name="PAGE_TITLE" /> — Google Chrome Dev</translation>
@@ -274,6 +278,7 @@ Google Chrome ვერ შეძლებს თქვენი პარამ
 <translation id="8290100596633877290">Google Chrome-ში შეცდომაა. გადავტვირთოთ?</translation>
 <translation id="8342675569599923794">Chrome-მა დაბლოკა ეს ფაილი, რადგან ის სახიფათოა.</translation>
 <translation id="8370517070665726704">© <ph name="YEAR" />, Google LLC. ყველა უფლება დაცულია.</translation>
+<translation id="8394720698884623075">შეამოწმებს URL-ების თანხვედრას Chrome-ში შენახულ არაუსაფრთხო საიტების სიასთან</translation>
 <translation id="840084489713044809">Google Chrome ითხოვს თქვენი პაროლების ექსპორტირებას.</translation>
 <translation id="8433638294851456451">აქედან თქვენს Android ტელეფონზე ნომრის გასაგზავნად შედით Chrome-ში ორივე მოწყობილობაზე.</translation>
 <translation id="8498858610309223613">Google Chrome-ს ეს-ესაა მიესადაგა უსაფრთხოების საგანგებო განახლება. გადატვირთეთ ის ახლავე და თქვენი ჩანართებიც აღდგება.</translation>

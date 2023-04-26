@@ -127,6 +127,21 @@ bool ShouldStoreOldStyle(const StyleRecalcContext& style_recalc_context,
   return style_recalc_context.container && state.CanAffectAnimations();
 }
 
+bool ShouldSetPendingUpdate(StyleResolverState& state, Element& element) {
+  if (!state.AnimationUpdate().IsEmpty())
+    return true;
+  // Even when the animation update is empty, we must still set the pending
+  // update in order to clear PreviousActiveInterpolationsForAnimations.
+  //
+  // See CSSAnimations::MaybeApplyPendingUpdate
+  if (const ElementAnimations* element_animations =
+          element.GetElementAnimations()) {
+    return element_animations->CssAnimations()
+        .HasPreviousActiveInterpolationsForAnimations();
+  }
+  return false;
+}
+
 void SetAnimationUpdateIfNeeded(const StyleRecalcContext& style_recalc_context,
                                 StyleResolverState& state,
                                 Element& element) {
@@ -140,7 +155,7 @@ void SetAnimationUpdateIfNeeded(const StyleRecalcContext& style_recalc_context,
   // If any changes to CSS Animations were detected, stash the update away for
   // application after the layout object is updated if we're in the appropriate
   // scope.
-  if (state.AnimationUpdate().IsEmpty())
+  if (!ShouldSetPendingUpdate(state, element))
     return;
 
   if (RuntimeEnabledFeatures::CSSDelayedAnimationUpdatesEnabled()) {
@@ -217,7 +232,7 @@ String ComputeBaseComputedStyleDiff(const ComputedStyle* base_computed_style,
     builder.Append(" ");
   }
 
-  return builder.ToString();
+  return builder.ReleaseString();
 #else
   return g_null_atom;
 #endif  // DCHECK_IS_ON()
@@ -511,7 +526,7 @@ static void MatchVTTRules(const Element& element,
         style_sheet_index++;
       }
     }
-    collector.SortAndTransferMatchedRules();
+    collector.SortAndTransferMatchedRules(true /* is_vtt_embedded_style */);
   }
 }
 
@@ -1053,6 +1068,10 @@ void StyleResolver::ApplyBaseStyle(
 
     if (collector.MatchedResult().DependsOnContainerQueries())
       state.Style()->SetDependsOnContainerQueries(true);
+    if (collector.MatchedResult().DependsOnViewportContainerQueries())
+      state.Style()->SetHasViewportUnits(true);
+    if (collector.MatchedResult().DependsOnRemContainerQueries())
+      state.Style()->SetHasRemUnits();
     if (collector.MatchedResult().ConditionallyAffectsAnimations())
       state.SetCanAffectAnimations();
 
@@ -1344,43 +1363,45 @@ bool StyleResolver::ApplyAnimatedStyle(StyleResolverState& state,
   CSSAnimations::CalculateAnimationUpdate(
       state.AnimationUpdate(), *animating_element, state.GetElement(),
       *state.Style(), state.ParentStyle(), this);
-  CSSAnimations::CalculateCompositorAnimationUpdate(
-      state.AnimationUpdate(), *animating_element, element, *state.Style(),
-      state.ParentStyle(), WasViewportResized());
   CSSAnimations::CalculateTransitionUpdate(state.AnimationUpdate(),
                                            *animating_element, *state.Style());
 
+  bool apply = !state.AnimationUpdate().IsEmpty();
+  if (apply) {
+    const ActiveInterpolationsMap& animations =
+        state.AnimationUpdate().ActiveInterpolationsForAnimations();
+    const ActiveInterpolationsMap& transitions =
+        state.AnimationUpdate().ActiveInterpolationsForTransitions();
+
+    cascade.AddInterpolations(&animations, CascadeOrigin::kAnimation);
+    cascade.AddInterpolations(&transitions, CascadeOrigin::kTransition);
+
+    CascadeFilter filter;
+    if (state.Style()->StyleType() == kPseudoIdMarker)
+      filter = filter.Add(CSSProperty::kValidForMarker, false);
+    if (IsHighlightPseudoElement(state.Style()->StyleType()))
+      filter = filter.Add(CSSProperty::kValidForHighlight, false);
+    filter = filter.Add(CSSProperty::kAnimation, true);
+
+    cascade.Apply(filter);
+
+    // Start loading resources used by animations.
+    state.LoadPendingResources();
+
+    DCHECK(!state.GetFontBuilder().FontDirty());
+  }
+
+  CSSAnimations::CalculateCompositorAnimationUpdate(
+      state.AnimationUpdate(), *animating_element, element,
+      *state.StyleRef().GetBaseComputedStyle(), state.ParentStyle(),
+      WasViewportResized(), state.AffectsCompositorSnapshots());
   CSSAnimations::SnapshotCompositorKeyframes(
-      element, state.AnimationUpdate(), *state.Style(), state.ParentStyle());
+      element, state.AnimationUpdate(),
+      *state.StyleRef().GetBaseComputedStyle(), state.ParentStyle());
   CSSAnimations::UpdateAnimationFlags(
       *animating_element, state.AnimationUpdate(), state.StyleRef());
 
-  if (state.AnimationUpdate().IsEmpty())
-    return false;
-
-  const ActiveInterpolationsMap& animations =
-      state.AnimationUpdate().ActiveInterpolationsForAnimations();
-  const ActiveInterpolationsMap& transitions =
-      state.AnimationUpdate().ActiveInterpolationsForTransitions();
-
-  cascade.AddInterpolations(&animations, CascadeOrigin::kAnimation);
-  cascade.AddInterpolations(&transitions, CascadeOrigin::kTransition);
-
-  CascadeFilter filter;
-  if (state.Style()->StyleType() == kPseudoIdMarker)
-    filter = filter.Add(CSSProperty::kValidForMarker, false);
-  if (IsHighlightPseudoElement(state.Style()->StyleType()))
-    filter = filter.Add(CSSProperty::kValidForHighlight, false);
-  filter = filter.Add(CSSProperty::kAnimation, true);
-
-  cascade.Apply(filter);
-
-  // Start loading resources used by animations.
-  state.LoadPendingResources();
-
-  DCHECK(!state.GetFontBuilder().FontDirty());
-
-  return true;
+  return apply;
 }
 
 StyleRuleKeyframes* StyleResolver::FindKeyframesRule(
@@ -1480,14 +1501,16 @@ StyleResolver::CacheSuccess StyleResolver::ApplyMatchedCache(
                                     matched_property_cache_inherited_hit, 1);
 
       EInsideLink link_status = state.Style()->InsideLink();
+      bool ancestors_affected_by_has = state.Style()->AncestorsAffectedByHas();
       // If the cache item parent style has identical inherited properties to
       // the current parent style then the resulting style will be identical
       // too. We copy the inherited properties over from the cache and are done.
       state.Style()->InheritFrom(*cached_matched_properties->computed_style);
 
-      // Unfortunately the link status is treated like an inherited property. We
-      // need to explicitly restore it.
+      // Unfortunately the link status and 'ancestors affected by has' are
+      // treated like an inherited property. We need to explicitly restore it.
       state.Style()->SetInsideLink(link_status);
+      state.Style()->SetAncestorsAffectedByHas(ancestors_affected_by_has);
 
       is_inherited_cache_hit = true;
     }

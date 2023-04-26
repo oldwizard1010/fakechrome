@@ -31,7 +31,6 @@ class FakeProxy : public Proxy {
   void SetNeedsUpdateLayers() override {}
   void SetNeedsCommit() override {}
   void SetNeedsRedraw(const gfx::Rect& damage_rect) override {}
-  void SetNextCommitWaitsForActivation() override {}
   void SetTargetLocalSurfaceId(
       const viz::LocalSurfaceId& target_local_surface_id) override {}
   bool RequestedAnimatePending() override;
@@ -59,6 +58,7 @@ class FakeProxy : public Proxy {
       std::unique_ptr<RenderFrameMetadataObserver> observer) override {}
   void SetEnableFrameRateThrottling(
       bool enable_frame_rate_throttling) override {}
+  uint32_t GetAverageThroughput() const override;
 
  private:
   LayerTreeHost* layer_tree_host_;

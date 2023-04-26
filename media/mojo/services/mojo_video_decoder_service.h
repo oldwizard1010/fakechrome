@@ -8,7 +8,6 @@
 #include <map>
 #include <memory>
 
-#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/unguessable_token.h"
@@ -89,9 +88,6 @@ class MEDIA_MOJO_EXPORT MojoVideoDecoderService final
   void OnDecoderRequestedOverlayInfo(
       bool restart_for_transitions,
       ProvideOverlayInfoCB provide_overlay_info_cb);
-
-  void OnSupportedVideoDecoderConfigs(GetSupportedConfigsCallback callback,
-                                      SupportedVideoDecoderConfigs configs);
 
   // Whether this instance is active (Decode() was called at least once).
   bool is_active_instance_ = false;

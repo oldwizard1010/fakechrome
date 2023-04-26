@@ -5,13 +5,11 @@
 #ifndef COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_SCRIPT_TRACKER_H_
 #define COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_SCRIPT_TRACKER_H_
 
-#include <map>
 #include <memory>
-#include <set>
 #include <string>
 #include <vector>
 
-#include "base/macros.h"
+#include "base/containers/flat_set.h"
 #include "base/memory/weak_ptr.h"
 #include "base/values.h"
 #include "components/autofill_assistant/browser/script.h"
@@ -160,7 +158,7 @@ class ScriptTracker : public ScriptExecutor::Listener {
 
   // Path of the scripts found to be runnable so far, in the current check,
   // represented by |batch_element_checker_|.
-  std::set<std::string> pending_runnable_scripts_;
+  base::flat_set<std::string> pending_runnable_scripts_;
 
   // If a script is currently running, this is the script's executor. Otherwise,
   // this is nullptr.

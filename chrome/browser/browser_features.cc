@@ -41,6 +41,12 @@ const base::Feature kPromoBrowserCommands{"PromoBrowserCommands",
 // ui/webui/resources/js/browser_command/browser_command.mojom
 const char kBrowserCommandIdParam[] = "BrowserCommandIdParam";
 
+#if defined(OS_MAC)
+// Enables integration with the macOS feature Universal Links.
+const base::Feature kEnableUniveralLinks{"EnableUniveralLinks",
+                                         base::FEATURE_DISABLED_BY_DEFAULT};
+#endif
+
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 // Enables reading and writing PWA notification permissions from quick settings
 // menu.
@@ -67,7 +73,13 @@ const base::Feature kMuteNotificationSnoozeAction{
 // Shows a confirmation dialog when updates to PWAs identity (name and icon)
 // have been detected.
 const base::Feature kPwaUpdateDialogForNameAndIcon{
-    "PwaUpdateDialogForNameAndIcon", base::FEATURE_DISABLED_BY_DEFAULT};
+  "PwaUpdateDialogForNameAndIcon",
+#if defined(OS_ANDROID)
+      base::FEATURE_ENABLED_BY_DEFAULT
+#else
+      base::FEATURE_DISABLED_BY_DEFAULT
+#endif
+};
 
 #if !defined(OS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
 // Enables taking snapshots of the user data directory after a major
@@ -115,8 +127,10 @@ bool ShouldTriggerNetworkDataMigration() {
 const base::Feature kWebUsbDeviceDetection{"WebUsbDeviceDetection",
                                            base::FEATURE_ENABLED_BY_DEFAULT};
 
-// Enables omnibox trigger prerendering.
-const base::Feature kOmniboxTriggerForPrerender2{
-    "OmniboxTriggerForPrerender2", base::FEATURE_DISABLED_BY_DEFAULT};
+#if defined(OS_ANDROID)
+// Enables Certificate Transparency on Android.
+const base::Feature kCertificateTransparencyAndroid{
+    "CertificateTransparencyAndroid", base::FEATURE_DISABLED_BY_DEFAULT};
+#endif
 
 }  // namespace features

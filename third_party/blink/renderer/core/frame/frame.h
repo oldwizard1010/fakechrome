@@ -332,7 +332,7 @@ class CORE_EXPORT Frame : public GarbageCollected<Frame> {
   virtual void DidFocus() = 0;
 
   virtual IntSize GetMainFrameViewportSize() const = 0;
-  virtual IntPoint GetMainFrameScrollOffset() const = 0;
+  virtual gfx::Point GetMainFrameScrollOffset() const = 0;
 
   // Sets this frame's opener to another frame, or disowned the opener
   // if opener is null. See http://html.spec.whatwg.org/#dom-opener.
@@ -425,6 +425,13 @@ class CORE_EXPORT Frame : public GarbageCollected<Frame> {
   void RenderFallbackContentWithResourceTiming(
       mojom::blink::ResourceTimingInfoPtr timing,
       const String& server_timing_values);
+
+  // Returns false if fenced frames are disabled. Returns true if the
+  // feature is enabled and if |this| or any of its ancestor nodes is a
+  // fenced frame. For MPArch returns the value of
+  // Page::IsMainFrameFencedFrameRoot and for shadowDOM returns true, if
+  // the FrameTree that this frame is in is not the outermost FrameTree.
+  bool IsInFencedFrameTree() const;
 
   mutable FrameTree tree_node_;
 

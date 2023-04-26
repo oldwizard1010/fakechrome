@@ -24,6 +24,12 @@ class SVGModelObjectPainter {
   static void RecordHitTestData(const LayoutObject& svg_object,
                                 const PaintInfo&);
 
+  // Records region capture bounds for the current paint chunk. This should
+  // be called when painting the background even if there is no other painted
+  // content.
+  static void RecordRegionCaptureData(const LayoutObject& svg_object,
+                                      const PaintInfo&);
+
   explicit SVGModelObjectPainter(
       const LayoutSVGModelObject& layout_svg_model_object)
       : layout_svg_model_object_(layout_svg_model_object) {}
@@ -49,11 +55,11 @@ class SVGDrawingRecorder : public DrawingRecorder {
   SVGDrawingRecorder(GraphicsContext& context,
                      const LayoutObjectType& object,
                      DisplayItem::Type type)
-      : DrawingRecorder(context,
-                        object,
-                        type,
-                        gfx::ToEnclosingRect(ToGfxRectF(
-                            object.VisualRectInLocalSVGCoordinates()))) {
+      : DrawingRecorder(
+            context,
+            object,
+            type,
+            gfx::ToEnclosingRect(object.VisualRectInLocalSVGCoordinates())) {
     DCHECK(object.IsSVGChild());
     // We should not use this for SVG containers which paint effects only,
     // while VisualRectInLocalSVGCoordinates() contains visual rects from

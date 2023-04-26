@@ -6,8 +6,8 @@
 #define COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_STARTER_H_
 
 #include <memory>
-#include <set>
 
+#include "base/containers/flat_set.h"
 #include "base/containers/lru_cache.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
@@ -65,6 +65,10 @@ class Starter : public content::WebContentsObserver {
   // settings are no longer enabled.
   void CheckSettings();
 
+  // Records the invalidation of platform-specific depencendies. For example:
+  // When the activity is changed on Android.
+  void OnDependenciesInvalidated();
+
  private:
   friend class StarterTest;
 
@@ -119,13 +123,16 @@ class Starter : public content::WebContentsObserver {
   // Called when the heuristic result for |url| is available.
   void OnHeuristicMatch(const GURL& url,
                         const ukm::SourceId source_id,
-                        const std::set<std::string>& intents);
+                        const base::flat_set<std::string>& intents);
 
   // Returns whether there is a currently pending call to |Start| or not.
   bool IsStartupPending() const;
 
   // Deletes the trigger script coordinator.
   void DeleteTriggerScriptCoordinator();
+
+  // Records metrics when the dependencies get invalidated.
+  void RecordDependenciesInvalidated() const;
 
   // Returns a pointer to the currently pending trigger context, or nullptr.
   // Use this method instead of directly accessing |pending_trigger_context_| in
@@ -163,7 +170,7 @@ class Starter : public content::WebContentsObserver {
   bool waiting_for_onboarding_ = false;
   bool waiting_for_deeplink_navigation_ = false;
   bool is_custom_tab_ = false;
-  StarterPlatformDelegate* platform_delegate_ = nullptr;
+  StarterPlatformDelegate* const platform_delegate_;
   ukm::UkmRecorder* ukm_recorder_ = nullptr;
   base::WeakPtr<RuntimeManagerImpl> runtime_manager_;
   bool fetch_trigger_scripts_on_navigation_ = false;

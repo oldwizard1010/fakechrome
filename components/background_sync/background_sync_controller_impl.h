@@ -11,7 +11,6 @@
 
 #include <set>
 
-#include "base/macros.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/background_sync/background_sync_delegate.h"
@@ -99,9 +98,10 @@ class BackgroundSyncControllerImpl : public content::BackgroundSyncController,
   void RemoveFromTrackedOrigins(const url::Origin& origin) override;
 
   // content_settings::Observer overrides.
-  void OnContentSettingChanged(const ContentSettingsPattern& primary_pattern,
-                               const ContentSettingsPattern& secondary_pattern,
-                               ContentSettingsType content_type) override;
+  void OnContentSettingChanged(
+      const ContentSettingsPattern& primary_pattern,
+      const ContentSettingsPattern& secondary_pattern,
+      ContentSettingsTypeSet content_type_set) override;
 
   bool IsOriginTracked(const url::Origin& origin) {
     return periodic_sync_origins_.find(origin) != periodic_sync_origins_.end();

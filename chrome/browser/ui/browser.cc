@@ -19,7 +19,6 @@
 #include "base/feature_list.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
 #include "base/process/process_info.h"
@@ -82,12 +81,13 @@
 #include "chrome/browser/resource_coordinator/tab_load_tracker.h"
 #include "chrome/browser/resource_coordinator/tab_manager_web_contents_data.h"
 #include "chrome/browser/search/search.h"
+#include "chrome/browser/sessions/app_session_service.h"
+#include "chrome/browser/sessions/app_session_service_factory.h"
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/sessions/session_service.h"
 #include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/sessions/session_service_lookup.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
-#include "chrome/browser/ssl/security_state_tab_helper.h"
 #include "chrome/browser/tab_contents/tab_util.h"
 #include "chrome/browser/task_manager/web_contents_tags.h"
 #include "chrome/browser/themes/theme_service.h"
@@ -180,8 +180,6 @@
 #include "components/permissions/permission_request_manager.h"
 #include "components/prefs/pref_service.h"
 #include "components/search/search.h"
-#include "components/security_state/content/content_utils.h"
-#include "components/security_state/core/security_state.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "components/sessions/core/session_types.h"
 #include "components/sessions/core/tab_restore_service.h"
@@ -281,11 +279,6 @@
 
 #if BUILDFLAG(ENABLE_PAINT_PREVIEW)
 #include "components/paint_preview/browser/paint_preview_client.h"  // nogncheck
-#endif
-
-#if BUILDFLAG(ENABLE_APP_SESSION_SERVICE)
-#include "chrome/browser/sessions/app_session_service.h"
-#include "chrome/browser/sessions/app_session_service_factory.h"
 #endif
 
 using base::UserMetricsAction;
@@ -445,6 +438,9 @@ Browser::CreationStatus Browser::GetCreationStatusForProfile(Profile* profile) {
 
 // static
 Browser* Browser::Create(const CreateParams& params) {
+  // If this is failing, a caller is trying to create a browser when creation is
+  // not possible, e.g. using the wrong profile or during shutdown. The caller
+  // should handle this; see e.g. crbug.com/1141608 and crbug.com/1261628.
   CHECK_EQ(CreationStatus::kOk, GetCreationStatusForProfile(params.profile));
   return new Browser(params);
 }
@@ -880,10 +876,8 @@ bool Browser::RunUnloadListenerBeforeClosing(
 void Browser::SetWindowUserTitle(const std::string& user_title) {
   user_title_ = user_title;
   window_->UpdateTitleBar();
-#if BUILDFLAG(ENABLE_APP_SESSION_SERVICE)
   // See comment in Browser::OnTabGroupChanged
   DCHECK(!IsRelevantToAppSessionService(type_));
-#endif
   SessionService* const session_service =
       SessionServiceFactory::GetForProfile(profile_);
   if (session_service)
@@ -1189,14 +1183,12 @@ void Browser::OnTabStripModelChanged(TabStripModel* tab_strip_model,
 }
 
 void Browser::OnTabGroupChanged(const TabGroupChange& change) {
-#if BUILDFLAG(ENABLE_APP_SESSION_SERVICE)
   // If apps ever get tab grouping, this function needs to be updated to
   // retrieve AppSessionService from the correct factory. Additionally,
   // AppSessionService doesn't support SetTabGroupMetadata, so some
   // work to refactor the code to support that into SessionServiceBase
   // would be the best way to achieve that.
   DCHECK(!IsRelevantToAppSessionService(type_));
-#endif
   if (change.type == TabGroupChange::kVisualsChanged) {
     SessionService* const session_service =
         SessionServiceFactory::GetForProfile(profile_);
@@ -1219,10 +1211,8 @@ void Browser::OnTabGroupChanged(const TabGroupChange& change) {
 void Browser::TabPinnedStateChanged(TabStripModel* tab_strip_model,
                                     WebContents* contents,
                                     int index) {
-#if BUILDFLAG(ENABLE_APP_SESSION_SERVICE)
   // See comment in Browser::OnTabGroupChanged
   DCHECK(!IsRelevantToAppSessionService(type_));
-#endif
   SessionService* session_service =
       SessionServiceFactory::GetForProfileIfExisting(profile());
   if (session_service) {
@@ -1238,10 +1228,8 @@ void Browser::TabGroupedStateChanged(
     absl::optional<tab_groups::TabGroupId> group,
     content::WebContents* contents,
     int index) {
-#if BUILDFLAG(ENABLE_APP_SESSION_SERVICE)
   // See comment in Browser::OnTabGroupChanged
   DCHECK(!IsRelevantToAppSessionService(type_));
-#endif
   SessionService* const session_service =
       SessionServiceFactory::GetForProfile(profile_);
   if (!session_service)
@@ -1364,17 +1352,6 @@ bool Browser::CanDragEnter(content::WebContents* source,
   }
 #endif
   return true;
-}
-
-blink::SecurityStyle Browser::GetSecurityStyle(
-    WebContents* web_contents,
-    content::SecurityStyleExplanations* security_style_explanations) {
-  SecurityStateTabHelper* helper =
-      SecurityStateTabHelper::FromWebContents(web_contents);
-  DCHECK(helper);
-  return security_state::GetSecurityStyle(helper->GetSecurityLevel(),
-                                          *helper->GetVisibleSecurityState(),
-                                          security_style_explanations);
 }
 
 void Browser::CreateSmsPrompt(content::RenderFrameHost*,
@@ -1940,10 +1917,8 @@ blink::ProtocolHandlerSecurityLevel Browser::GetProtocolHandlerSecurityLevel(
     content::RenderFrameHost* requesting_frame) {
   // WARNING: This must match the logic of
   // ChromeExtensionsRendererClient::GetProtocolHandlerSecurityLevel().
-  WebContents* web_contents =
-      WebContents::FromRenderFrameHost(requesting_frame);
 
-  content::BrowserContext* context = web_contents->GetBrowserContext();
+  content::BrowserContext* context = requesting_frame->GetBrowserContext();
   extensions::ProcessMap* process_map = extensions::ProcessMap::Get(context);
   const GURL& owner_site_url =
       requesting_frame->GetSiteInstance()->GetSiteURL();
@@ -2101,9 +2076,8 @@ bool Browser::CheckMediaAccessPermission(
     content::RenderFrameHost* render_frame_host,
     const GURL& security_origin,
     blink::mojom::MediaStreamType type) {
-  Profile* profile = Profile::FromBrowserContext(
-      content::WebContents::FromRenderFrameHost(render_frame_host)
-          ->GetBrowserContext());
+  Profile* profile =
+      Profile::FromBrowserContext(render_frame_host->GetBrowserContext());
   const extensions::Extension* extension =
       GetExtensionForOrigin(profile, security_origin);
   return MediaCaptureDevicesDispatcher::GetInstance()
@@ -2118,6 +2092,11 @@ std::string Browser::GetDefaultMediaDeviceID(
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
   return MediaCaptureDevicesDispatcher::GetInstance()
       ->GetDefaultDeviceIDForProfile(profile, type);
+}
+
+std::string Browser::GetTitleForMediaControls(WebContents* web_contents) {
+  return app_controller_ ? app_controller_->GetTitleForMediaControls()
+                         : std::string();
 }
 
 #if BUILDFLAG(ENABLE_PRINTING)
@@ -2636,12 +2615,10 @@ StatusBubble* Browser::GetStatusBubble() {
 // Browser, Session restore functions (private):
 
 void Browser::SyncHistoryWithTabs(int index) {
-#if BUILDFLAG(ENABLE_APP_SESSION_SERVICE)
   // Apps don't need to do this. Skip.
   if (IsRelevantToAppSessionService(type_)) {
     return;
   }
-#endif
 
   SessionService* session_service =
       SessionServiceFactory::GetForProfileIfExisting(profile());

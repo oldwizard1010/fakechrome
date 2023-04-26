@@ -8,6 +8,7 @@
 #include "base/cancelable_callback.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
+#include "build/buildflag.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/chrome_web_modal_dialog_manager_delegate.h"
 #include "chrome/browser/ui/profile_picker.h"
@@ -84,7 +85,7 @@ class ProfilePickerView : public views::WidgetDelegateView,
   bool HandleKeyboardEvent(
       content::WebContents* source,
       const content::NativeWebKeyboardEvent& event) override;
-  bool HandleContextMenu(content::RenderFrameHost* render_frame_host,
+  bool HandleContextMenu(content::RenderFrameHost& render_frame_host,
                          const content::ContextMenuParams& params) override;
 
   // web_modal::WebContentsModalDialogHost

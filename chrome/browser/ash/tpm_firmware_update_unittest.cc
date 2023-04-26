@@ -6,6 +6,7 @@
 
 #include <utility>
 
+#include "ash/components/settings/cros_settings_names.h"
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/files/file_util.h"
@@ -19,13 +20,12 @@
 #include "chrome/browser/ash/settings/scoped_cros_settings_test_helper.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_paths.h"
-#include "chromeos/settings/cros_settings_names.h"
 #include "chromeos/system/fake_statistics_provider.h"
 #include "chromeos/tpm/stub_install_attributes.h"
 #include "components/policy/proto/chrome_device_policy.pb.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace chromeos {
+namespace ash {
 namespace tpm_firmware_update {
 
 TEST(TPMFirmwareUpdateTest, DecodeSettingsProto) {
@@ -353,4 +353,4 @@ TEST_F(TPMFirmwareAutoUpdateTest, NoUpdate) {
 }
 
 }  // namespace tpm_firmware_update
-}  // namespace chromeos
+}  // namespace ash

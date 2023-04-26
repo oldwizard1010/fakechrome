@@ -8,7 +8,6 @@
 #include "base/callback.h"
 #include "base/command_line.h"
 #include "base/i18n/icu_util.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/power_monitor/power_monitor.h"
@@ -173,7 +172,8 @@ int DemoMain() {
   // The ContextFactory must exist before any Compositors are created.
   viz::HostFrameSinkManager host_frame_sink_manager;
   viz::ServerSharedBitmapManager server_shared_bitmap_manager;
-  viz::FrameSinkManagerImpl frame_sink_manager(&server_shared_bitmap_manager);
+  viz::FrameSinkManagerImpl frame_sink_manager{
+      viz::FrameSinkManagerImpl::InitParams(&server_shared_bitmap_manager)};
   host_frame_sink_manager.SetLocalManager(&frame_sink_manager);
   frame_sink_manager.SetLocalClient(&host_frame_sink_manager);
   auto context_factory = std::make_unique<ui::InProcessContextFactory>(

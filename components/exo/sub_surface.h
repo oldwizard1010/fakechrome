@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/macros.h"
 #include "components/exo/surface_delegate.h"
 #include "components/exo/surface_observer.h"
 #include "ui/gfx/geometry/point.h"
@@ -83,7 +82,6 @@ class SubSurface : public SurfaceDelegate, public SurfaceObserver {
   void SetInitialWorkspace(const char* initial_workspace) override {}
   void Pin(bool trusted) override {}
   void Unpin() override {}
-  void SetClientSubmitsSurfacesInPixelCoordinates(bool enabled) override {}
 
   // Overridden from SurfaceObserver:
   void OnSurfaceDestroying(Surface* surface) override;

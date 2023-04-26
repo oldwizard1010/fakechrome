@@ -5,6 +5,8 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_DISPLAY_LOCK_DISPLAY_LOCK_CONTEXT_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_DISPLAY_LOCK_DISPLAY_LOCK_CONTEXT_H_
 
+#include <utility>
+
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/style_recalc.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
@@ -132,6 +134,10 @@ class CORE_EXPORT DisplayLockContext final
     blocked_child_recalc_change_ = blocked_child_recalc_change_.Combine(change);
   }
 
+  StyleRecalcChange TakeBlockedStyleRecalcChange() {
+    return std::exchange(blocked_child_recalc_change_, StyleRecalcChange());
+  }
+
   void NotifyReattachLayoutTreeWasBlocked() {
     blocked_child_recalc_change_ =
         blocked_child_recalc_change_.ForceReattachLayoutTree();
@@ -162,6 +168,8 @@ class CORE_EXPORT DisplayLockContext final
   void ElementDisconnected();
   void ElementConnected();
 
+  void DetachLayoutTree();
+
   void NotifySubtreeLostFocus();
   void NotifySubtreeGainedFocus();
 
@@ -177,12 +185,6 @@ class CORE_EXPORT DisplayLockContext final
         needs_blocking_wheel_event_handler_update;
     needs_prepaint_subtree_walk_ = true;
   }
-
-  // This is called by the style recalc code in lieu of
-  // MarkForStyleRecalcIfNeeded() in order to adjust the child change if we need
-  // to recalc children nodes here.
-  StyleRecalcChange AdjustStyleRecalcChangeForChildren(
-      StyleRecalcChange change);
 
   void DidForceActivatableDisplayLocks() {
     if (IsLocked() && IsActivatable(DisplayLockActivationReason::kAny)) {
@@ -218,6 +220,12 @@ class CORE_EXPORT DisplayLockContext final
   }
 
   bool HasElement() const { return element_; }
+
+  // Top layer implementation.
+  void NotifyHasTopLayerElement();
+  void ClearHasTopLayerElement();
+
+  void ScheduleTopLayerCheck();
 
  private:
   // Give access to |NotifyForcedUpdateScopeStarted()| and
@@ -314,6 +322,13 @@ class CORE_EXPORT DisplayLockContext final
   // selected notes up to its root looking for `element_`.
   void DetermineIfSubtreeHasSelection();
 
+  // Determines if the subtree has a top layer element. This is a walk from each
+  // top layer node up the ancestor chain looking for `element_`.
+  void DetermineIfSubtreeHasTopLayerElement();
+
+  // Detaching the layout tree from the top layers nested under this lock.
+  void DetachDescendantTopLayerElements();
+
   // Keep this context unlocked until the beginning of lifecycle. Effectively
   // keeps this context unlocked for the next `count` frames. It also schedules
   // a frame to ensure the lifecycle happens. Only affects locks with 'auto'
@@ -332,6 +347,8 @@ class CORE_EXPORT DisplayLockContext final
   void StashScrollOffsetIfAvailable();
   void RestoreScrollOffsetIfStashed();
   bool HasStashedScrollOffset() const;
+
+  bool SubtreeHasTopLayerElement() const;
 
   WeakMember<Element> element_;
   WeakMember<Document> document_;
@@ -445,6 +462,7 @@ class CORE_EXPORT DisplayLockContext final
     kSubtreeHasSelection,
     kAutoStateUnlockedUntilLifecycle,
     kAutoUnlockedForPrint,
+    kSubtreeHasTopLayerElement,
     kNumRenderAffectingStates
   };
   void SetRenderAffectingState(RenderAffectingState state, bool flag);
@@ -478,6 +496,14 @@ class CORE_EXPORT DisplayLockContext final
   // If we have pending subtree checks, it means we should check for selection
   // and focus at the start of the next frame.
   bool has_pending_subtree_checks_ = false;
+
+  // If true, we need to clear the fact that we have a top layer at the start of
+  // the next frame.
+  bool has_pending_clear_has_top_layer_ = false;
+
+  // If ture, we need to check if this subtree has any top layer elements at the
+  // start of the next frame.
+  bool has_pending_top_layer_check_ = false;
 };
 
 }  // namespace blink

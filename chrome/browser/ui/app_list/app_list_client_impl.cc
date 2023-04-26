@@ -18,6 +18,7 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
 #include "base/strings/strcat.h"
+#include "chrome/browser/ash/crosapi/browser_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
@@ -190,13 +191,14 @@ void AppListClientImpl::OpenSearchResult(
   search_controller_->OpenResult(result, event_flags);
 }
 
-void AppListClientImpl::InvokeSearchResultAction(const std::string& result_id,
-                                                 int action_index) {
+void AppListClientImpl::InvokeSearchResultAction(
+    const std::string& result_id,
+    ash::SearchResultActionType action) {
   if (!search_controller_)
     return;
   ChromeSearchResult* result = search_controller_->FindSearchResult(result_id);
   if (result)
-    search_controller_->InvokeResultAction(result, action_index);
+    search_controller_->InvokeResultAction(result, action);
 }
 
 void AppListClientImpl::GetSearchResultContextMenuModel(
@@ -295,44 +297,12 @@ void AppListClientImpl::OnAppListVisibilityWillChange(bool visible) {
 
 void AppListClientImpl::OnAppListVisibilityChanged(bool visible) {
   app_list_visible_ = visible;
-  if (visible && search_controller_)
-    search_controller_->AppListShown();
-}
-
-void AppListClientImpl::OnItemAdded(
-    int profile_id,
-    std::unique_ptr<ash::AppListItemMetadata> item) {
-  auto* requested_model_updater = profile_model_mappings_[profile_id];
-  if (!requested_model_updater)
-    return;
-  requested_model_updater->OnItemAdded(std::move(item));
-}
-
-void AppListClientImpl::OnItemUpdated(
-    int profile_id,
-    std::unique_ptr<ash::AppListItemMetadata> item) {
-  auto* requested_model_updater = profile_model_mappings_[profile_id];
-  if (!requested_model_updater)
-    return;
-  requested_model_updater->OnItemUpdated(std::move(item));
-}
-
-void AppListClientImpl::OnFolderDeleted(
-    int profile_id,
-    std::unique_ptr<ash::AppListItemMetadata> item) {
-  auto* requested_model_updater = profile_model_mappings_[profile_id];
-  if (!requested_model_updater)
-    return;
-  DCHECK(item->is_folder);
-  requested_model_updater->OnFolderDeleted(std::move(item));
-}
-
-void AppListClientImpl::OnPageBreakItemDeleted(int profile_id,
-                                               const std::string& id) {
-  auto* requested_model_updater = profile_model_mappings_[profile_id];
-  if (!requested_model_updater)
-    return;
-  requested_model_updater->OnPageBreakItemDeleted(id);
+  if (visible) {
+    if (search_controller_)
+      search_controller_->AppListShown();
+  } else if (current_model_updater_) {
+    current_model_updater_->OnAppListHidden();
+  }
 }
 
 void AppListClientImpl::OnSearchResultVisibilityChanged(const std::string& id,
@@ -402,8 +372,10 @@ void AppListClientImpl::SetProfile(Profile* new_profile) {
   template_url_service_observation_.Reset();
 
   profile_ = new_profile;
-  if (!profile_)
+  if (!profile_) {
+    GetAppListController()->ClearActiveModel();
     return;
+  }
 
   // If we are in guest mode, the new profile should be an OffTheRecord profile.
   // Otherwise, this may later hit a check (same condition as this one) in
@@ -548,9 +520,13 @@ void AppListClientImpl::OpenURL(Profile* profile,
                                 const GURL& url,
                                 ui::PageTransition transition,
                                 WindowOpenDisposition disposition) {
-  NavigateParams params(profile, url, transition);
-  params.disposition = disposition;
-  Navigate(&params);
+  if (crosapi::browser_util::IsLacrosPrimaryBrowser()) {
+    ash::NewWindowDelegate::GetPrimary()->OpenUrl(url, true);
+  } else {
+    NavigateParams params(profile, url, transition);
+    params.disposition = disposition;
+    Navigate(&params);
+  }
 }
 
 void AppListClientImpl::NotifySearchResultsForLogging(
@@ -586,16 +562,13 @@ void AppListClientImpl::OnAppListSortRequested(int profile_id,
   requested_model_updater->OnSortRequested(order);
 }
 
-void AppListClientImpl::OnSetPositionRequested(
-    int profile_id,
-    std::string id,
-    const syncer::StringOrdinal& new_position) {
+void AppListClientImpl::OnAppListSortRevertRequested(int profile_id) {
   auto* requested_model_updater = profile_model_mappings_[profile_id];
   if (requested_model_updater != current_model_updater_ ||
       !requested_model_updater) {
     return;
   }
-  requested_model_updater->HandleSetPosition(std::move(id), new_position);
+  requested_model_updater->OnSortRevertRequested();
 }
 
 void AppListClientImpl::MaybeRecordViewShown() {

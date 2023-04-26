@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <utility>
+
 #include "ash/constants/ash_features.h"
 #include "ash/webui/media_app_ui/buildflags.h"
 #include "ash/webui/media_app_ui/test/media_app_ui_browsertest.h"
@@ -9,27 +11,35 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/path_service.h"
+#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/apps/app_service/app_launch_params.h"
+#include "chrome/browser/apps/app_service/app_service_proxy.h"
+#include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/ash/file_manager/app_service_file_tasks.h"
 #include "chrome/browser/ash/file_manager/file_manager_test_util.h"
+#include "chrome/browser/ash/web_applications/media_app/media_web_app_info.h"
 #include "chrome/browser/ash/web_applications/system_web_app_integration_test.h"
 #include "chrome/browser/error_reporting/mock_chrome_js_error_report_processor.h"
 #include "chrome/browser/extensions/component_loader.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_list_observer.h"
 #include "chrome/browser/ui/web_applications/system_web_app_ui_utils.h"
 #include "chrome/browser/web_applications/system_web_apps/system_web_app_manager.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/common/chrome_paths.h"
 #include "components/crash/content/browser/error_reporting/mock_crash_endpoint.h"
+#include "content/public/browser/media_session_service.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
 #include "extensions/browser/entry_info.h"
+#include "services/media_session/public/mojom/media_controller.mojom.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/features.h"
 
@@ -79,6 +89,12 @@ class MediaAppIntegrationTest : public SystemWebAppIntegrationTest {
   void MediaAppLaunchWithFile(bool audio_enabled);
   void MediaAppWithLaunchSystemWebAppAsync(bool audio_enabled);
   void MediaAppEligibleOpenTask(bool audio_enabled);
+
+  // Helper to initiate a test by launching a single file.
+  content::WebContents* LaunchWithOneTestFile(const char* file);
+
+ private:
+  std::unique_ptr<file_manager::test::FolderInMyFiles> launch_folder_;
 };
 
 class MediaAppIntegrationWithFilesAppTest : public MediaAppIntegrationTest {
@@ -112,6 +128,31 @@ using MediaAppIntegrationAllProfilesTest = MediaAppIntegrationTest;
 using MediaAppIntegrationWithFilesAppAllProfilesTest =
     MediaAppIntegrationWithFilesAppTest;
 
+class BrowserWindowWaiter : public BrowserListObserver {
+ public:
+  void WaitForBrowserAdded() {
+    BrowserList::GetInstance()->AddObserver(this);
+    base::RunLoop run_loop;
+    quit_closure_ = run_loop.QuitClosure();
+    run_loop.Run();
+    BrowserList::GetInstance()->RemoveObserver(this);
+  }
+
+  // BrowserListObserver:
+  void OnBrowserAdded(Browser* browser) override { quit_closure_.Run(); }
+
+ private:
+  base::RepeatingClosure quit_closure_;
+};
+
+// Waits for the number of active Browsers in the test process to reach `count`.
+void WaitForBrowserCount(int count) {
+  EXPECT_LE(BrowserList::GetInstance()->size(), count) << "Too many browsers";
+  while (BrowserList::GetInstance()->size() < count) {
+    BrowserWindowWaiter().WaitForBrowserAdded();
+  }
+}
+
 // Gets the base::FilePath for a named file in the test folder.
 base::FilePath TestFile(const std::string& ascii_name) {
   base::FilePath path;
@@ -130,7 +171,9 @@ void PrepareAppForTest(content::WebContents* web_ui) {
                          web_ui, MediaAppUiBrowserTest::AppJsTestLibrary()));
 }
 
-content::WebContents* PrepareActiveBrowserForTest() {
+content::WebContents* PrepareActiveBrowserForTest(
+    int expected_browser_count = 2) {
+  WaitForBrowserCount(expected_browser_count);
   Browser* app_browser = chrome::FindBrowserWithActiveWindow();
   content::WebContents* web_ui =
       app_browser->tab_strip_model()->GetActiveWebContents();
@@ -143,7 +186,7 @@ content::WebContents* PrepareActiveBrowserForTest() {
 content::EvalJsResult WaitForAudioTrackTitle(content::WebContents* web_ui) {
   constexpr char kScript[] = R"(
       (async function waitForAudioTrackTitle() {
-        return (await waitForNode('div.title')).innerText;
+        return (await waitForNode('div.title:not(:empty)')).innerText;
       })();
   )";
 
@@ -182,6 +225,29 @@ content::EvalJsResult WaitForNavigable(content::WebContents* web_ui) {
 void TouchFileSync(const base::FilePath& path, const base::Time& time) {
   base::ScopedAllowBlockingForTesting allow_blocking;
   EXPECT_TRUE(base::TouchFile(path, time, time));
+}
+
+content::WebContents* MediaAppIntegrationTest::LaunchWithOneTestFile(
+    const char* file) {
+  WaitForTestSystemAppInstall();
+  launch_folder_ =
+      std::make_unique<file_manager::test::FolderInMyFiles>(profile());
+  launch_folder_->Add({TestFile(file)});
+  EXPECT_EQ(launch_folder_->Open(TestFile(file)),
+            platform_util::OPEN_SUCCEEDED);
+  return PrepareActiveBrowserForTest();
+}
+
+std::vector<apps::IntentLaunchInfo> GetAppsForMimeType(
+    apps::AppServiceProxy* proxy,
+    const std::string& mime_type) {
+  std::vector<apps::mojom::IntentFilePtr> intent_files;
+  auto file = apps::mojom::IntentFile::New();
+  file->url = GURL("filesystem://path/to/file.bin");
+  file->mime_type = mime_type;
+  file->is_directory = apps::mojom::OptionalBool::kFalse;
+  intent_files.push_back(std::move(file));
+  return proxy->GetAppsForFiles(std::move(intent_files));
 }
 
 }  // namespace
@@ -260,8 +326,8 @@ void MediaAppIntegrationTest::MediaAppWithLaunchSystemWebAppAsync(
   web_app::LaunchSystemWebAppAsync(browser()->profile(),
                                    web_app::SystemAppType::MEDIA, image_params);
   web_app::FlushSystemWebAppLaunchesForTesting(browser()->profile());
+  app = PrepareActiveBrowserForTest(audio_enabled ? 3 : 2);
   Browser* second_browser = chrome::FindBrowserWithActiveWindow();
-  app = PrepareActiveBrowserForTest();
 
   EXPECT_EQ("640x480", WaitForImageAlt(app, kFileJpeg640x480));
   if (audio_enabled) {
@@ -279,6 +345,48 @@ IN_PROC_BROWSER_TEST_P(MediaAppIntegrationAudioEnabledTest,
 IN_PROC_BROWSER_TEST_P(MediaAppIntegrationAudioDisabledTest,
                        MediaAppWithLaunchSystemWebAppAsync) {
   MediaAppWithLaunchSystemWebAppAsync(false);
+}
+
+// Test that the Media App appears as a handler for files in the App Service.
+IN_PROC_BROWSER_TEST_P(MediaAppIntegrationTest, MediaAppHandlesIntents) {
+  WaitForTestSystemAppInstall();
+  auto* proxy =
+      apps::AppServiceProxyFactory::GetForProfile(browser()->profile());
+  const std::string media_app_id =
+      *GetManager().GetAppIdForSystemApp(web_app::SystemAppType::MEDIA);
+
+  {
+    // Smoke test that a binary blob is not handled by Media App.
+    std::vector<apps::IntentLaunchInfo> intent_launch_info =
+        GetAppsForMimeType(proxy, "application/octet-stream");
+
+    // Media App should not be in the returned list of handlers.
+    EXPECT_FALSE(base::ranges::any_of(
+        intent_launch_info,
+        [&media_app_id](const apps::IntentLaunchInfo& info) {
+          return info.app_id == media_app_id;
+        }));
+  }
+
+  auto media_app_info = CreateWebAppInfoForMediaWebApp();
+
+  // Ensure that Media App is returned as a handler for every mime type listed
+  // in its file handlers.
+  for (const auto& file_handler : media_app_info->file_handlers) {
+    for (const auto& accept : file_handler.accept) {
+      std::vector<apps::IntentLaunchInfo> intent_launch_info =
+          GetAppsForMimeType(proxy, accept.mime_type);
+
+      // Media App should be in the returned list of handlers.
+      EXPECT_FALSE(intent_launch_info.empty()) << " at " << accept.mime_type;
+      EXPECT_TRUE(base::ranges::any_of(
+          intent_launch_info,
+          [&media_app_id](const apps::IntentLaunchInfo& info) {
+            return info.app_id == media_app_id;
+          }))
+          << " at " << accept.mime_type;
+    }
+  }
 }
 
 // Regression test for b/172881869.
@@ -754,8 +862,9 @@ IN_PROC_BROWSER_TEST_P(MediaAppIntegrationWithFilesAppAllProfilesTest,
   folder.Add({TestFile(kFilePng800x600)});
   OpenOperationResult open_result = folder.Open(TestFile(kFilePng800x600));
 
-  // Window focus changes on ChromeOS are synchronous, so just get the newly
-  // focused window.
+  // Although window focus changes on ChromeOS are synchronous, the app launch
+  // codepaths may not be, so ensure a Browser is created.
+  WaitForBrowserCount(2);
   Browser* app_browser = chrome::FindBrowserWithActiveWindow();
   content::WebContents* web_ui =
       app_browser->tab_strip_model()->GetActiveWebContents();
@@ -787,6 +896,7 @@ IN_PROC_BROWSER_TEST_P(MediaAppIntegrationAudioEnabledTest,
   // Launch with the audio file.
   EXPECT_EQ(folder.Open(TestFile(kFileAudioOgg)),
             platform_util::OPEN_SUCCEEDED);
+  WaitForBrowserCount(2);
   Browser* audio_app_browser = chrome::FindBrowserWithActiveWindow();
   content::WebContents* audio_web_ui =
       audio_app_browser->tab_strip_model()->GetActiveWebContents();
@@ -795,6 +905,7 @@ IN_PROC_BROWSER_TEST_P(MediaAppIntegrationAudioEnabledTest,
   // Launch with the image file.
   EXPECT_EQ(folder.Open(TestFile(kFileJpeg640x480)),
             platform_util::OPEN_SUCCEEDED);
+  WaitForBrowserCount(3);
   Browser* image_app_browser = chrome::FindBrowserWithActiveWindow();
   content::WebContents* image_web_ui =
       image_app_browser->tab_strip_model()->GetActiveWebContents();
@@ -813,6 +924,81 @@ IN_PROC_BROWSER_TEST_P(MediaAppIntegrationAudioEnabledTest,
 
   // Check the metrics are recorded.
   histograms.ExpectTotalCount("Apps.DefaultAppLaunch.FromFileManager", 2);
+}
+
+// Ensures audio files opened in the media app successfully autoplay.
+IN_PROC_BROWSER_TEST_P(MediaAppIntegrationAudioEnabledTest, Autoplay) {
+  content::WebContents* web_ui = LaunchWithOneTestFile(kFileAudioOgg);
+
+  EXPECT_EQ(kFileAudioOgg, WaitForAudioTrackTitle(web_ui));
+
+  constexpr char kWaitForPlayedLength[] = R"(
+      (async function waitForPlayedLength() {
+        const audioElement = await waitForNode('audio');
+        if (audioElement.played.length > 0) {
+          return audioElement.played.length;
+        }
+        // Wait for a timeupdate. If autoplay malfunctions, this will timeout.
+        await new Promise(resolve => {
+          audioElement.addEventListener('timeupdate', resolve, {once: true});
+        });
+        return audioElement.played.length;
+      })();
+  )";
+
+  EXPECT_LE(
+      1, MediaAppUiBrowserTest::EvalJsInAppFrame(web_ui, kWaitForPlayedLength));
+}
+
+// Ensures the autoplay on audio file launch updates the global media controls
+// with an appropriate media source name.
+IN_PROC_BROWSER_TEST_P(MediaAppIntegrationAudioEnabledTest, MediaControls) {
+  using absl::optional;
+  class MediaControlsObserver
+      : public media_session::mojom::MediaControllerObserver {
+   public:
+    void MediaSessionInfoChanged(
+        media_session::mojom::MediaSessionInfoPtr info) override {}
+    void MediaSessionMetadataChanged(
+        const optional<media_session::MediaMetadata>& metadata) override {
+      if (metadata) {
+        source_title = metadata->source_title;
+        if (run_loop.IsRunningOnCurrentThread()) {
+          run_loop.Quit();
+        }
+      }
+    }
+    void MediaSessionActionsChanged(
+        const std::vector<media_session::mojom::MediaSessionAction>& action)
+        override {}
+    void MediaSessionChanged(
+        const optional<base::UnguessableToken>& request_id) override {}
+    void MediaSessionPositionChanged(
+        const optional<media_session::MediaPosition>& position) override {}
+
+    std::u16string source_title;
+    base::RunLoop run_loop;
+  } observer;
+
+  mojo::Receiver<media_session::mojom::MediaControllerObserver>
+      observer_receiver_(&observer);
+  mojo::Remote<media_session::mojom::MediaControllerManager>
+      controller_manager_remote;
+  mojo::Remote<media_session::mojom::MediaController> media_controller_remote;
+  content::GetMediaSessionService().BindMediaControllerManager(
+      controller_manager_remote.BindNewPipeAndPassReceiver());
+  controller_manager_remote->CreateActiveMediaController(
+      media_controller_remote.BindNewPipeAndPassReceiver());
+  media_controller_remote->AddObserver(
+      observer_receiver_.BindNewPipeAndPassRemote());
+
+  LaunchWithOneTestFile(kFileAudioOgg);
+
+  if (observer.source_title.empty()) {
+    observer.run_loop.Run();
+  }
+
+  EXPECT_EQ(u"Gallery", observer.source_title);
 }
 
 // Test that the MediaApp can navigate other files in the directory of a file

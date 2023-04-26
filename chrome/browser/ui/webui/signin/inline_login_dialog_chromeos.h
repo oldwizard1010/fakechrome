@@ -8,7 +8,6 @@
 #include <string>
 
 #include "base/callback_helpers.h"
-#include "base/macros.h"
 #include "base/observer_list.h"
 #include "chrome/browser/ui/webui/chromeos/system_web_dialog_delegate.h"
 #include "chrome/browser/ui/webui/signin/inline_login_handler_modal_delegate.h"
@@ -25,9 +24,7 @@ class AccountManagerUIImpl;
 
 namespace chromeos {
 
-// Extends from |SystemWebDialogDelegate| to create an always-on-top but movable
-// dialog. It is intentionally made movable so that users can copy-paste account
-// passwords from password managers.
+// Extends from |SystemWebDialogDelegate| to create an always-on-top dialog.
 class InlineLoginDialogChromeOS : public SystemWebDialogDelegate,
                                   public web_modal::WebContentsModalDialogHost {
  public:

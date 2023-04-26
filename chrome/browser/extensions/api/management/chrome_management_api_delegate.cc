@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/macros.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/post_task.h"
@@ -64,10 +63,11 @@
 #include "chrome/browser/ash/arc/arc_util.h"
 #include "chrome/browser/ash/login/demo_mode/demo_session.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_utils.h"
-#include "components/arc/arc_service_manager.h"
+#include "chrome/browser/web_applications/web_app_utils.h"
 #include "components/arc/arc_util.h"
 #include "components/arc/mojom/intent_helper.mojom.h"
 #include "components/arc/session/arc_bridge_service.h"
+#include "components/arc/session/arc_service_manager.h"
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 #if BUILDFLAG(ENABLE_SUPERVISED_USERS)
@@ -253,7 +253,7 @@ class ChromeAppForLinkDelegate : public extensions::AppForLinkDelegate {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
     // Avoid accessing the WebAppProvider when web apps are enabled in Lacros
     // (and thus disabled in Ash).
-    if (base::FeatureList::IsEnabled(features::kWebAppsCrosapi)) {
+    if (web_app::IsWebAppsCrosapiEnabled()) {
       function->FinishCreateWebApp(std::string(),
                                    /*install_success=*/false);
       return;
@@ -553,7 +553,7 @@ void ChromeManagementAPIDelegate::InstallOrLaunchReplacementWebApp(
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   // Avoid accessing the WebAppProvider when web apps are enabled in Lacros (and
   // thus disabled in Ash).
-  if (base::FeatureList::IsEnabled(features::kWebAppsCrosapi)) {
+  if (web_app::IsWebAppsCrosapiEnabled()) {
     std::move(callback).Run(InstallOrLaunchWebAppResult::kUnknownError);
     return;
   }

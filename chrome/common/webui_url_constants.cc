@@ -68,7 +68,6 @@ const char kChromeUIDownloadInternalsHost[] = "download-internals";
 const char kChromeUIDownloadsHost[] = "downloads";
 const char kChromeUIDownloadsURL[] = "chrome://downloads/";
 const char kChromeUIDriveInternalsHost[] = "drive-internals";
-const char kChromeUIEDUCoexistenceLoginURLV1[] = "chrome://chrome-signin/edu";
 const char kChromeUIEDUCoexistenceLoginURLV2[] =
     "chrome://chrome-signin/edu-coexistence";
 const char kChromeUIEnterpriseCastingHost[] = "enterprise-casting";
@@ -135,6 +134,11 @@ const char kChromeUINewTabPageThirdPartyURL[] =
 const char kChromeUINewTabURL[] = "chrome://newtab/";
 const char kChromeUIOmniboxHost[] = "omnibox";
 const char kChromeUIOmniboxURL[] = "chrome://omnibox/";
+#if defined(OS_CHROMEOS)
+const char kChromeUIOsCroshAppURL[] = "chrome://crosh/";
+const char kChromeUIOsFlagsAppURL[] = "chrome://flags/";
+const char kChromeUIOsUrlAppURL[] = "chrome://internal/";
+#endif
 const char kChromeUIPasswordManagerInternalsHost[] =
     "password-manager-internals";
 const char kChromeUIPolicyHost[] = "policy";
@@ -249,7 +253,6 @@ const char kChromeUIArcPowerControlHost[] = "arc-power-control";
 const char kChromeUIArcPowerControlURL[] = "chrome://arc-power-control/";
 const char kChromeUIAssistantOptInHost[] = "assistant-optin";
 const char kChromeUIAssistantOptInURL[] = "chrome://assistant-optin/";
-const char kChromeUIAppDisabledHost[] = "app-disabled";
 const char kChromeUIAppDisabledURL[] = "chrome://app-disabled";
 const char kChromeUIAudioHost[] = "audio";
 const char kChromeUIAudioURL[] = "chrome://audio/";
@@ -371,6 +374,7 @@ bool IsSystemWebUIHost(base::StringPiece host) {
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 #if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+const char kChromeUIAppDisabledHost[] = "app-disabled";
 const char kChromeUIOSSettingsHost[] = "os-settings";
 const char kChromeUIOSSettingsURL[] = "chrome://os-settings/";
 #endif
@@ -559,7 +563,6 @@ const char* const kChromeHostURLs[] = {
 #if !defined(OS_ANDROID)
     kChromeUIWebAppInternalsHost,
 #endif
-    content::kChromeUIAppCacheInternalsHost,
     content::kChromeUIAttributionInternalsHost,
     content::kChromeUIBlobInternalsHost,
     content::kChromeUIDinoHost,
@@ -672,8 +675,6 @@ const char* const kChromeDebugURLs[] = {
     blink::kChromeUIMemoryExhaustURL,
     blink::kChromeUIMemoryPressureCriticalURL,
     blink::kChromeUIMemoryPressureModerateURL,
-    blink::kChromeUIPpapiFlashCrashURL,
-    blink::kChromeUIPpapiFlashHangURL,
 #if defined(OS_WIN)
     blink::kChromeUIBrowserHeapCorruptionURL,
     blink::kChromeUIHeapCorruptionCrashURL,

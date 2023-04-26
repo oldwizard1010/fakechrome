@@ -50,13 +50,6 @@ bool IsForceSignInEnabled() {
   return policy_mode == BrowserSigninMode::kForced;
 }
 
-bool IsSyncTypesListEnabled() {
-  const base::ListValue* value =
-      GetApplicationContext()->GetLocalState()->GetList(
-          policy::key::kSyncTypesListDisabled);
-  return value->GetList().size();
-}
-
 bool IsManagedSyncDataType(ChromeBrowserState* browserState,
                            SyncSetupService::SyncableDatatype dataType) {
   return browserState->GetPrefs()
@@ -75,11 +68,14 @@ bool HasManagedSyncDataType(ChromeBrowserState* browserState) {
   return false;
 }
 
-EnterpriseSignInRestrictions GetEnterpriseSignInRestrictions() {
+EnterpriseSignInRestrictions GetEnterpriseSignInRestrictions(
+    ChromeBrowserState* browserState) {
   EnterpriseSignInRestrictions restrictions = kNoEnterpriseRestriction;
   if (IsForceSignInEnabled())
     restrictions |= kEnterpriseForceSignIn;
   if (IsRestrictAccountsToPatternsEnabled())
     restrictions |= kEnterpriseRestrictAccounts;
+  if (HasManagedSyncDataType(browserState))
+    restrictions |= kEnterpriseSyncTypesListDisabled;
   return restrictions;
 }

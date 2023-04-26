@@ -11,7 +11,6 @@
 
 #include "base/base64url.h"
 #include "base/containers/contains.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/string_number_conversions.h"
@@ -239,18 +238,20 @@ void ExpectSyncedDevicesAndPrefAreEqual(
       EXPECT_FALSE(expected_device.has_bluetooth_address());
     }
 
-    bool unlock_key;
-    if (device_dictionary->GetBoolean("unlock_key", &unlock_key)) {
+    absl::optional<bool> unlock_key =
+        device_dictionary->FindBoolKey("unlock_key");
+    if (unlock_key.has_value()) {
       EXPECT_TRUE(expected_device.has_unlock_key());
-      EXPECT_EQ(expected_device.unlock_key(), unlock_key);
+      EXPECT_EQ(expected_device.unlock_key(), unlock_key.value());
     } else {
       EXPECT_FALSE(expected_device.has_unlock_key());
     }
 
-    bool unlockable;
-    if (device_dictionary->GetBoolean("unlockable", &unlockable)) {
+    absl::optional<bool> unlockable =
+        device_dictionary->FindBoolKey("unlockable");
+    if (unlockable.has_value()) {
       EXPECT_TRUE(expected_device.has_unlockable());
-      EXPECT_EQ(expected_device.unlockable(), unlockable);
+      EXPECT_EQ(expected_device.unlockable(), unlockable.value());
     } else {
       EXPECT_FALSE(expected_device.has_unlockable());
     }
@@ -268,12 +269,12 @@ void ExpectSyncedDevicesAndPrefAreEqual(
       EXPECT_FALSE(expected_device.has_last_update_time_millis());
     }
 
-    bool mobile_hotspot_supported;
-    if (device_dictionary->GetBoolean("mobile_hotspot_supported",
-                                      &mobile_hotspot_supported)) {
+    absl::optional<bool> mobile_hotspot_supported =
+        device_dictionary->FindBoolKey("mobile_hotspot_supported");
+    if (mobile_hotspot_supported.has_value()) {
       EXPECT_TRUE(expected_device.has_mobile_hotspot_supported());
       EXPECT_EQ(expected_device.mobile_hotspot_supported(),
-                mobile_hotspot_supported);
+                mobile_hotspot_supported.value());
     } else {
       EXPECT_FALSE(expected_device.has_mobile_hotspot_supported());
     }
@@ -319,18 +320,20 @@ void ExpectSyncedDevicesAndPrefAreEqual(
       EXPECT_FALSE(expected_device.beacon_seeds_size());
     }
 
-    bool arc_plus_plus;
-    if (device_dictionary->GetBoolean("arc_plus_plus", &arc_plus_plus)) {
+    absl::optional<bool> arc_plus_plus =
+        device_dictionary->FindBoolKey("arc_plus_plus");
+    if (arc_plus_plus.has_value()) {
       EXPECT_TRUE(expected_device.has_arc_plus_plus());
-      EXPECT_EQ(expected_device.arc_plus_plus(), arc_plus_plus);
+      EXPECT_EQ(expected_device.arc_plus_plus(), arc_plus_plus.value());
     } else {
       EXPECT_FALSE(expected_device.has_arc_plus_plus());
     }
 
-    bool pixel_phone;
-    if (device_dictionary->GetBoolean("pixel_phone", &pixel_phone)) {
+    absl::optional<bool> pixel_phone =
+        device_dictionary->FindBoolKey("pixel_phone");
+    if (pixel_phone.has_value()) {
       EXPECT_TRUE(expected_device.has_pixel_phone());
-      EXPECT_EQ(expected_device.pixel_phone(), pixel_phone);
+      EXPECT_EQ(expected_device.pixel_phone(), pixel_phone.value());
     } else {
       EXPECT_FALSE(expected_device.has_pixel_phone());
     }
@@ -428,6 +431,12 @@ class DeviceSyncCryptAuthDeviceManagerImplTest
     : public testing::Test,
       public CryptAuthDeviceManager::Observer,
       public MockCryptAuthClientFactory::Observer {
+ public:
+  DeviceSyncCryptAuthDeviceManagerImplTest(
+      const DeviceSyncCryptAuthDeviceManagerImplTest&) = delete;
+  DeviceSyncCryptAuthDeviceManagerImplTest& operator=(
+      const DeviceSyncCryptAuthDeviceManagerImplTest&) = delete;
+
  protected:
   DeviceSyncCryptAuthDeviceManagerImplTest()
       : client_factory_(std::make_unique<MockCryptAuthClientFactory>(
@@ -618,8 +627,6 @@ class DeviceSyncCryptAuthDeviceManagerImplTest
   CryptAuthClient::GetMyDevicesCallback success_callback_;
 
   CryptAuthClient::ErrorCallback error_callback_;
-
-  DISALLOW_COPY_AND_ASSIGN(DeviceSyncCryptAuthDeviceManagerImplTest);
 };
 
 TEST_F(DeviceSyncCryptAuthDeviceManagerImplTest, RegisterPrefs) {

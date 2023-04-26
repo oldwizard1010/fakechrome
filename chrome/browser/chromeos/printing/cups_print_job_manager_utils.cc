@@ -19,8 +19,8 @@ namespace chromeos {
 namespace {
 
 // The amount of time elapsed from print job creation before a timeout is
-// acknowledged.
-constexpr base::TimeDelta kMinElaspedPrintJobTimeout = base::Milliseconds(5000);
+// acknowledged. CUPS has a timeout of ~25s.
+constexpr base::TimeDelta kMinElaspedPrintJobTimeout = base::Seconds(30);
 
 // Returns the equivalient CupsPrintJob#State from a CupsJob#JobState.
 CupsPrintJob::State ConvertState(::printing::CupsJob::JobState state) {
@@ -109,6 +109,18 @@ void UpdateStoppedJob(const ::printing::CupsJob& job, CupsPrintJob* print_job) {
   }
 }
 
+void UpdateHeldJob(const ::printing::CupsJob& job, CupsPrintJob* print_job) {
+  // If cups job STOPPED but with cups held for authentication, treat as ERROR
+  if (job.ContainsStateReason(
+          ::printing::CupsJob::JobStateReason::kCupsHeldForAuthentication)) {
+    print_job->set_error_code(PrinterErrorCode::CLIENT_UNAUTHORIZED);
+    print_job->set_state(CupsPrintJob::State::STATE_FAILED);
+  } else {
+    print_job->set_error_code(PrinterErrorCode::NO_ERROR);
+    print_job->set_state(ConvertState(job.state));
+  }
+}
+
 }  // namespace
 
 bool UpdatePrintJob(const ::printing::PrinterStatus& printer_status,
@@ -128,6 +140,9 @@ bool UpdatePrintJob(const ::printing::PrinterStatus& printer_status,
       break;
     case ::printing::CupsJob::STOPPED:
       UpdateStoppedJob(job, print_job);
+      break;
+    case ::printing::CupsJob::HELD:
+      UpdateHeldJob(job, print_job);
       break;
     case ::printing::CupsJob::ABORTED:
     case ::printing::CupsJob::CANCELED:

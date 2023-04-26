@@ -201,6 +201,7 @@ if (!is_android && !is_mac) {
         "//gpu/command_buffer/service",
         "//sandbox",
         "//sandbox/policy",
+        "//sandbox/policy/mojom",
         "//third_party/breakpad:breakpad_handler",
         "//third_party/breakpad:breakpad_sender",
         "//third_party/crashpad/crashpad/util",
@@ -306,6 +307,10 @@ if (!is_android && !is_mac) {
         inputs = [ version_script ]
         ldflags += [ "-Wl,--version-script=" +
                      rebase_path(version_script, root_build_dir) ]
+      }
+
+      if (is_chromeos_ash) {
+        public_deps += [ "//ui/lottie" ]
       }
 
       if (is_chromeos_lacros) {
@@ -1582,6 +1587,10 @@ repack("browser_tests_pak") {
   sources = [ "$root_gen_dir/chrome/webui_test_resources.pak" ]
   output = "$root_out_dir/browser_tests.pak"
   deps = [ "//chrome/test/data:webui_test_resources" ]
+  if (!is_android) {
+    sources += [ "$root_gen_dir/chrome/webui_generated_test_resources.pak" ]
+    deps += [ "//chrome/test/data/webui:resources" ]
+  }
 }
 
 group("strings") {
@@ -1679,6 +1688,10 @@ if (is_android) {
         "//device/gamepad",
         "//ui/events/devices",
       ]
+    }
+
+    if (is_chromeos_ash) {
+      public_deps += [ "//ui/lottie" ]
     }
 
     if (enable_vr) {

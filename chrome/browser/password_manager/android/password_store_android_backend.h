@@ -9,6 +9,7 @@
 #include <unordered_map>
 
 #include "base/containers/small_map.h"
+#include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "base/thread_annotations.h"
 #include "base/types/strong_alias.h"
@@ -41,11 +42,13 @@ class PasswordStoreAndroidBackend
  private:
   SEQUENCE_CHECKER(main_sequence_checker_);
 
-  // Stub class for handling sync events.
+  // Propagates sync events to PasswordStoreAndroidBackendBridge.
   class SyncModelTypeControllerDelegate
       : public syncer::ModelTypeControllerDelegate {
    public:
-    SyncModelTypeControllerDelegate();
+    // |bridge| must not be null and must outlive this object.
+    explicit SyncModelTypeControllerDelegate(
+        PasswordStoreAndroidBackendBridge* bridge);
     SyncModelTypeControllerDelegate(const SyncModelTypeControllerDelegate&) =
         delete;
     SyncModelTypeControllerDelegate(SyncModelTypeControllerDelegate&&) = delete;
@@ -62,14 +65,15 @@ class PasswordStoreAndroidBackend
    private:
     // syncer::ModelTypeControllerDelegate implementation
     void OnSyncStarting(const syncer::DataTypeActivationRequest& request,
-                        StartCallback callback) override {}
-    void OnSyncStopping(syncer::SyncStopMetadataFate metadata_fate) override {}
-    void GetAllNodesForDebugging(AllNodesCallback callback) override {}
+                        StartCallback callback) override;
+    void OnSyncStopping(syncer::SyncStopMetadataFate metadata_fate) override;
+    void GetAllNodesForDebugging(AllNodesCallback callback) override;
     void GetTypeEntitiesCountForDebugging(
         base::OnceCallback<void(const syncer::TypeEntitiesCount&)> callback)
-        const override {}
-    void RecordMemoryUsageAndCountsHistograms() override {}
+        const override;
+    void RecordMemoryUsageAndCountsHistograms() override;
 
+    PasswordStoreAndroidBackendBridge* const bridge_;
     base::WeakPtrFactory<SyncModelTypeControllerDelegate> weak_ptr_factory_{
         this};
   };
@@ -120,6 +124,7 @@ class PasswordStoreAndroidBackend
       std::unordered_map<JobId, JobReturnHandler, JobId::Hasher>>;
 
   // Implements PasswordStoreBackend interface.
+  base::WeakPtr<PasswordStoreBackend> GetWeakPtr() override;
   void InitBackend(RemoteChangesReceived remote_form_changes_received,
                    base::RepeatingClosure sync_enabled_or_disabled_cb,
                    base::OnceCallback<void(bool)> completion) override;
@@ -153,11 +158,15 @@ class PasswordStoreAndroidBackend
   FieldInfoStore* GetFieldInfoStore() override;
   std::unique_ptr<syncer::ProxyModelTypeControllerDelegate>
   CreateSyncControllerDelegate() override;
+  void GetSyncStatus(base::OnceCallback<void(bool)> callback) override;
 
   // Implements PasswordStoreAndroidBackendBridge::Consumer interface.
   void OnCompleteWithLogins(PasswordStoreAndroidBackendBridge::JobId job_id,
                             std::vector<PasswordForm> passwords) override;
-  void OnError(PasswordStoreAndroidBackendBridge::JobId job_id) override;
+  void OnLoginsChanged(PasswordStoreAndroidBackendBridge::JobId task_id,
+                       const PasswordStoreChangeList& changes) override;
+  void OnError(PasswordStoreAndroidBackendBridge::JobId job_id,
+               AndroidBackendError error) override;
 
   base::WeakPtr<syncer::ModelTypeControllerDelegate>
   GetSyncControllerDelegate();
@@ -168,9 +177,6 @@ class PasswordStoreAndroidBackend
   // Observer to propagate remote form changes to.
   RemoteChangesReceived remote_form_changes_received_;
 
-  // Delegate to handle sync events.
-  SyncModelTypeControllerDelegate sync_controller_delegate_;
-
   // TaskRunner to run responses on the correct thread.
   scoped_refptr<base::SequencedTaskRunner> main_task_runner_;
 
@@ -180,6 +186,9 @@ class PasswordStoreAndroidBackend
 
   // This object is the proxy to the JNI bridge that performs the API requests.
   std::unique_ptr<PasswordStoreAndroidBackendBridge> bridge_;
+
+  // Delegate to handle sync events and propagate them to |*bridge_|.
+  SyncModelTypeControllerDelegate sync_controller_delegate_;
 
   base::WeakPtrFactory<PasswordStoreAndroidBackend> weak_ptr_factory_{this};
 };

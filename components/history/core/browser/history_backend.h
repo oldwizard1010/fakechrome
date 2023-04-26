@@ -21,7 +21,6 @@
 #include "base/containers/lru_cache.h"
 #include "base/files/file_path.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/memory/memory_pressure_listener.h"
 #include "base/observer_list.h"
 #include "base/supports_user_data.h"
@@ -443,7 +442,15 @@ class HistoryBackend : public base::RefCountedThreadSafe<HistoryBackend>,
       VisitID visit_id,
       const VisitContextAnnotations& visit_context_annotations);
 
-  std::vector<AnnotatedVisit> GetAnnotatedVisits(const QueryOptions& options);
+  // Gets a vector of reverse-chronological `AnnotatedVisit` instances based on
+  // `options`. Uses the same de-duplication and visibility logic as
+  // `HistoryService::QueryHistory()`.
+  //
+  // If `limited_by_max_count` is non-nullptr, it will be set to true if the
+  // number of results was limited by `options.max_count`.
+  std::vector<AnnotatedVisit> GetAnnotatedVisits(
+      const QueryOptions& options,
+      bool* limited_by_max_count = nullptr);
 
   ClusterIdsAndAnnotatedVisitsResult GetRecentClusterIdsAndAnnotatedVisits(
       base::Time minimum_time,

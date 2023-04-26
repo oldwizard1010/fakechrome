@@ -8,8 +8,9 @@
 
 #include "base/allocator/allocator_shim.h"
 #include "base/allocator/buildflags.h"
+#include "base/allocator/partition_alloc_features.h"
+#include "base/allocator/partition_alloc_support.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
-#include "base/allocator/partition_allocator/partition_alloc_features.h"
 #include "base/allocator/partition_allocator/starscan/pcscan.h"
 #include "base/allocator/partition_allocator/starscan/pcscan_scheduling.h"
 #include "base/allocator/partition_allocator/starscan/stack/stack.h"
@@ -17,7 +18,9 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/feature_list.h"
+#include "base/location.h"
 #include "base/no_destructor.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
 #include "content/public/common/content_switches.h"
 
@@ -62,6 +65,7 @@ bool EnablePCScanForMallocPartitionsIfNeeded() {
   if (base::FeatureList::IsEnabled(base::features::kPartitionAllocPCScan)) {
     base::allocator::EnablePCScan({Config::WantedWriteProtectionMode::kEnabled,
                                    Config::SafepointMode::kEnabled});
+    base::allocator::RegisterPCScanStatsReporter();
     return true;
   }
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && defined(PA_ALLOW_PCSCAN)
@@ -83,6 +87,7 @@ bool EnablePCScanForMallocPartitionsInBrowserProcessIfNeeded() {
         << "DCScan is currently only supported on Linux based systems";
 #endif
     base::allocator::EnablePCScan({wp_mode, Config::SafepointMode::kEnabled});
+    base::allocator::RegisterPCScanStatsReporter();
     return true;
   }
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && defined(PA_ALLOW_PCSCAN)
@@ -104,6 +109,7 @@ bool EnablePCScanForMallocPartitionsInRendererProcessIfNeeded() {
         << "DCScan is currently only supported on Linux based systems";
 #endif
     base::allocator::EnablePCScan({wp_mode, Config::SafepointMode::kDisabled});
+    base::allocator::RegisterPCScanStatsReporter();
     return true;
   }
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && defined(PA_ALLOW_PCSCAN)
@@ -208,6 +214,7 @@ void PartitionAllocSupport::ReconfigureAfterFeatureListInit(
   CHECK(base::FeatureList::GetInstance());
 
   bool enable_brp = false;
+#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 #if BUILDFLAG(USE_BACKUP_REF_PTR)
   if (base::FeatureList::IsEnabled(
           base::features::kPartitionAllocBackupRefPtr)) {
@@ -217,12 +224,34 @@ void PartitionAllocSupport::ReconfigureAfterFeatureListInit(
         base::features::BackupRefPtrEnabledProcesses::kBrowserAndRenderer) {
       enable_brp |= process_type == switches::kRendererProcess;
     }
+    if (base::features::kBackupRefPtrEnabledProcessesParam.Get() ==
+        base::features::BackupRefPtrEnabledProcesses::kAllProcesses) {
+      enable_brp = true;
+    }
   }
-  base::allocator::ConfigurePartitionBackupRefPtrSupport(enable_brp);
-#endif
+#endif  // BUILDFLAG(USE_BACKUP_REF_PTR)
 
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
-  base::allocator::ReconfigurePartitionAllocLazyCommit();
+  bool force_split_partitions = false;
+  if (base::FeatureList::IsEnabled(
+          base::features::kPartitionAllocSimulateBRPPartitionSplit)) {
+    // No specified process type means this is the Browser process.
+    force_split_partitions = process_type.empty();
+    if (base::features::kSimulateBRPPartitionSplitProcessesParam.Get() ==
+        base::features::BackupRefPtrEnabledProcesses::kBrowserAndRenderer) {
+      force_split_partitions |= process_type == switches::kRendererProcess;
+    }
+    if (base::features::kSimulateBRPPartitionSplitProcessesParam.Get() ==
+        base::features::BackupRefPtrEnabledProcesses::kAllProcesses) {
+      force_split_partitions = true;
+    }
+  }
+
+  base::allocator::ConfigurePartitions(
+      base::allocator::EnableBrp(enable_brp),
+      base::allocator::ForceSplitPartitions(force_split_partitions));
+
+  base::allocator::ReconfigurePartitionAllocLazyCommit(
+      base::FeatureList::IsEnabled(base::features::kPartitionAllocLazyCommit));
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 
   // Don't enable PCScan if BRP is enabled.
@@ -285,13 +314,12 @@ void PartitionAllocSupport::ReconfigureAfterTaskRunnerInit(
   // initialized later.
   DCHECK(process_type != switches::kZygoteProcess);
 
-  auto& registry = base::internal::ThreadCacheRegistry::Instance();
-  registry.StartPeriodicPurge();
+  base::allocator::StartThreadCachePeriodicPurge();
 
 #if defined(OS_ANDROID)
   // Lower thread cache limits to avoid stranding too much memory in the caches.
   if (base::SysInfo::IsLowEndDevice()) {
-    registry.SetThreadCacheMultiplier(
+    base::internal::ThreadCacheRegistry::Instance().SetThreadCacheMultiplier(
         base::internal::ThreadCache::kDefaultMultiplier / 2.);
   }
 #endif  // defined(OS_ANDROID)
@@ -333,8 +361,7 @@ void PartitionAllocSupport::ReconfigureAfterTaskRunnerInit(
   }
 
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
-  base::PartitionAllocMemoryReclaimer::Instance()->Start(
-      base::ThreadTaskRunnerHandle::Get());
+  base::allocator::StartMemoryReclaimer(base::ThreadTaskRunnerHandle::Get());
 #endif
 }
 
@@ -363,10 +390,23 @@ void PartitionAllocSupport::OnBackgrounded() {
 
   // Performance matters less for background renderers, don't pay the memory
   // cost.
-  //
-  // TODO(lizeb): Consider forcing a one-off thread cache purge.
   base::internal::ThreadCache::SetLargestCachedSize(
       base::internal::ThreadCacheLimits::kDefaultSizeThreshold);
+
+  // In renderers, memory reclaim uses the "idle time" task runner to run
+  // periodic reclaim. This does not always run when the renderer is idle, and
+  // in particular after the renderer gets backgrounded. As a result, empty slot
+  // spans are potentially never decommitted. To mitigate that, run a one-off
+  // reclaim a few seconds later. Even if the renderer comes back to foreground
+  // in the meantime, the worst case is a few more system calls.
+  //
+  // TODO(lizeb): Remove once/if the behavior of idle tasks changes.
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+      FROM_HERE, base::BindOnce([]() {
+        base::PartitionAllocMemoryReclaimer::Instance()->ReclaimAll();
+      }),
+      base::Seconds(10));
+
 #endif  // defined(PA_THREAD_CACHE_SUPPORTED) &&
         // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 }

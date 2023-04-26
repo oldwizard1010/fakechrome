@@ -26,8 +26,8 @@
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
+#include "ash/components/settings/cros_settings_names.h"
 #include "chrome/browser/ash/settings/cros_settings.h"
-#include "chromeos/settings/cros_settings_names.h"
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
@@ -311,7 +311,7 @@ void CdmDocumentServiceImpl::IsVerifiedAccessEnabled(
 #else   // BUILDFLAG(IS_CHROMEOS_LACROS)
   bool enabled_for_device = false;
   ash::CrosSettings::Get()->GetBoolean(
-      chromeos::kAttestationForContentProtectionEnabled, &enabled_for_device);
+      ash::kAttestationForContentProtectionEnabled, &enabled_for_device);
   std::move(callback).Run(enabled_for_device);
 #endif  // else BUILDFLAG(IS_CHROMEOS_LACROS)
 }

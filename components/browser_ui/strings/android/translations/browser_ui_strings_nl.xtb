@@ -29,6 +29,7 @@
 <translation id="1743802530341753419">Vragen of sites verbinding mogen maken met een apparaat (aanbevolen)</translation>
 <translation id="1779089405699405702">Image Decoder</translation>
 <translation id="1818308510395330587">Als je <ph name="APP_NAME" /> AR wilt laten gebruiken, moet je ook de camera aanzetten via de <ph name="BEGIN_LINK" />Android-instellingen<ph name="END_LINK" />.</translation>
+<translation id="1864927262126810325">Van <ph name="SOURCE_NAME" /></translation>
 <translation id="1887786770086287077">Locatietoegang staat uit voor dit apparaat. Zet deze aan via de <ph name="BEGIN_LINK" />Android-instellingen<ph name="END_LINK" />.</translation>
 <translation id="1919345977826869612">Advertenties</translation>
 <translation id="1919950603503897840">Contacten selecteren</translation>
@@ -55,6 +56,7 @@
 <translation id="2402980924095424747"><ph name="MEGABYTES" /> MB</translation>
 <translation id="2404630663942400771">{PERMISSIONS_SUMMARY_ALLOWED,plural, =1{<ph name="PERMISSION_1" />, <ph name="PERMISSION_2" /> en nog <ph name="NUM_MORE" /> toegestaan}other{<ph name="PERMISSION_1" />, <ph name="PERMISSION_2" /> en nog <ph name="NUM_MORE" /> toegestaan}}</translation>
 <translation id="2434158240863470628">Download voltooid <ph name="SEPARATOR" /> <ph name="BYTES_DOWNLOADED" /></translation>
+<translation id="2442870161001914531">Altijd desktopsite aanvragen</translation>
 <translation id="2482878487686419369">Meldingen</translation>
 <translation id="2485422356828889247">Installatie ongedaan maken</translation>
 <translation id="2490684707762498678">Beheerd door <ph name="APP_NAME" /></translation>
@@ -84,7 +86,7 @@
 <translation id="3008272652534848354">Rechten resetten</translation>
 <translation id="301521992641321250">Automatisch geblokkeerd</translation>
 <translation id="3114012059975132928">Videospeler</translation>
-<translation id="3115898365077584848">Informatie tonen</translation>
+<translation id="3115898365077584848">Informatie bekijken</translation>
 <translation id="3123473560110926937">Geblokkeerd op bepaalde sites</translation>
 <translation id="3198916472715691905"><ph name="STORAGE_AMOUNT" /> opgeslagen gegevens</translation>
 <translation id="321187648315454507">Als je wilt dat <ph name="APP_NAME" /> je meldingen stuurt, moet je meldingen ook aanzetten via de <ph name="BEGIN_LINK" />Android-instellingen<ph name="END_LINK" />.</translation>
@@ -164,7 +166,7 @@
 <translation id="5403592356182871684">Namen</translation>
 <translation id="5438097262470833822">Met deze keuze reset je de rechten voor <ph name="WEBSITE" /></translation>
 <translation id="5489227211564503167">De verstreken tijd is <ph name="ELAPSED_TIME" /> van <ph name="TOTAL_TIME" />.</translation>
-<translation id="5494752089476963479">Advertenties blokkeren op sites die opdringerige of misleidende advertenties tonen</translation>
+<translation id="5494752089476963479">Advertenties blokkeren op sites die opdringerige of misleidende advertenties bekijken</translation>
 <translation id="5502860503640766021"><ph name="PERMISSION_1" /> toegestaan, <ph name="PERMISSION_2" /> geblokkeerd</translation>
 <translation id="5505264765875738116">Sites kunnen niet vragen of ze je meldingen mogen sturen</translation>
 <translation id="5516455585884385570">Instellingen voor meldingen openen</translation>
@@ -200,7 +202,6 @@
 <translation id="6196640612572343990">Cookies van derden blokkeren</translation>
 <translation id="6216432067784365534">Opties voor <ph name="NAME_OF_LIST_ITEM" /></translation>
 <translation id="6231752747840485235"><ph name="APP_NAME" /> verwijderen?</translation>
-<translation id="6233545266937675277">De desktopweergave van sites standaard aanvragen</translation>
 <translation id="6262279340360821358"><ph name="PERMISSION_1" /> en <ph name="PERMISSION_2" /> geblokkeerd</translation>
 <translation id="6270391203985052864">Sites kunnen vragen of ze je meldingen mogen sturen</translation>
 <translation id="6295158916970320988">Alle sites</translation>
@@ -236,8 +237,9 @@
 <translation id="7016516562562142042">Toegestaan voor huidige zoekmachine</translation>
 <translation id="7053983685419859001">Blokkeren</translation>
 <translation id="7066151586745993502">{NUM_SELECTED,plural, =1{1 geselecteerd}other{# geselecteerd}}</translation>
+<translation id="7070090581017165256">Over deze site</translation>
 <translation id="7087918508125750058"><ph name="ITEM_COUNT" /> geselecteerd. Opties beschikbaar bovenaan het scherm.</translation>
-<translation id="7141896414559753902">Sites niet toestaan pop-ups te tonen en omleidingen uit te voeren (aanbevolen)</translation>
+<translation id="7141896414559753902">Sites niet toestaan pop-ups te bekijken en omleidingen uit te voeren (aanbevolen)</translation>
 <translation id="7176368934862295254"><ph name="KILOBYTES" /> KB</translation>
 <translation id="723171743924126238">Afbeeldingen selecteren</translation>
 <translation id="7243308994586599757">Opties beschikbaar onder aan het scherm</translation>
@@ -284,7 +286,6 @@
 <translation id="8211406090763984747">Verbinding is beveiligd</translation>
 <translation id="8249310407154411074">Bovenaan zetten</translation>
 <translation id="8261506727792406068">Verwijderen</translation>
-<translation id="8267092878336850213">De mobiele weergave van sites standaard aanvragen</translation>
 <translation id="8300705686683892304">Beheerd door app</translation>
 <translation id="8324158725704657629">Niet meer vragen</translation>
 <translation id="8372893542064058268">Synchronisatie op de achtergrond toestaan voor een specifieke site.</translation>
@@ -298,6 +299,7 @@
 <translation id="8447861592752582886">Rechten voor apparaat intrekken</translation>
 <translation id="8451050538944905715">{NUM_SELECTED,plural, =1{1 cookie in gebruik}other{# cookies in gebruik}}</translation>
 <translation id="8487700953926739672">Offline beschikbaar</translation>
+<translation id="848952951823693243">Altijd mobiele site aanvragen</translation>
 <translation id="851751545965956758">Voorkomen dat sites verbinding maken met apparaten</translation>
 <translation id="8525306231823319788">Volledig scherm</translation>
 <translation id="857943718398505171">Toegestaan (aanbevolen)</translation>

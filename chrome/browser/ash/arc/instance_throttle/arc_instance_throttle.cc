@@ -4,7 +4,6 @@
 
 #include "chrome/browser/ash/arc/instance_throttle/arc_instance_throttle.h"
 
-#include "ash/constants/ash_switches.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
@@ -15,7 +14,9 @@
 #include "chrome/browser/ash/arc/instance_throttle/arc_boot_phase_throttle_observer.h"
 #include "chrome/browser/ash/arc/instance_throttle/arc_kiosk_mode_throttle_observer.h"
 #include "chrome/browser/ash/arc/instance_throttle/arc_pip_window_throttle_observer.h"
+#include "chrome/browser/ash/arc/instance_throttle/arc_power_throttle_observer.h"
 #include "chrome/browser/ash/arc/instance_throttle/arc_provisioning_throttle_observer.h"
+#include "chrome/browser/ash/arc/instance_throttle/arc_switch_throttle_observer.h"
 #include "chromeos/dbus/concierge/concierge_client.h"
 #include "chromeos/dbus/session_manager/session_manager_client.h"
 #include "components/arc/arc_browser_context_keyed_service_factory_base.h"
@@ -96,14 +97,6 @@ void SetArcContainerCpuRestriction(CpuRestrictionState cpu_restriction_state) {
 // |cpu_restriction_state| is CPU_RESTRICTION_BACKGROUND, the limit is adjusted
 // so ARC can only use tightly restricted CPU resources.
 void SetArcCpuRestriction(CpuRestrictionState cpu_restriction_state) {
-  // Ignore any calls to restrict the ARC container if the specified command
-  // line flag is set.
-  if (chromeos::switches::IsArcCpuRestrictionDisabled() &&
-      cpu_restriction_state ==
-          CpuRestrictionState::CPU_RESTRICTION_BACKGROUND) {
-    return;
-  }
-
   if (IsArcVmEnabled())
     SetArcVmCpuRestriction(cpu_restriction_state);
   else
@@ -153,14 +146,14 @@ class ArcInstanceThrottleFactory
 };
 
 CpuRestrictionState LevelToCpuRestriction(
-    chromeos::ThrottleObserver::PriorityLevel level) {
+    ash::ThrottleObserver::PriorityLevel level) {
   switch (level) {
-    case chromeos::ThrottleObserver::PriorityLevel::CRITICAL:
-    case chromeos::ThrottleObserver::PriorityLevel::IMPORTANT:
-    case chromeos::ThrottleObserver::PriorityLevel::NORMAL:
+    case ash::ThrottleObserver::PriorityLevel::CRITICAL:
+    case ash::ThrottleObserver::PriorityLevel::IMPORTANT:
+    case ash::ThrottleObserver::PriorityLevel::NORMAL:
       return CpuRestrictionState::CPU_RESTRICTION_FOREGROUND;
-    case chromeos::ThrottleObserver::PriorityLevel::LOW:
-    case chromeos::ThrottleObserver::PriorityLevel::UNKNOWN:
+    case ash::ThrottleObserver::PriorityLevel::LOW:
+    case ash::ThrottleObserver::PriorityLevel::UNKNOWN:
       return CpuRestrictionState::CPU_RESTRICTION_BACKGROUND;
   }
 }
@@ -189,7 +182,9 @@ ArcInstanceThrottle::ArcInstanceThrottle(content::BrowserContext* context,
   AddObserver(std::make_unique<ArcBootPhaseThrottleObserver>());
   AddObserver(std::make_unique<ArcKioskModeThrottleObserver>());
   AddObserver(std::make_unique<ArcPipWindowThrottleObserver>());
+  AddObserver(std::make_unique<ArcPowerThrottleObserver>());
   AddObserver(std::make_unique<ArcProvisioningThrottleObserver>());
+  AddObserver(std::make_unique<ArcSwitchThrottleObserver>());
   StartObservers();
   DCHECK(bridge_);
   bridge_->power()->AddObserver(this);
@@ -208,7 +203,7 @@ void ArcInstanceThrottle::OnConnectionReady() {
 }
 
 void ArcInstanceThrottle::ThrottleInstance(
-    chromeos::ThrottleObserver::PriorityLevel level) {
+    ash::ThrottleObserver::PriorityLevel level) {
   const CpuRestrictionState cpu_restriction_state =
       LevelToCpuRestriction(level);
   NotifyCpuRestriction(cpu_restriction_state);

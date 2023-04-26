@@ -156,7 +156,8 @@ SECTION_SEMI_STALE = ('Semi Stale Expectations (Passed 100% In Some Places, '
 SECTION_ACTIVE = ('Active Expectations (Failed At Least Once Everywhere, '
                   'Likely Should Be Left Alone)')
 SECTION_UNMATCHED = ('Unmatched Results (An Expectation Existed When The Test '
-                     'Ran, But No Matching One Currently Exists)')
+                     'Ran, But No Matching One Currently Exists OR The '
+                     'Expectation Is Too New)')
 SECTION_UNUSED = ('Unused Expectations (Indicative Of The Configuration No '
                   'Longer Being Tested Or Tags Changing)')
 
@@ -384,9 +385,9 @@ def _ConvertTestExpectationMapToStringDict(test_expectation_map):
         never_passed = []
 
         for step_name, stats in step_map.items():
-          if stats.did_fully_pass:
+          if stats.NeverNeededExpectation(expectation):
             fully_passed.append(AddStatsToStr(step_name, stats))
-          elif stats.did_never_pass:
+          elif stats.AlwaysNeededExpectation(expectation):
             never_passed.append(AddStatsToStr(step_name, stats))
           else:
             assert step_name not in partially_passed
@@ -479,7 +480,7 @@ def _FormatExpectation(expectation):
 
 
 def AddStatsToStr(s, stats):
-  return '%s (%d/%d)' % (s, stats.passed_builds, stats.total_builds)
+  return '%s %s' % (s, stats.GetStatsAsString())
 
 
 def OutputAffectedUrls(removed_urls, orphaned_urls=None):

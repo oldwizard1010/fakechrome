@@ -77,12 +77,14 @@ class AccountSelectionProperties {
      */
     static class HeaderProperties {
         public enum HeaderType { SINGLE_ACCOUNT, MULTIPLE_ACCOUNT, SIGN_IN }
+        static final ReadableObjectPropertyKey<String> FORMATTED_IDP_URL =
+                new ReadableObjectPropertyKey<>("formatted_idp_url");
+        static final ReadableObjectPropertyKey<String> FORMATTED_RP_URL =
+                new ReadableObjectPropertyKey<>("formatted_rp_url");
         static final ReadableObjectPropertyKey<HeaderType> TYPE =
                 new ReadableObjectPropertyKey<>("type");
-        static final ReadableObjectPropertyKey<String> FORMATTED_URL =
-                new ReadableObjectPropertyKey<>("formatted_url");
 
-        static final PropertyKey[] ALL_KEYS = {TYPE, FORMATTED_URL};
+        static final PropertyKey[] ALL_KEYS = {FORMATTED_IDP_URL, FORMATTED_RP_URL, TYPE};
 
         private HeaderProperties() {}
     }
@@ -92,15 +94,17 @@ class AccountSelectionProperties {
      * sheet.
      */
     static class DataSharingConsentProperties {
-        static final ReadableObjectPropertyKey<String> PROVIDER_URL =
-                new ReadableObjectPropertyKey<>("provider_url");
-        static final ReadableObjectPropertyKey<String> TERMS_OF_SERVICE_URL =
-                new ReadableObjectPropertyKey<>("terms_of_service_url");
-        static final ReadableObjectPropertyKey<String> PRIVACY_POLICY_URL =
-                new ReadableObjectPropertyKey<>("privacy_policy_url");
+        static class Properties {
+            public String mFormattedIdpUrl;
+            public String mFormattedRpUrl;
+            public String mTermsOfServiceUrl;
+            public String mPrivacyPolicyUrl;
+        }
 
-        static final PropertyKey[] ALL_KEYS = {
-                PROVIDER_URL, TERMS_OF_SERVICE_URL, PRIVACY_POLICY_URL};
+        static final ReadableObjectPropertyKey<Properties> PROPERTIES =
+                new ReadableObjectPropertyKey<>("properties");
+
+        static final PropertyKey[] ALL_KEYS = {PROPERTIES};
 
         private DataSharingConsentProperties() {}
     }

@@ -6,9 +6,11 @@
 #include "build/build_config.h"
 #include "content/browser/accessibility/browser_accessibility_manager.h"
 #include "content/browser/accessibility/dump_accessibility_browsertest_base.h"
+#include "content/public/common/content_switches.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/content_browser_test_utils.h"
 #include "content/shell/browser/shell.h"
+#include "ui/accessibility/platform/inspect/ax_api_type.h"
 #include "ui/accessibility/platform/inspect/ax_script_instruction.h"
 
 namespace content {
@@ -40,6 +42,18 @@ constexpr const char kMacMethods[]{"mac/methods"};
 //    exactly match.
 class DumpAccessibilityScriptTest : public DumpAccessibilityTestBase {
  public:
+  DumpAccessibilityScriptTest() {
+    // Drop 'mac' expectations qualifier both from expectation file names and
+    // from scenario directives.
+    test_helper_.OverrideExpectationType("content");
+  }
+
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    // Enable MathMLCore for some MathML tests.
+    base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
+        switches::kEnableBlinkFeatures, "MathMLCore");
+  }
+
   std::vector<ui::AXPropertyFilter> DefaultFilters() const override;
   void AddPropertyFilter(
       std::vector<AXPropertyFilter>* property_filters,
@@ -111,7 +125,7 @@ std::vector<ui::AXPropertyFilter> DumpAccessibilityScriptTest::DefaultFilters()
 // Parameterize the tests so that each test-pass is run independently.
 struct TestPassToString {
   std::string operator()(
-      const ::testing::TestParamInfo<AXInspectFactory::Type>& i) const {
+      const ::testing::TestParamInfo<ui::AXApiType::Type>& i) const {
     return std::string(i.param);
   }
 };
@@ -124,7 +138,7 @@ struct TestPassToString {
 
 INSTANTIATE_TEST_SUITE_P(All,
                          DumpAccessibilityScriptTest,
-                         ::testing::Values(AXInspectFactory::kMac),
+                         ::testing::Values(ui::AXApiType::kMac),
                          TestPassToString());
 
 IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXPressButton) {
@@ -159,6 +173,62 @@ IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXAutocompleteValue) {
   RunTypedTest<kMacAttributes>("ax-autocomplete-value.html");
 }
 
+IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXColumnHeaderUIElements) {
+  RunTypedTest<kMacAttributes>("ax-column-header-ui-elements.html");
+}
+
+IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXDetailsElements) {
+  RunTypedTest<kMacAttributes>("ax-details-elements.html");
+}
+
+IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXInvalid) {
+  RunTypedTest<kMacAttributes>("ax-invalid.html");
+}
+
+IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXMathBase) {
+  RunTypedTest<kMacAttributes>("ax-math-base.html");
+}
+
+IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXMathFractionDenominator) {
+  RunTypedTest<kMacAttributes>("ax-math-fraction-denominator.html");
+}
+
+IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXMathFractionNumerator) {
+  RunTypedTest<kMacAttributes>("ax-math-fraction-numerator.html");
+}
+
+IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXMathOver) {
+  RunTypedTest<kMacAttributes>("ax-math-over.html");
+}
+
+IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXMathPoscripts) {
+  RunTypedTest<kMacAttributes>("ax-math-postscripts.html");
+}
+
+IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXMathPrescripts) {
+  RunTypedTest<kMacAttributes>("ax-math-prescripts.html");
+}
+
+IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXMathRootIndex) {
+  RunTypedTest<kMacAttributes>("ax-math-root-index.html");
+}
+
+IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXMathRootRadicand) {
+  RunTypedTest<kMacAttributes>("ax-math-root-radicand.html");
+}
+
+IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXMathSubscript) {
+  RunTypedTest<kMacAttributes>("ax-math-subscript.html");
+}
+
+IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXMathSuperscript) {
+  RunTypedTest<kMacAttributes>("ax-math-superscript.html");
+}
+
+IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXMathUnder) {
+  RunTypedTest<kMacAttributes>("ax-math-under.html");
+}
+
 IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, SelectAllTextarea) {
   RunTypedTest<kMacSelection>("selectall-textarea.html");
 }
@@ -190,7 +260,7 @@ IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest,
 }
 
 IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AXStartTextMarker) {
-  RunTypedTest<kMacTextMarker>("ax_start_text_marker.html");
+  RunTypedTest<kMacTextMarker>("ax-start-text-marker.html");
 }
 
 IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest,
@@ -199,12 +269,17 @@ IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest,
 }
 
 IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest,
+                       AccessibilityColumnHeaderUIElements) {
+  RunTypedTest<kMacMethods>("accessibility-column-header-ui-elements.html");
+}
+
+IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest,
                        AccessibilityPlaceholderValue) {
-  RunTypedTest<kMacMethods>("placeholder-value.html");
+  RunTypedTest<kMacMethods>("accessibility-placeholder-value.html");
 }
 
 IN_PROC_BROWSER_TEST_P(DumpAccessibilityScriptTest, AccessibilityTitle) {
-  RunTypedTest<kMacMethods>("title.html");
+  RunTypedTest<kMacMethods>("accessibility-title.html");
 }
 
 #endif

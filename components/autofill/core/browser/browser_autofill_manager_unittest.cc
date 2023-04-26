@@ -38,7 +38,7 @@
 #include "components/autofill/core/browser/data_model/autofill_profile.h"
 #include "components/autofill/core/browser/data_model/credit_card.h"
 #include "components/autofill/core/browser/geo/alternative_state_name_map_test_utils.h"
-#include "components/autofill/core/browser/metrics/form_events.h"
+#include "components/autofill/core/browser/metrics/form_events/form_events.h"
 #include "components/autofill/core/browser/mock_autocomplete_history_manager.h"
 #include "components/autofill/core/browser/mock_single_field_form_fill_router.h"
 #include "components/autofill/core/browser/payments/test_credit_card_save_manager.h"
@@ -497,7 +497,8 @@ class BrowserAutofillManagerTest : public testing::Test {
   }
 
   void FormsSeen(const std::vector<FormData>& forms) {
-    browser_autofill_manager_->OnFormsSeen(forms);
+    browser_autofill_manager_->OnFormsSeen(/*updated_forms=*/forms,
+                                           /*removed_forms=*/{});
   }
 
   void FormSubmitted(const FormData& form) {
@@ -9246,7 +9247,7 @@ TEST_F(BrowserAutofillManagerTest, PageLanguageGetsCorrectlySet) {
   FormData form;
   test::CreateTestAddressFormData(&form);
 
-  browser_autofill_manager_->OnFormsSeen({form});
+  browser_autofill_manager_->OnFormsSeen({form}, {});
   FormStructure* parsed_form =
       browser_autofill_manager_->FindCachedFormByRendererId(form.global_id());
 
@@ -9255,7 +9256,7 @@ TEST_F(BrowserAutofillManagerTest, PageLanguageGetsCorrectlySet) {
 
   autofill_client_.GetLanguageState()->SetCurrentLanguage("zh");
 
-  browser_autofill_manager_->OnFormsSeen({form});
+  browser_autofill_manager_->OnFormsSeen({form}, {});
   parsed_form =
       browser_autofill_manager_->FindCachedFormByRendererId(form.global_id());
 
@@ -9270,7 +9271,7 @@ TEST_F(BrowserAutofillManagerTest, PageLanguageGetsCorrectlyDetected) {
   FormData form;
   test::CreateTestAddressFormData(&form);
 
-  browser_autofill_manager_->OnFormsSeen({form});
+  browser_autofill_manager_->OnFormsSeen({form}, {});
   FormStructure* parsed_form =
       browser_autofill_manager_->FindCachedFormByRendererId(form.global_id());
 

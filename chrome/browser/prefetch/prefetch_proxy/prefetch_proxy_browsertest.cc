@@ -584,7 +584,7 @@ class PrefetchProxyBrowserTest
         prerender::NoStatePrefetchManagerFactory::GetForBrowserContext(
             browser()->profile());
 
-    return no_state_prefetch_manager->AddPrerenderFromNavigationPredictor(
+    return no_state_prefetch_manager->StartPrefetchingFromNavigationPredictor(
         url,
         GetWebContents()->GetController().GetDefaultSessionStorageNamespace(),
         kSize);
@@ -616,7 +616,7 @@ class PrefetchProxyBrowserTest
   void WaitForDNSCanaryCheck() {
     PrefetchProxyService* service =
         PrefetchProxyServiceFactory::GetForProfile(browser()->profile());
-    while (service->origin_prober()->IsDNSCanaryCheckActiveForTesting()) {
+    while (!service->origin_prober()->IsDNSCanaryCheckCompleteForTesting()) {
       base::RunLoop().RunUntilIdle();
     }
   }
@@ -1246,6 +1246,45 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_EQ(
       absl::make_optional(PrefetchProxyPrefetchStatus::kPrefetchUsedNoProbe),
       tab_helper->after_srp_metrics()->prefetch_status_);
+}
+
+IN_PROC_BROWSER_TEST_F(
+    PrefetchProxyBrowserTest,
+    DISABLE_ON_WIN_MAC_CHROMEOS(CookiesChangedAfterInitialCheck)) {
+  SetDataSaverEnabled(true);
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
+  WaitForUpdatedCustomProxyConfig();
+
+  PrefetchProxyTabHelper* tab_helper =
+      PrefetchProxyTabHelper::FromWebContents(GetWebContents());
+
+  GURL prefetch_url = GetOriginServerURL("/simple.html");
+
+  TestTabHelperObserver tab_helper_observer(tab_helper);
+  tab_helper_observer.SetExpectedSuccessfulURLs({prefetch_url});
+
+  base::RunLoop run_loop;
+  tab_helper_observer.SetOnPrefetchSuccessfulClosure(run_loop.QuitClosure());
+
+  GURL doc_url("https://www.google.com/search?q=test");
+  MakeNavigationPrediction(doc_url, {prefetch_url});
+
+  run_loop.Run();
+
+  EXPECT_EQ(1U, tab_helper->srp_metrics().predicted_urls_count_);
+  EXPECT_EQ(1U, tab_helper->srp_metrics().prefetch_eligible_count_);
+  EXPECT_EQ(1U, tab_helper->srp_metrics().prefetch_successful_count_);
+
+  ASSERT_TRUE(content::SetCookie(browser()->profile(), GetOriginServerURL("/"),
+                                 "cookietype=Oatmeal"));
+  base::RunLoop().RunUntilIdle();
+
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), prefetch_url));
+
+  ASSERT_TRUE(tab_helper->after_srp_metrics());
+  EXPECT_EQ(absl::make_optional(
+                PrefetchProxyPrefetchStatus::kPrefetchNotUsedCookiesChanged),
+            tab_helper->after_srp_metrics()->prefetch_status_);
 }
 
 IN_PROC_BROWSER_TEST_F(
@@ -2690,12 +2729,15 @@ class PrefetchProxyBaseProbingBrowserTest : public PrefetchProxyBrowserTest {
     return histogram_tester_;
   }
 
-  void RunProbeTest(bool probe_success,
+  void RunProbeTest(bool wait_for_tls,
+                    bool probe_success,
                     bool expect_successful_tls_probe,
                     int64_t expected_status,
                     bool expect_probe) {
-    WaitForTLSCanaryCheck();
     WaitForDNSCanaryCheck();
+    if (wait_for_tls) {
+      WaitForTLSCanaryCheck();
+    }
 
     // Setup a local probing server so we can watch its accepted socket count.
     TestServerConnectionCounter probe_counter;
@@ -2792,6 +2834,7 @@ class ProbingEnabled_CanaryOn_BothCanaryGood_PrefetchProxyBrowserTest
         features::kIsolatePrerendersMustProbeOrigin,
         {
             {"do_canary", "true"},
+            {"do_tls_canary", "true"},
             {"tls_canary_url", GetCanaryServerURL().spec()},
             {"dns_canary_url", GetCanaryServerURL().spec()},
             {"ineligible_decoy_request_probability", "0"},
@@ -2811,6 +2854,7 @@ class ProbingEnabled_CanaryOn_TLSCanaryBad_DNSCanaryBad_PrefetchProxyBrowserTest
         features::kIsolatePrerendersMustProbeOrigin,
         {
             {"do_canary", "true"},
+            {"do_tls_canary", "true"},
             {"tls_canary_url", "http://invalid.com"},
             {"dns_canary_url", "http://invalid.com"},
             {"ineligible_decoy_request_probability", "0"},
@@ -2831,6 +2875,28 @@ class
         features::kIsolatePrerendersMustProbeOrigin,
         {
             {"do_canary", "true"},
+            {"do_tls_canary", "true"},
+            {"tls_canary_url", "http://invalid.com"},
+            {"dns_canary_url", GetCanaryServerURL().spec()},
+            {"ineligible_decoy_request_probability", "0"},
+        });
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+class
+    ProbingEnabled_CanaryOn_TLSCanaryBadDisabled_DNSCanaryGood_PrefetchProxyBrowserTest
+    : public PrefetchProxyBaseProbingBrowserTest {
+ public:
+  void SetFeatures() override {
+    PrefetchProxyBaseProbingBrowserTest::SetFeatures();
+    scoped_feature_list_.InitAndEnableFeatureWithParameters(
+        features::kIsolatePrerendersMustProbeOrigin,
+        {
+            {"do_canary", "true"},
+            {"do_tls_canary", "false"},
             {"tls_canary_url", "http://invalid.com"},
             {"dns_canary_url", GetCanaryServerURL().spec()},
             {"ineligible_decoy_request_probability", "0"},
@@ -2851,6 +2917,7 @@ class
         features::kIsolatePrerendersMustProbeOrigin,
         {
             {"do_canary", "true"},
+            {"do_tls_canary", "true"},
             {"tls_canary_url", GetCanaryServerURL().spec()},
             {"dns_canary_url", "http://invalid.com"},
             {"ineligible_decoy_request_probability", "0"},
@@ -2870,6 +2937,7 @@ class ProbingEnabled_CanaryOn_CanaryBad_PrefetchProxyBrowserTest
         features::kIsolatePrerendersMustProbeOrigin,
         {
             {"do_canary", "true"},
+            {"do_tls_canary", "true"},
             {"canary_url", "http://invalid.com"},
             {"ineligible_decoy_request_probability", "0"},
         });
@@ -2895,7 +2963,8 @@ class ProbingDisabledPrefetchProxyBrowserTest
 IN_PROC_BROWSER_TEST_F(
     ProbingEnabled_CanaryOn_BothCanaryGood_PrefetchProxyBrowserTest,
     DISABLE_ON_WIN_MAC_CHROMEOS(NoProbe)) {
-  RunProbeTest(/*probe_success=*/false,
+  RunProbeTest(/*wait_for_tls=*/true,
+               /*probe_success=*/false,
                /*expect_successful_tls_probe=*/false,
                /*expected_status=*/0,
                /*expect_probe=*/false);
@@ -2904,7 +2973,8 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ProbingEnabled_CanaryOn_TLSCanaryGood_DNSCanaryBad_PrefetchProxyBrowserTest,
     DISABLE_ON_WIN_MAC_CHROMEOS(DNSProbeOK)) {
-  RunProbeTest(/*probe_success=*/true,
+  RunProbeTest(/*wait_for_tls=*/true,
+               /*probe_success=*/true,
                /*expect_successful_tls_probe=*/false,
                /*expected_status=*/1,
                /*expect_probe=*/true);
@@ -2918,7 +2988,8 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ProbingEnabled_CanaryOn_TLSCanaryGood_DNSCanaryBad_PrefetchProxyBrowserTest,
     DISABLE_ON_WIN_MAC_CHROMEOS(DNSProbeBad)) {
-  RunProbeTest(/*probe_success=*/false,
+  RunProbeTest(/*wait_for_tls=*/true,
+               /*probe_success=*/false,
                /*expect_successful_tls_probe=*/false,
                /*expected_status=*/2,
                /*expect_probe=*/true);
@@ -2927,7 +2998,8 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ProbingEnabled_CanaryOn_TLSCanaryBad_DNSCanaryBad_PrefetchProxyBrowserTest,
     DISABLE_ON_WIN_MAC_CHROMEOS(TLSProbeOK)) {
-  RunProbeTest(/*probe_success=*/true,
+  RunProbeTest(/*wait_for_tls=*/true,
+               /*probe_success=*/true,
                /*expect_successful_tls_probe=*/true,
                /*expected_status=*/1,
                /*expect_probe=*/true);
@@ -2936,7 +3008,8 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ProbingEnabled_CanaryOn_TLSCanaryBad_DNSCanaryBad_PrefetchProxyBrowserTest,
     DISABLE_ON_WIN_MAC_CHROMEOS(TLSProbeBad)) {
-  RunProbeTest(/*probe_success=*/false,
+  RunProbeTest(/*wait_for_tls=*/true,
+               /*probe_success=*/false,
                /*expect_successful_tls_probe=*/false,
                /*expected_status=*/2,
                /*expect_probe=*/true);
@@ -2945,7 +3018,8 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ProbingEnabled_CanaryOn_TLSCanaryBad_DNSCanaryGood_PrefetchProxyBrowserTest,
     DISABLE_ON_WIN_MAC_CHROMEOS(TLSProbeOK)) {
-  RunProbeTest(/*probe_success=*/true,
+  RunProbeTest(/*wait_for_tls=*/true,
+               /*probe_success=*/true,
                /*expect_successful_tls_probe=*/true,
                /*expected_status=*/1,
                /*expect_probe=*/true);
@@ -2954,10 +3028,21 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ProbingEnabled_CanaryOn_TLSCanaryBad_DNSCanaryGood_PrefetchProxyBrowserTest,
     DISABLE_ON_WIN_MAC_CHROMEOS(TLSProbeBad)) {
-  RunProbeTest(/*probe_success=*/false,
+  RunProbeTest(/*wait_for_tls=*/true,
+               /*probe_success=*/false,
                /*expect_successful_tls_probe=*/false,
                /*expected_status=*/2,
                /*expect_probe=*/true);
+}
+
+IN_PROC_BROWSER_TEST_F(
+    ProbingEnabled_CanaryOn_TLSCanaryBadDisabled_DNSCanaryGood_PrefetchProxyBrowserTest,
+    DISABLE_ON_WIN_MAC_CHROMEOS(NoProbe)) {
+  RunProbeTest(/*wait_for_tls=*/false,
+               /*probe_success=*/false,
+               /*expect_successful_tls_probe=*/false,
+               /*expected_status=*/0,
+               /*expect_probe=*/false);
 }
 
 class PrefetchProxyWithNSPBrowserTest : public PrefetchProxyBrowserTest {

@@ -75,26 +75,7 @@ scoped_refptr<StaticBitmapImage> GPUCanvasContext::GetImage() {
   if (!swapchain_)
     return nullptr;
 
-  // We need to have an active copy of the current texture when we call get
-  // image.
-  static constexpr gfx::Size kEmpty;
-  if (swapchain_->Size() == kEmpty && !swapchain_->getCurrentTexture())
-    return nullptr;
-
-  CanvasResourceParams resource_params;
-  resource_params.SetSkColorType(viz::ResourceFormatToClosestSkColorType(
-      /*gpu_compositing=*/true, swapchain_->Format()));
-
-  auto resource_provider = CanvasResourceProvider::CreateWebGPUImageProvider(
-      IntSize(swapchain_->Size()), resource_params,
-      /*is_origin_top_left=*/true);
-  if (!resource_provider)
-    return nullptr;
-
-  if (!swapchain_->CopyToResourceProvider(resource_provider.get()))
-    return nullptr;
-
-  return resource_provider->Snapshot();
+  return swapchain_->Snapshot();
 }
 
 bool GPUCanvasContext::PaintRenderingResultsToCanvas(

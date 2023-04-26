@@ -69,10 +69,6 @@ def ci_builder(*, name, resultdb_bigquery_exports = None, **kwargs):
     )
 
 ci_builder(
-    name = "android-lollipop-arm-rel-swarming",
-)
-
-ci_builder(
     name = "android-marshmallow-arm64-rel-swarming",
 )
 
@@ -90,6 +86,12 @@ ci_builder(
 ci_builder(
     name = "mac-rel-swarming",
     os = os.MAC_DEFAULT,
+)
+
+ci_builder(
+    name = "mac-arm-rel-swarming",
+    cpu = cpu.ARM64,
+    os = os.MAC_11,
 )
 
 ci_builder(

@@ -7,9 +7,9 @@
 
 #include <memory>
 
-#include "base/macros.h"
 #include "build/build_config.h"
 #include "content/public/browser/browser_main_parts.h"
+#include "content/public/common/main_function_params.h"
 
 namespace base {
 class RunLoop;
@@ -17,7 +17,6 @@ class RunLoop;
 
 namespace content {
 class ShellBrowserContext;
-struct MainFunctionParams;
 }
 
 namespace views {
@@ -32,7 +31,7 @@ class ViewsContentClientMainParts : public content::BrowserMainParts {
  public:
   // Platform-specific create function.
   static std::unique_ptr<ViewsContentClientMainParts> Create(
-      const content::MainFunctionParams& content_params,
+      content::MainFunctionParams content_params,
       ViewsContentClient* views_content_client);
 
   static void PreBrowserMain();
@@ -56,9 +55,8 @@ class ViewsContentClientMainParts : public content::BrowserMainParts {
   }
 
  protected:
-  ViewsContentClientMainParts(
-      const content::MainFunctionParams& content_params,
-      ViewsContentClient* views_content_client);
+  ViewsContentClientMainParts(content::MainFunctionParams content_params,
+                              ViewsContentClient* views_content_client);
 
 #if defined(OS_APPLE)
   views::TestViewsDelegate* views_delegate() { return views_delegate_.get(); }

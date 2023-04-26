@@ -11,7 +11,6 @@
 #include "base/containers/flat_map.h"
 #include "base/files/scoped_file.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -80,6 +79,7 @@ class WaylandBufferManagerHost : public ozone::mojom::WaylandBufferManagerHost,
   bool SupportsDmabuf() const;
   bool SupportsAcquireFence() const;
   bool SupportsViewporter() const;
+  bool SupportsNonBackedSolidColorBuffers() const;
 
   // ozone::mojom::WaylandBufferManagerHost overrides:
   //
@@ -107,6 +107,14 @@ class WaylandBufferManagerHost : public ozone::mojom::WaylandBufferManagerHost,
                             uint64_t length,
                             const gfx::Size& size,
                             uint32_t buffer_id) override;
+  // Called by the GPU and asks to import a solid color wl_buffer. Check
+  // comments in the ui/ozone/public/mojom/wayland/wayland_connection.mojom.
+  // The availability of this depends on existence of surface-augmenter
+  // protocol.
+  void CreateSolidColorBuffer(const gfx::Size& size,
+                              SkColor color,
+                              uint32_t buffer_id) override;
+
   // Called by the GPU to destroy the imported wl_buffer with a |buffer_id|.
   void DestroyBuffer(gfx::AcceleratedWidget widget,
                      uint32_t buffer_id) override;
@@ -191,6 +199,7 @@ class WaylandBufferManagerHost : public ozone::mojom::WaylandBufferManagerHost,
                            size_t length,
                            const gfx::Size& size,
                            uint32_t buffer_id);
+  bool ValidateDataFromGpu(const gfx::Size& size, uint32_t buffer_id);
 
   // Callback method. Receives a result for the request to create a wl_buffer
   // backend by dmabuf file descriptor from ::CreateBuffer call.

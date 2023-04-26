@@ -19,8 +19,6 @@
 #include "base/values.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
-#include "components/security_state/content/content_utils.h"
-#include "components/security_state/core/security_state.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/child_process_termination_info.h"
 #include "content/public/browser/devtools_agent_host.h"
@@ -95,21 +93,8 @@ class HeadlessWebContentsImpl::Delegate : public content::WebContentsDelegate {
   explicit Delegate(HeadlessWebContentsImpl* headless_web_contents)
       : headless_web_contents_(headless_web_contents) {}
 
-  // Return the security style of the given |web_contents|, populating
-  // |security_style_explanations| to explain why the SecurityStyle was chosen.
-  blink::SecurityStyle GetSecurityStyle(
-      content::WebContents* web_contents,
-      content::SecurityStyleExplanations* security_style_explanations)
-      override {
-    std::unique_ptr<security_state::VisibleSecurityState>
-        visible_security_state =
-            security_state::GetVisibleSecurityState(web_contents);
-    return security_state::GetSecurityStyle(
-        security_state::GetSecurityLevel(
-            *visible_security_state.get(),
-            false /* used_policy_installed_certificate */),
-        *visible_security_state.get(), security_style_explanations);
-  }
+  Delegate(const Delegate&) = delete;
+  Delegate& operator=(const Delegate&) = delete;
 
   void BeforeUnloadFired(content::WebContents* web_contents,
                          bool proceed,
@@ -210,7 +195,6 @@ class HeadlessWebContentsImpl::Delegate : public content::WebContentsDelegate {
   HeadlessBrowserImpl* browser() { return headless_web_contents_->browser(); }
 
   HeadlessWebContentsImpl* headless_web_contents_;  // Not owned.
-  DISALLOW_COPY_AND_ASSIGN(Delegate);
 };
 
 namespace {
@@ -223,6 +207,9 @@ class HeadlessWebContentsImpl::PendingFrame
  public:
   PendingFrame(uint64_t sequence_number, FrameFinishedCallback callback)
       : sequence_number_(sequence_number), callback_(std::move(callback)) {}
+
+  PendingFrame(const PendingFrame&) = delete;
+  PendingFrame& operator=(const PendingFrame&) = delete;
 
   void OnFrameComplete(const viz::BeginFrameAck& ack) {
     DCHECK_EQ(kBeginFrameSourceId, ack.frame_id.source_id);
@@ -253,8 +240,6 @@ class HeadlessWebContentsImpl::PendingFrame
   FrameFinishedCallback callback_;
   bool has_damage_ = false;
   std::unique_ptr<SkBitmap> bitmap_;
-
-  DISALLOW_COPY_AND_ASSIGN(PendingFrame);
 };
 
 // static

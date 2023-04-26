@@ -460,7 +460,7 @@ void SVGImage::PopulatePaintRecordForCurrentFrameForContainer(
     PaintImageBuilder& builder) {
   PaintRecorder recorder;
   const FloatSize size(draw_info.ContainerSize().ScaledBy(draw_info.Zoom()));
-  const IntRect dest_rect(IntPoint(), RoundedIntSize(size));
+  const IntRect dest_rect(gfx::Point(), RoundedIntSize(size));
   cc::PaintCanvas* canvas = recorder.beginRecording(dest_rect);
   DrawForContainer(draw_info, canvas, PaintFlags(), FloatRect(dest_rect),
                    FloatRect(FloatPoint(), size));
@@ -496,6 +496,8 @@ bool SVGImage::ApplyShaderInternal(const DrawInfo& draw_info,
 
 bool SVGImage::ApplyShader(PaintFlags& flags,
                            const SkMatrix& local_matrix,
+                           const FloatRect& dst_rect,
+                           const FloatRect& src_rect,
                            const ImageDrawOptions& draw_options) {
   const DrawInfo draw_info(FloatSize(intrinsic_size_), 1, NullURL(),
                            draw_options.apply_dark_mode);

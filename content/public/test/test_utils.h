@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
 #include "base/threading/thread_checker.h"
@@ -176,6 +175,9 @@ class MessageLoopRunner : public base::RefCountedThreadSafe<MessageLoopRunner> {
 
   explicit MessageLoopRunner(QuitMode mode = QuitMode::DEFERRED);
 
+  MessageLoopRunner(const MessageLoopRunner&) = delete;
+  MessageLoopRunner& operator=(const MessageLoopRunner&) = delete;
+
   // Run the current MessageLoop unless the quit closure
   // has already been called.
   void Run();
@@ -207,8 +209,6 @@ class MessageLoopRunner : public base::RefCountedThreadSafe<MessageLoopRunner> {
   base::RunLoop run_loop_;
 
   base::ThreadChecker thread_checker_;
-
-  DISALLOW_COPY_AND_ASSIGN(MessageLoopRunner);
 };
 
 // A WindowedNotificationObserver allows code to wait until a condition is met.
@@ -351,7 +351,9 @@ class RenderFrameDeletedObserver : public WebContentsObserver {
   // Overridden WebContentsObserver methods.
   void RenderFrameDeleted(RenderFrameHost* render_frame_host) override;
 
-  void WaitUntilDeleted();
+  // TODO(1267073): Add WARN_UNUSED_RESULT
+  // Returns true if the frame was deleted before the timeout.
+  bool WaitUntilDeleted();
   bool deleted() const;
 
  private:
@@ -383,7 +385,8 @@ class RenderFrameHostWrapper {
 
   // See RenderFrameDeletedObserver for notes on the difference between
   // RenderFrame being deleted and RenderFrameHost being destroyed.
-  void WaitUntilRenderFrameDeleted();
+  // Returns true if the frame was deleted before the timeout.
+  WARN_UNUSED_RESULT bool WaitUntilRenderFrameDeleted();
   bool IsRenderFrameDeleted() const;
 
   // Pointerish operators. Feel free to add more if you need them.

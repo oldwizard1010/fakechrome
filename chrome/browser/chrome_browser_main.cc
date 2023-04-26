@@ -25,6 +25,7 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/metrics/field_trial.h"
@@ -59,7 +60,6 @@
 #include "chrome/browser/buildflags.h"
 #include "chrome/browser/chrome_browser_field_trials.h"
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
-#include "chrome/browser/chrome_color_mixers.h"
 #include "chrome/browser/component_updater/registration.h"
 #include "chrome/browser/defaults.h"
 #include "chrome/browser/first_run/first_run.h"
@@ -78,7 +78,6 @@
 #include "chrome/browser/policy/chrome_browser_policy_connector.h"
 #include "chrome/browser/prefs/chrome_command_line_pref_store.h"
 #include "chrome/browser/prefs/chrome_pref_service_factory.h"
-#include "chrome/browser/prefs/pref_metrics_service.h"
 #include "chrome/browser/process_singleton.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_attributes_entry.h"
@@ -92,6 +91,7 @@
 #include "chrome/browser/tracing/trace_event_system_stats_monitor.h"
 #include "chrome/browser/translate/chrome_translate_client.h"
 #include "chrome/browser/translate/translate_service.h"
+#include "chrome/browser/ui/color/chrome_color_mixers.h"
 #include "chrome/browser/ui/javascript_dialogs/chrome_javascript_app_modal_dialog_view_factory.h"
 #include "chrome/browser/ui/profile_error_dialog.h"
 #include "chrome/browser/ui/startup/bad_flags_prompt.h"
@@ -162,6 +162,7 @@
 #include "content/public/browser/notification_registrar.h"
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/notification_types.h"
+#include "content/public/browser/render_process_host.h"
 #include "content/public/browser/site_instance.h"
 #include "content/public/common/content_client.h"
 #include "content/public/common/content_features.h"
@@ -211,10 +212,10 @@
 #endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
+#include "ash/components/settings/cros_settings_names.h"
 #include "ash/constants/ash_switches.h"
 #include "chrome/browser/ash/settings/cros_settings.h"
 #include "chrome/browser/ash/settings/stats_reporting_controller.h"
-#include "chromeos/settings/cros_settings_names.h"
 #include "components/arc/metrics/stability_metrics_manager.h"
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
@@ -499,10 +500,10 @@ bool ProcessSingletonNotificationCallback(
 // BrowserMainParts ------------------------------------------------------------
 
 ChromeBrowserMainParts::ChromeBrowserMainParts(
-    const content::MainFunctionParams& parameters,
+    content::MainFunctionParams parameters,
     StartupData* startup_data)
-    : parameters_(parameters),
-      parsed_command_line_(parameters.command_line),
+    : parameters_(std::move(parameters)),
+      parsed_command_line_(*parameters.command_line),
       should_call_pre_main_loop_start_startup_on_variations_service_(
           !parameters.ui_task),
       startup_data_(startup_data) {
@@ -874,7 +875,6 @@ int ChromeBrowserMainParts::ApplyFirstRunPrefs() {
 
 int ChromeBrowserMainParts::PreCreateThreadsImpl() {
   TRACE_EVENT0("startup", "ChromeBrowserMainParts::PreCreateThreadsImpl");
-  run_message_loop_ = false;
 
   if (browser_process_->GetApplicationLocale().empty()) {
     ShowMissingLocaleMessageBox();
@@ -917,11 +917,6 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
   }
 
 #if !defined(OS_ANDROID)
-  // Create the RunLoop for MainMessageLoopRun() to use, and pass a copy of
-  // its QuitClosure to the BrowserProcessImpl to call when it is time to exit.
-  DCHECK(!GetMainRunLoopInstance());
-  GetMainRunLoopInstance() = std::make_unique<base::RunLoop>();
-
   // These members must be initialized before returning from this function.
   // Android doesn't use StartupBrowserCreator.
   browser_creator_ = std::make_unique<StartupBrowserCreator>();
@@ -1096,7 +1091,7 @@ int ChromeBrowserMainParts::PreMainMessageLoopRun() {
 //   PostProfileInit()
 //   ... additional setup
 //   PreBrowserStart()
-//   ... browser_creator_->Start (OR parameters().ui_task->Run())
+//   ... browser_creator_->Start (OR parameters_.ui_task->Run())
 //   PostBrowserStart()
 
 void ChromeBrowserMainParts::PreProfileInit() {
@@ -1432,11 +1427,17 @@ int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
   // This step is costly and is already measured in Startup.CreateFirstProfile
   // and more directly Profile.CreateAndInitializeProfile.
   StartupProfileInfo profile_info = CreatePrimaryProfile(
-      parameters(), /*cur_dir=*/base::FilePath(), parsed_command_line());
+      parameters_, /*cur_dir=*/base::FilePath(), parsed_command_line());
 
   profile_ = profile_info.profile;
   if (profile_info.mode == StartupProfileMode::kError)
     return content::RESULT_CODE_NORMAL_EXIT;
+
+  if (base::FeatureList::IsEnabled(
+          features::kSpareRendererOnPrimaryProfileCreation)) {
+    content::RenderProcessHost::WarmupSpareRenderProcessHost(
+        profile_info.profile);
+  }
 
 #if defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
   // Create the spellcheck service. This will asynchronously retrieve the
@@ -1639,14 +1640,10 @@ int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
   nacl::NaClProcessHost::EarlyStartup();
 #endif  // BUILDFLAG(ENABLE_NACL)
 
-  // Make sure initial prefs are recorded
-  PrefMetricsService::Factory::GetForProfile(profile_);
-
   PreBrowserStart();
 
   if (!parsed_command_line().HasSwitch(switches::kDisableComponentUpdate)) {
-    component_updater::RegisterComponentsForUpdate(
-        profile_->IsOffTheRecord(), profile_->GetPrefs(), profile_->GetPath());
+    component_updater::RegisterComponentsForUpdate();
 #if !defined(OS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
     // Exclude Android: SODA is not supported.
     // Exclude ChromeOS: SODA is independent of Component Updater.
@@ -1723,46 +1720,45 @@ int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
 #if defined(OS_MAC)
     // Call Recycle() here as late as possible, before going into the loop
     // because Start() will add things to it while creating the main window.
-    if (parameters().autorelease_pool)
-      parameters().autorelease_pool->Recycle();
+    if (parameters_.autorelease_pool)
+      parameters_.autorelease_pool->Recycle();
 #endif  // defined(OS_MAC)
 
-    // Transfer ownership of the browser's lifetime to the BrowserProcess.
+    // Create the RunLoop for MainMessageLoopRun() to use and transfer
+    // ownership of the browser's lifetime to the BrowserProcess.
+    DCHECK(!GetMainRunLoopInstance());
+    GetMainRunLoopInstance() = std::make_unique<base::RunLoop>();
     browser_process_->SetQuitClosure(
         GetMainRunLoopInstance()->QuitWhenIdleClosure());
-    DCHECK(!run_message_loop_);
-    run_message_loop_ = true;
   }
   browser_creator_.reset();
 #endif  // !defined(OS_ANDROID)
 
   PostBrowserStart();
 
-  // The ui_task can be injected by tests to replace the main message loop.
-  // In that case we Run() it here, and set a flag to avoid running the main
-  // message loop later, as the test will do so as needed from the |ui_task|.
-  if (parameters().ui_task) {
-    std::move(*parameters().ui_task).Run();
-    delete parameters().ui_task;
-    run_message_loop_ = false;
-  }
-
 #if BUILDFLAG(ENABLE_DOWNGRADE_PROCESSING)
   // Clean up old user data directory, snapshots and disk cache directory.
   downgrade_manager_.DeleteMovedUserDataSoon(user_data_dir_);
 #endif
 
-#if defined(OS_ANDROID)
-  // We never run the C++ main loop on Android, since the UI thread message
-  // loop is controlled by the OS, so this is as close as we can get to
-  // the start of the main loop.
-  if (result_code_ <= 0) {
+  // This should be invoked as close as possible to the start of the browser's
+  // main loop, but before the end of PreMainMessageLoopRun in order for
+  // browser tests (which InterceptMainMessageLoopRun rather than
+  // MainMessageLoopRun) to be able to see its side-effect.
+  if (result_code_ <= 0)
     RecordBrowserStartupTime();
-  }
-#endif  // defined(OS_ANDROID)
 
   return result_code_;
 }
+
+#if !defined(OS_ANDROID)
+bool ChromeBrowserMainParts::ShouldInterceptMainMessageLoopRun() {
+  // Some early return paths in PreMainMessageLoopRunImpl intentionally prevent
+  // the main run loop from being created. Use this as a signal to indicate that
+  // the main message loop shouldn't be run.
+  return !!GetMainRunLoopInstance();
+}
+#endif
 
 void ChromeBrowserMainParts::WillRunMainMessageLoop(
     std::unique_ptr<base::RunLoop>& run_loop) {
@@ -1771,19 +1767,8 @@ void ChromeBrowserMainParts::WillRunMainMessageLoop(
   // Android specific MessageLoop
   NOTREACHED();
 #else
-  if (!run_message_loop_) {
-    run_loop.reset();
-    return;
-  }
-
-  // These should be invoked as close to the start of the browser's
-  // UI thread message loop as possible to get a stable measurement
-  // across versions.
-  RecordBrowserStartupTime();
-
   DCHECK(base::CurrentUIThread::IsSet());
 
-  DCHECK(GetMainRunLoopInstance());
   run_loop = std::move(GetMainRunLoopInstance());
 
   // Trace the entry and exit of this main message loop. We don't use the
@@ -1837,7 +1822,7 @@ void ChromeBrowserMainParts::PostMainMessageLoopRun() {
   // Some tests don't set parameters.ui_task, so they started translate
   // language fetch that was never completed so we need to cleanup here
   // otherwise it will be done by the destructor in a wrong thread.
-  TranslateService::Shutdown(!parameters().ui_task);
+  TranslateService::Shutdown(!parameters_.ui_task);
 
   if (notify_result_ == ProcessSingleton::PROCESS_NONE)
     process_singleton_->Cleanup();

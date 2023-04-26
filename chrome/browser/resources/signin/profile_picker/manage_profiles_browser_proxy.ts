@@ -17,7 +17,9 @@ export type ProfileState = {
   userName: string,
   isManaged: boolean,
   avatarIcon: string,
+  // <if expr="lacros">
   isPrimaryLacrosProfile: boolean,
+  // </if>
 };
 
 /**
@@ -56,6 +58,7 @@ export type UnassignedAccount = {
   gaiaId: string,
   name: string,
   email: string,
+  accountImageUrl: string,
 };
 // </if>
 

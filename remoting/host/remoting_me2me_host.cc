@@ -333,6 +333,7 @@ class HostProcess : public ConfigWatcher::Delegate,
   bool OnEnableUserInterfacePolicyUpdate(base::DictionaryValue* policies);
   bool OnAllowRemoteAccessConnections(base::DictionaryValue* policies);
   bool OnMaxSessionDurationPolicyUpdate(base::DictionaryValue* policies);
+  bool OnMaxClipboardSizePolicyUpdate(base::DictionaryValue* policies);
 
   void InitializeSignaling();
 
@@ -389,6 +390,7 @@ class HostProcess : public ConfigWatcher::Delegate,
   base::Value config_{base::Value::Type::DICTIONARY};
   std::string host_owner_;
   bool is_googler_ = false;
+  absl::optional<size_t> max_clipboard_size_;
 
   std::unique_ptr<PolicyWatcher> policy_watcher_;
   PolicyState policy_state_ = POLICY_INITIALIZING;
@@ -1136,6 +1138,7 @@ void HostProcess::OnPolicyUpdate(
   restart_required |= OnEnableUserInterfacePolicyUpdate(policies.get());
   restart_required |= OnAllowRemoteAccessConnections(policies.get());
   restart_required |= OnMaxSessionDurationPolicyUpdate(policies.get());
+  restart_required |= OnMaxClipboardSizePolicyUpdate(policies.get());
 
   policy_state_ = POLICY_LOADED;
 
@@ -1289,11 +1292,12 @@ bool HostProcess::OnUsernamePolicyUpdate(base::DictionaryValue* policies) {
   // Returns false: never restart the host after this policy update.
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  if (!policies->GetBoolean(policy::key::kRemoteAccessHostMatchUsername,
-                            &host_username_match_required_)) {
+  absl::optional<bool> host_username_match_required =
+      policies->FindBoolKey(policy::key::kRemoteAccessHostMatchUsername);
+  if (!host_username_match_required.has_value())
     return false;
-  }
 
+  host_username_match_required_ = host_username_match_required.value();
   ApplyUsernamePolicy();
   return false;
 }
@@ -1302,11 +1306,12 @@ bool HostProcess::OnNatPolicyUpdate(base::DictionaryValue* policies) {
   // Returns true if the host has to be restarted after this policy update.
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  if (!policies->GetBoolean(policy::key::kRemoteAccessHostFirewallTraversal,
-                            &allow_nat_traversal_)) {
+  absl::optional<bool> allow_nat_traversal =
+      policies->FindBoolKey(policy::key::kRemoteAccessHostFirewallTraversal);
+  if (!allow_nat_traversal.has_value())
     return false;
-  }
 
+  allow_nat_traversal_ = allow_nat_traversal.value();
   if (allow_nat_traversal_) {
     HOST_LOG << "Policy enables NAT traversal.";
   } else {
@@ -1319,12 +1324,12 @@ bool HostProcess::OnRelayPolicyUpdate(base::DictionaryValue* policies) {
   // Returns true if the host has to be restarted after this policy update.
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  if (!policies->GetBoolean(
-          policy::key::kRemoteAccessHostAllowRelayedConnection,
-          &allow_relay_)) {
+  absl::optional<bool> allow_relay = policies->FindBoolKey(
+      policy::key::kRemoteAccessHostAllowRelayedConnection);
+  if (!allow_relay.has_value())
     return false;
-  }
 
+  allow_relay_ = allow_relay.value();
   if (allow_relay_) {
     HOST_LOG << "Policy enables use of relay server.";
   } else {
@@ -1355,15 +1360,15 @@ bool HostProcess::OnCurtainPolicyUpdate(base::DictionaryValue* policies) {
   // Returns true if the host has to be restarted after this policy update.
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  bool curtain_required;
-  if (!policies->GetBoolean(policy::key::kRemoteAccessHostRequireCurtain,
-                            &curtain_required)) {
+  absl::optional<bool> curtain_required =
+      policies->FindBoolKey(policy::key::kRemoteAccessHostRequireCurtain);
+  if (!curtain_required.has_value())
     return false;
-  }
-  desktop_environment_options_.set_enable_curtaining(curtain_required);
+
+  desktop_environment_options_.set_enable_curtaining(curtain_required.value());
 
 #if defined(OS_APPLE)
-  if (curtain_required) {
+  if (curtain_required.value()) {
     // When curtain mode is in effect on Mac, the host process runs in the
     // user's switched-out session, but launchd will also run an instance at
     // the console login screen.  Even if no user is currently logged-on, we
@@ -1382,7 +1387,7 @@ bool HostProcess::OnCurtainPolicyUpdate(base::DictionaryValue* policies) {
   }
 #endif
 
-  if (curtain_required) {
+  if (curtain_required.value()) {
     HOST_LOG << "Policy requires curtain-mode.";
   } else {
     HOST_LOG << "Policy does not require curtain-mode.";
@@ -1412,11 +1417,12 @@ bool HostProcess::OnHostTokenUrlPolicyUpdate(base::DictionaryValue* policies) {
 bool HostProcess::OnPairingPolicyUpdate(base::DictionaryValue* policies) {
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  if (!policies->GetBoolean(policy::key::kRemoteAccessHostAllowClientPairing,
-                            &allow_pairing_)) {
+  absl::optional<bool> allow_pairing =
+      policies->FindBoolKey(policy::key::kRemoteAccessHostAllowClientPairing);
+  if (!allow_pairing.has_value())
     return false;
-  }
 
+  allow_pairing_ = allow_pairing.value();
   if (allow_pairing_) {
     HOST_LOG << "Policy enables client pairing.";
   } else {
@@ -1428,11 +1434,12 @@ bool HostProcess::OnPairingPolicyUpdate(base::DictionaryValue* policies) {
 bool HostProcess::OnGnubbyAuthPolicyUpdate(base::DictionaryValue* policies) {
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  if (!policies->GetBoolean(policy::key::kRemoteAccessHostAllowGnubbyAuth,
-                            &security_key_auth_policy_enabled_)) {
+  absl::optional<bool> security_key_auth_policy_enabled =
+      policies->FindBoolKey(policy::key::kRemoteAccessHostAllowGnubbyAuth);
+  if (!security_key_auth_policy_enabled.has_value())
     return false;
-  }
 
+  security_key_auth_policy_enabled_ = security_key_auth_policy_enabled.value();
   if (security_key_auth_policy_enabled_) {
     HOST_LOG << "Policy enables security key auth.";
   } else {
@@ -1445,14 +1452,15 @@ bool HostProcess::OnGnubbyAuthPolicyUpdate(base::DictionaryValue* policies) {
 bool HostProcess::OnFileTransferPolicyUpdate(base::DictionaryValue* policies) {
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  bool file_transfer_enabled;
-  if (!policies->GetBoolean(policy::key::kRemoteAccessHostAllowFileTransfer,
-                            &file_transfer_enabled)) {
+  absl::optional<bool> file_transfer_enabled =
+      policies->FindBoolKey(policy::key::kRemoteAccessHostAllowFileTransfer);
+  if (!file_transfer_enabled.has_value())
     return false;
-  }
-  desktop_environment_options_.set_enable_file_transfer(file_transfer_enabled);
 
-  if (file_transfer_enabled) {
+  desktop_environment_options_.set_enable_file_transfer(
+      file_transfer_enabled.value());
+
+  if (file_transfer_enabled.value()) {
     HOST_LOG << "Policy enables file transfer.";
   } else {
     HOST_LOG << "Policy disables file transfer.";
@@ -1466,15 +1474,14 @@ bool HostProcess::OnEnableUserInterfacePolicyUpdate(
     base::DictionaryValue* policies) {
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  bool enable_user_interface;
-  if (!policies->GetBoolean(policy::key::kRemoteAccessHostEnableUserInterface,
-                            &enable_user_interface)) {
+  absl::optional<bool> enable_user_interface =
+      policies->FindBoolKey(policy::key::kRemoteAccessHostEnableUserInterface);
+  if (!enable_user_interface)
     return false;
-  }
 
   // Save the value until we have parsed the host config since we only want the
   // policy to be applied to machines owned by a Googler.
-  enable_user_interface_ = enable_user_interface;
+  enable_user_interface_ = enable_user_interface.value();
   if (enable_user_interface_) {
     HOST_LOG << "Policy enables user interface for non-curtained sessions.";
   } else {
@@ -1506,20 +1513,41 @@ bool HostProcess::OnMaxSessionDurationPolicyUpdate(
   return true;
 }
 
+bool HostProcess::OnMaxClipboardSizePolicyUpdate(
+    base::DictionaryValue* policies) {
+  DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
+
+  int max_clipboard_size;
+  if (!policies->GetInteger(policy::key::kRemoteAccessHostClipboardSizeBytes,
+                            &max_clipboard_size)) {
+    return false;
+  }
+
+  if (max_clipboard_size >= 0) {
+    max_clipboard_size_ = max_clipboard_size;
+    HOST_LOG << "Policy sets maximum clipboard size to "
+             << max_clipboard_size_.value() << " bytes.";
+  } else {
+    max_clipboard_size_.reset();
+    HOST_LOG << "Policy does not set a maximum clipboard size.";
+  }
+
+  // Restart required.
+  return true;
+}
+
 bool HostProcess::OnAllowRemoteAccessConnections(
     base::DictionaryValue* policies) {
   // Returns false: never restart the host after this policy update.
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  bool allow_remote_access_connections;
-  if (!policies->GetBoolean(
-          policy::key::kRemoteAccessHostAllowRemoteAccessConnections,
-          &allow_remote_access_connections)) {
+  absl::optional<bool> allow_remote_access_connections = policies->FindBoolKey(
+      policy::key::kRemoteAccessHostAllowRemoteAccessConnections);
+  if (!allow_remote_access_connections.has_value())
     return false;
-  }
 
   // Update the value if the policy was set and retrieval was successful.
-  allow_remote_access_connections_ = allow_remote_access_connections;
+  allow_remote_access_connections_ = allow_remote_access_connections.value();
   ApplyAllowRemoteAccessConnections();
   return false;
 }
@@ -1641,6 +1669,20 @@ void HostProcess::StartHost() {
   // The feature is enabled for all Googlers using a supported platform.
   desktop_environment_options_.set_enable_remote_open_url(is_googler_);
 
+#if !defined(NDEBUG)
+  // Experimental feature.
+  desktop_environment_options_.set_enable_remote_webauthn(true);
+#endif
+
+  if (max_clipboard_size_.has_value()) {
+    desktop_environment_options_.set_clipboard_size(
+        max_clipboard_size_.value());
+  } else if (desktop_environment_options_.clipboard_size().has_value()) {
+    // If we've transitioned from having a policy value to no value then make
+    // sure the value stored in desktop_environment_options has been cleared.
+    desktop_environment_options_.set_clipboard_size(absl::optional<size_t>());
+  }
+
   host_ = std::make_unique<ChromotingHost>(
       desktop_environment_factory_.get(), std::move(session_manager),
       transport_context, context_->audio_task_runner(),
@@ -1693,6 +1735,7 @@ void HostProcess::StartHost() {
 #endif  // defined(OS_APPLE)
 
   host_->Start(host_owner_);
+  host_->StartChromotingHostServices();
 
   CreateAuthenticatorFactory();
 

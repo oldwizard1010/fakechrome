@@ -374,9 +374,10 @@ PasswordForm MakeNormalizedBlocklistedForm(
   return result;
 }
 
-bool CanUseBiometricAuth(device_reauth::BiometricAuthenticator* authenticator) {
+bool CanUseBiometricAuth(device_reauth::BiometricAuthenticator* authenticator,
+                         device_reauth::BiometricAuthRequester requester) {
   return authenticator &&
-         authenticator->CanAuthenticate() ==
+         authenticator->CanAuthenticate(requester) ==
              device_reauth::BiometricsAvailability::kAvailable &&
          base::FeatureList::IsEnabled(
              password_manager::features::kBiometricTouchToFill);
@@ -404,6 +405,20 @@ GURL ConstructGURLWithScheme(const std::string& url) {
     return https_url;
   }
   return gurl;
+}
+
+bool IsValidPasswordURL(const GURL& url) {
+  return url.is_valid() && url.SchemeIsHTTPOrHTTPS();
+}
+
+std::string GetSignonRealm(const GURL& url) {
+  GURL::Replacements rep;
+  rep.ClearUsername();
+  rep.ClearPassword();
+  rep.ClearQuery();
+  rep.ClearRef();
+  rep.SetPathStr("");
+  return url.ReplaceComponents(rep).spec();
 }
 
 }  // namespace password_manager_util

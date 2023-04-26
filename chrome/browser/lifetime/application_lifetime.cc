@@ -117,7 +117,7 @@ bool SetLocaleForNextStart(PrefService* local_state) {
   ash::CrosSettings* cros_settings = ash::CrosSettings::Get();
   const base::ListValue* login_screen_locales = nullptr;
   std::string login_screen_locale;
-  if (cros_settings->GetList(chromeos::kDeviceLoginScreenLocales,
+  if (cros_settings->GetList(ash::kDeviceLoginScreenLocales,
                              &login_screen_locales) &&
       !login_screen_locales->GetList().empty() &&
       login_screen_locales->GetString(0, &login_screen_locale)) {
@@ -166,7 +166,7 @@ void AttemptRestartInternal(IgnoreUnloadHandlers ignore_unload_handlers) {
   KeepAliveRegistry::GetInstance()->SetRestarting();
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
-  chromeos::BootTimesRecorder::Get()->set_restart_requested();
+  ash::BootTimesRecorder::Get()->set_restart_requested();
 
   DCHECK(!g_send_stop_request_to_session_manager);
   // Make sure we don't send stop request to the session manager.
@@ -264,8 +264,8 @@ void CloseAllBrowsers() {
   }
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
-  chromeos::BootTimesRecorder::Get()->AddLogoutTimeMarker(
-      "StartedClosingWindows", false);
+  ash::BootTimesRecorder::Get()->AddLogoutTimeMarker("StartedClosingWindows",
+                                                     false);
 #endif
   scoped_refptr<BrowserCloseManager> browser_close_manager =
       new BrowserCloseManager;
@@ -276,12 +276,11 @@ void CloseAllBrowsers() {
 void AttemptUserExit() {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   VLOG(1) << "AttemptUserExit";
-  chromeos::BootTimesRecorder::Get()->AddLogoutTimeMarker("LogoutStarted",
-                                                          false);
+  ash::BootTimesRecorder::Get()->AddLogoutTimeMarker("LogoutStarted", false);
 
   PrefService* state = g_browser_process->local_state();
   if (state) {
-    chromeos::BootTimesRecorder::Get()->OnLogoutStarted(state);
+    ash::BootTimesRecorder::Get()->OnLogoutStarted(state);
 
     if (SetLocaleForNextStart(state)) {
       TRACE_EVENT0("shutdown", "CommitPendingWrite");

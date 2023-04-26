@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 #include "base/base64.h"
-#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -847,7 +846,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest, CookieJarMismatch) {
   // something is already running or scheduled to run on the sync thread. We
   // want to block here until we know the cookie jar stats have been updated.
   UpdateCookieJarAccountsAndWait(
-      {GetClient(0)->service()->GetAuthenticatedAccountInfo().account_id},
+      {GetClient(0)->service()->GetAccountInfo().account_id},
       /*expected_cookie_jar_mismatch=*/false);
 
   // Trigger a sync and wait for it.

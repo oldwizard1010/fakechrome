@@ -34,7 +34,7 @@
 #include "components/autofill/core/browser/autofill_test_utils.h"
 #include "components/autofill/core/browser/data_model/autofill_profile.h"
 #include "components/autofill/core/browser/data_model/credit_card.h"
-#include "components/autofill/core/browser/metrics/form_events.h"
+#include "components/autofill/core/browser/metrics/form_events/form_events.h"
 #include "components/autofill/core/browser/payments/test_authentication_requester.h"
 #include "components/autofill/core/browser/payments/test_credit_card_fido_authenticator.h"
 #include "components/autofill/core/browser/payments/test_internal_authenticator.h"
@@ -409,7 +409,7 @@ TEST_F(CreditCardFIDOAuthenticatorTest, AuthenticateCard_BadRequestOptions) {
 
   fido_authenticator_->Authenticate(&card, requester_->GetWeakPtr(),
                                     base::Value(base::Value::Type::DICTIONARY));
-  EXPECT_FALSE(requester_->did_succeed());
+  EXPECT_FALSE((*requester_->did_succeed()));
 }
 
 TEST_F(CreditCardFIDOAuthenticatorTest,
@@ -423,7 +423,7 @@ TEST_F(CreditCardFIDOAuthenticatorTest,
 
   TestCreditCardFIDOAuthenticator::GetAssertion(fido_authenticator_.get(),
                                                 /*did_succeed=*/false);
-  EXPECT_FALSE(requester_->did_succeed());
+  EXPECT_FALSE((*requester_->did_succeed()));
 }
 
 TEST_F(CreditCardFIDOAuthenticatorTest,
@@ -442,7 +442,7 @@ TEST_F(CreditCardFIDOAuthenticatorTest,
                                                 /*did_succeed=*/true);
   GetRealPan(AutofillClient::PaymentsRpcResult::kNetworkError, "");
 
-  EXPECT_FALSE(requester_->did_succeed());
+  EXPECT_FALSE((*requester_->did_succeed()));
 }
 
 TEST_F(CreditCardFIDOAuthenticatorTest,
@@ -462,7 +462,7 @@ TEST_F(CreditCardFIDOAuthenticatorTest,
   GetRealPan(AutofillClient::PaymentsRpcResult::kVcnRetrievalPermanentFailure,
              "", /*is_virtual_card=*/true);
 
-  EXPECT_FALSE(requester_->did_succeed());
+  EXPECT_FALSE((*requester_->did_succeed()));
   EXPECT_EQ(
       requester_->failure_type(),
       payments::FullCardRequest::VIRTUAL_CARD_RETRIEVAL_PERMANENT_FAILURE);
@@ -483,7 +483,7 @@ TEST_F(CreditCardFIDOAuthenticatorTest, AuthenticateCard_Success) {
                                                 /*did_succeed=*/true);
   GetRealPan(AutofillClient::PaymentsRpcResult::kSuccess, kTestNumber);
 
-  EXPECT_TRUE(requester_->did_succeed());
+  EXPECT_TRUE((*requester_->did_succeed()));
   EXPECT_EQ(kTestNumber16, requester_->number());
 }
 

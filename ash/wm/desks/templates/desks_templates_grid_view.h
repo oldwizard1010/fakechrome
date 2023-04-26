@@ -15,6 +15,7 @@ class UniqueWidgetPtr;
 
 namespace ash {
 
+class DesksTemplatesEventHandler;
 class DesksTemplatesItemView;
 class DeskTemplate;
 
@@ -29,6 +30,10 @@ class DesksTemplatesGridView : public views::View {
   DesksTemplatesGridView& operator=(const DesksTemplatesGridView&) = delete;
   ~DesksTemplatesGridView() override;
 
+  const std::vector<DesksTemplatesItemView*>& grid_items() const {
+    return grid_items_;
+  }
+
   // Creates and returns the widget that contains the DesksTemplatesGridView in
   // overview mode. This does not show the widget.
   // TODO(sammiequon): We might want this view to be part of the DesksWidget
@@ -36,21 +41,21 @@ class DesksTemplatesGridView : public views::View {
   static views::UniqueWidgetPtr CreateDesksTemplatesGridWidget(
       aura::Window* root);
 
-  // Updates the UI by populating the grid with the provided list of desk
-  // templates.
+  // Updates the UI by creating a grid layout and populating the grid with the
+  // provided list of desk templates.
   void UpdateGridUI(const std::vector<DeskTemplate*>& desk_templates,
                     const gfx::Rect& grid_bounds);
 
   // views::View:
-  void OnMouseEvent(ui::MouseEvent* event) override;
-  void OnGestureEvent(ui::GestureEvent* event) override;
   void AddedToWidget() override;
   void RemovedFromWidget() override;
 
  private:
+  friend class DesksTemplatesEventHandler;
   friend class DesksTemplatesGridViewTestApi;
 
-  // Helper to unify mouse/touch events.
+  // Updates the visibility state of the hover buttons on all the grid_items_ as
+  // a result of mouse and gesture events.
   void OnLocatedEvent(ui::LocatedEvent* event, bool is_touch);
 
   // Owned by the views hierarchy.
@@ -61,6 +66,9 @@ class DesksTemplatesGridView : public views::View {
 
   // The underlying window of the templates grid widget.
   aura::Window* widget_window_ = nullptr;
+
+  // Handles mouse/touch events on the desk templates grid widget.
+  std::unique_ptr<DesksTemplatesEventHandler> event_handler_;
 };
 
 }  // namespace ash

@@ -41,7 +41,6 @@ using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::IsEmpty;
 using ::testing::Return;
-using ::testing::SizeIs;
 
 RequiredDataPiece MakeRequiredDataPiece(autofill::ServerFieldType field) {
   RequiredDataPiece required_data_piece;
@@ -50,6 +49,35 @@ RequiredDataPiece MakeRequiredDataPiece(autofill::ServerFieldType field) {
   required_data_piece.mutable_condition()->set_key(static_cast<int>(field));
   required_data_piece.mutable_condition()->mutable_not_empty();
   return required_data_piece;
+}
+
+TEST(UserDataUtilTest, ConditionEvaluation) {
+  autofill::AutofillProfile profile;
+  autofill::test::SetProfileInfo(&profile, "Adam", "", "West",
+                                 "adam.west@gmail.com", "", "Baker Street 221b",
+                                 "", "London", "", "WC2N 5DU", "UK", "+44");
+
+  CollectUserDataOptions options;
+  options.required_contact_data_pieces.push_back(
+      MakeRequiredDataPiece(autofill::ServerFieldType::NAME_FULL));
+  RequiredDataPiece email_data_piece;
+  email_data_piece.mutable_condition()->set_key(
+      static_cast<int>(autofill::ServerFieldType::EMAIL_ADDRESS));
+  email_data_piece.mutable_condition()
+      ->mutable_regexp()
+      ->mutable_text_filter()
+      ->set_re2("^.*@.*$");
+  options.required_contact_data_pieces.push_back(email_data_piece);
+  RequiredDataPiece middle_name_data_piece;
+  middle_name_data_piece.mutable_condition()->set_key(
+      static_cast<int>(autofill::ServerFieldType::NAME_MIDDLE));
+  middle_name_data_piece.mutable_condition()
+      ->mutable_regexp()
+      ->mutable_text_filter()
+      ->set_re2("^$");
+  options.required_contact_data_pieces.push_back(middle_name_data_piece);
+
+  EXPECT_THAT(GetContactValidationErrors(&profile, options), IsEmpty());
 }
 
 TEST(UserDataUtilTest, KeepsOrderForIdenticalContacts) {
@@ -67,16 +95,15 @@ TEST(UserDataUtilTest, KeepsOrderForIdenticalContacts) {
                                  "", "");
   profile_second->set_use_date(current);
 
-  std::vector<std::unique_ptr<autofill::AutofillProfile>> profiles;
-  profiles.emplace_back(std::move(profile_first));
-  profiles.emplace_back(std::move(profile_second));
+  std::vector<std::unique_ptr<Contact>> contacts;
+  contacts.emplace_back(std::make_unique<Contact>(std::move(profile_first)));
+  contacts.emplace_back(std::make_unique<Contact>(std::move(profile_second)));
 
   CollectUserDataOptions options;
 
-  std::vector<int> profile_indices =
-      SortContactsByCompleteness(options, profiles);
-  EXPECT_THAT(profile_indices, SizeIs(profiles.size()));
-  EXPECT_THAT(profile_indices, ElementsAre(0, 1));
+  std::vector<int> sorted_indices =
+      SortContactsByCompleteness(options, contacts);
+  EXPECT_THAT(sorted_indices, ElementsAre(0, 1));
 }
 
 TEST(UserDataUtilTest, SortsCompleteContactsByUseDate) {
@@ -94,10 +121,10 @@ TEST(UserDataUtilTest, SortsCompleteContactsByUseDate) {
                                  "", "");
   profile_new->set_use_date(current);
 
-  // Specify profiles in reverse order to force sorting.
-  std::vector<std::unique_ptr<autofill::AutofillProfile>> profiles;
-  profiles.emplace_back(std::move(profile_old));
-  profiles.emplace_back(std::move(profile_new));
+  // Specify contacts in reverse order to force sorting.
+  std::vector<std::unique_ptr<Contact>> contacts;
+  contacts.emplace_back(std::make_unique<Contact>(std::move(profile_old)));
+  contacts.emplace_back(std::make_unique<Contact>(std::move(profile_new)));
 
   CollectUserDataOptions options;
   options.required_contact_data_pieces.push_back(
@@ -105,10 +132,9 @@ TEST(UserDataUtilTest, SortsCompleteContactsByUseDate) {
   options.required_contact_data_pieces.push_back(
       MakeRequiredDataPiece(autofill::ServerFieldType::EMAIL_ADDRESS));
 
-  std::vector<int> profile_indices =
-      SortContactsByCompleteness(options, profiles);
-  EXPECT_THAT(profile_indices, SizeIs(profiles.size()));
-  EXPECT_THAT(profile_indices, ElementsAre(1, 0));
+  std::vector<int> sorted_indices =
+      SortContactsByCompleteness(options, contacts);
+  EXPECT_THAT(sorted_indices, ElementsAre(1, 0));
 }
 
 TEST(UserDataUtilTest, SortsContactsByCompleteness) {
@@ -128,11 +154,12 @@ TEST(UserDataUtilTest, SortsContactsByCompleteness) {
                                  /* email= */ "", "", "", "", "", "", "", "",
                                  /* phone_number= */ "");
 
-  // Specify profiles in reverse order to force sorting.
-  std::vector<std::unique_ptr<autofill::AutofillProfile>> profiles;
-  profiles.emplace_back(std::move(profile_incomplete));
-  profiles.emplace_back(std::move(profile_no_phone));
-  profiles.emplace_back(std::move(profile_complete));
+  // Specify contacts in reverse order to force sorting.
+  std::vector<std::unique_ptr<Contact>> contacts;
+  contacts.emplace_back(
+      std::make_unique<Contact>(std::move(profile_incomplete)));
+  contacts.emplace_back(std::make_unique<Contact>(std::move(profile_no_phone)));
+  contacts.emplace_back(std::make_unique<Contact>(std::move(profile_complete)));
 
   CollectUserDataOptions options;
   options.required_contact_data_pieces.push_back(
@@ -142,20 +169,19 @@ TEST(UserDataUtilTest, SortsContactsByCompleteness) {
   options.required_contact_data_pieces.push_back(MakeRequiredDataPiece(
       autofill::ServerFieldType::PHONE_HOME_WHOLE_NUMBER));
 
-  std::vector<int> profile_indices =
-      SortContactsByCompleteness(options, profiles);
-  EXPECT_THAT(profile_indices, SizeIs(profiles.size()));
-  EXPECT_THAT(profile_indices, ElementsAre(2, 1, 0));
+  std::vector<int> sorted_indices =
+      SortContactsByCompleteness(options, contacts);
+  EXPECT_THAT(sorted_indices, ElementsAre(2, 1, 0));
 }
 
-TEST(UserDataUtilTest, GetDefaultContactSelectionForEmptyProfiles) {
-  std::vector<std::unique_ptr<autofill::AutofillProfile>> profiles;
+TEST(UserDataUtilTest, GetDefaultContactSelectionForEmptyList) {
+  std::vector<std::unique_ptr<Contact>> contacts;
   CollectUserDataOptions options;
 
-  EXPECT_THAT(GetDefaultContactProfile(options, profiles), -1);
+  EXPECT_THAT(GetDefaultContact(options, contacts), -1);
 }
 
-TEST(UserDataUtilTest, GetDefaultContactSelectionForCompleteProfiles) {
+TEST(UserDataUtilTest, GetDefaultContactSelectionForCompleteContacts) {
   base::Time current = base::Time::Now();
 
   auto profile_old = std::make_unique<autofill::AutofillProfile>();
@@ -170,10 +196,10 @@ TEST(UserDataUtilTest, GetDefaultContactSelectionForCompleteProfiles) {
                                  "", "");
   profile_new->set_use_date(current);
 
-  // Specify profiles in reverse order to force sorting.
-  std::vector<std::unique_ptr<autofill::AutofillProfile>> profiles;
-  profiles.emplace_back(std::move(profile_old));
-  profiles.emplace_back(std::move(profile_new));
+  // Specify contacts in reverse order to force sorting.
+  std::vector<std::unique_ptr<Contact>> contacts;
+  contacts.emplace_back(std::make_unique<Contact>(std::move(profile_old)));
+  contacts.emplace_back(std::make_unique<Contact>(std::move(profile_new)));
 
   CollectUserDataOptions options;
   options.required_contact_data_pieces.push_back(
@@ -181,7 +207,7 @@ TEST(UserDataUtilTest, GetDefaultContactSelectionForCompleteProfiles) {
   options.required_contact_data_pieces.push_back(
       MakeRequiredDataPiece(autofill::ServerFieldType::EMAIL_ADDRESS));
 
-  EXPECT_THAT(GetDefaultContactProfile(options, profiles), 1);
+  EXPECT_THAT(GetDefaultContact(options, contacts), 1);
 }
 
 TEST(UserDataUtilTest, GetDefaultSelectionForDefaultEmail) {
@@ -202,11 +228,13 @@ TEST(UserDataUtilTest, GetDefaultSelectionForDefaultEmail) {
                                  "Adam", "", "West", "adam.west@gmail.com", "",
                                  "", "", "", "", "", "", "");
 
-  // Specify profiles in reverse order to force sorting.
-  std::vector<std::unique_ptr<autofill::AutofillProfile>> profiles;
-  profiles.emplace_back(std::move(profile_complete));
-  profiles.emplace_back(std::move(profile_incomplete_with_default_email));
-  profiles.emplace_back(std::move(profile_complete_with_default_email));
+  // Specify contacts in reverse order to force sorting.
+  std::vector<std::unique_ptr<Contact>> contacts;
+  contacts.emplace_back(std::make_unique<Contact>(std::move(profile_complete)));
+  contacts.emplace_back(std::make_unique<Contact>(
+      std::move(profile_incomplete_with_default_email)));
+  contacts.emplace_back(std::make_unique<Contact>(
+      std::move(profile_complete_with_default_email)));
 
   CollectUserDataOptions options;
   options.required_contact_data_pieces.push_back(
@@ -217,7 +245,7 @@ TEST(UserDataUtilTest, GetDefaultSelectionForDefaultEmail) {
       autofill::ServerFieldType::PHONE_HOME_WHOLE_NUMBER));
   options.default_email = "adam.west@gmail.com";
 
-  EXPECT_THAT(GetDefaultContactProfile(options, profiles), 2);
+  EXPECT_THAT(GetDefaultContact(options, contacts), 2);
 }
 
 TEST(UserDataUtilTest, SortsCompleteAddressesByUseDate) {
@@ -235,17 +263,16 @@ TEST(UserDataUtilTest, SortsCompleteAddressesByUseDate) {
                                  "8002", "CH", "");
   profile_new->set_use_date(current);
 
-  // Specify profiles in reverse order to force sorting.
-  std::vector<std::unique_ptr<autofill::AutofillProfile>> profiles;
-  profiles.emplace_back(std::move(profile_old));
-  profiles.emplace_back(std::move(profile_new));
+  // Specify addresses in reverse order to force sorting.
+  std::vector<std::unique_ptr<Address>> addresses;
+  addresses.emplace_back(std::make_unique<Address>(std::move(profile_old)));
+  addresses.emplace_back(std::make_unique<Address>(std::move(profile_new)));
 
   CollectUserDataOptions options;
 
-  std::vector<int> profile_indices =
-      SortShippingAddressesByCompleteness(options, profiles);
-  EXPECT_THAT(profile_indices, SizeIs(profiles.size()));
-  EXPECT_THAT(profile_indices, ElementsAre(1, 0));
+  std::vector<int> sorted_indices =
+      SortShippingAddressesByCompleteness(options, addresses);
+  EXPECT_THAT(sorted_indices, ElementsAre(1, 0));
 }
 
 TEST(UserDataUtilTest, SortsAddressesByEditorCompleteness) {
@@ -261,17 +288,18 @@ TEST(UserDataUtilTest, SortsAddressesByEditorCompleteness) {
                                  "", "Brandschenkestrasse 110", "", "Zurich",
                                  "", "8002", "CH", "");
 
-  // Specify profiles in reverse order to force sorting.
-  std::vector<std::unique_ptr<autofill::AutofillProfile>> profiles;
-  profiles.emplace_back(std::move(profile_no_street));
-  profiles.emplace_back(std::move(profile_complete));
+  // Specify addresses in reverse order to force sorting.
+  std::vector<std::unique_ptr<Address>> addresses;
+  addresses.emplace_back(
+      std::make_unique<Address>(std::move(profile_no_street)));
+  addresses.emplace_back(
+      std::make_unique<Address>(std::move(profile_complete)));
 
   CollectUserDataOptions options;
 
-  std::vector<int> profile_indices =
-      SortShippingAddressesByCompleteness(options, profiles);
-  EXPECT_THAT(profile_indices, SizeIs(profiles.size()));
-  EXPECT_THAT(profile_indices, ElementsAre(1, 0));
+  std::vector<int> sorted_indices =
+      SortShippingAddressesByCompleteness(options, addresses);
+  EXPECT_THAT(sorted_indices, ElementsAre(1, 0));
 }
 
 TEST(UserDataUtilTest, SortsAddressesByAssistantCompleteness) {
@@ -285,29 +313,30 @@ TEST(UserDataUtilTest, SortsAddressesByAssistantCompleteness) {
       profile_complete.get(), "Adam", "", "West", "adam.west@gmail.com", "",
       "Brandschenkestrasse 110", "", "Zurich", "", "8002", "CH", "");
 
-  // Specify profiles in reverse order to force sorting.
-  std::vector<std::unique_ptr<autofill::AutofillProfile>> profiles;
-  profiles.emplace_back(std::move(profile_no_email));
-  profiles.emplace_back(std::move(profile_complete));
+  // Specify addresses in reverse order to force sorting.
+  std::vector<std::unique_ptr<Address>> addresses;
+  addresses.emplace_back(
+      std::make_unique<Address>(std::move(profile_no_email)));
+  addresses.emplace_back(
+      std::make_unique<Address>(std::move(profile_complete)));
 
   CollectUserDataOptions options;
   options.required_shipping_address_data_pieces.push_back(
       MakeRequiredDataPiece(autofill::ServerFieldType::EMAIL_ADDRESS));
 
-  std::vector<int> profile_indices =
-      SortShippingAddressesByCompleteness(options, profiles);
-  EXPECT_THAT(profile_indices, SizeIs(profiles.size()));
-  EXPECT_THAT(profile_indices, ElementsAre(1, 0));
+  std::vector<int> sorted_indices =
+      SortShippingAddressesByCompleteness(options, addresses);
+  EXPECT_THAT(sorted_indices, ElementsAre(1, 0));
 }
 
-TEST(UserDataUtilTest, GetDefaultAddressSelectionForEmptyProfiles) {
-  std::vector<std::unique_ptr<autofill::AutofillProfile>> profiles;
+TEST(UserDataUtilTest, GetDefaultAddressSelectionForEmptyList) {
+  std::vector<std::unique_ptr<Address>> addresses;
   CollectUserDataOptions options;
 
-  EXPECT_THAT(GetDefaultShippingAddressProfile(options, profiles), -1);
+  EXPECT_THAT(GetDefaultShippingAddress(options, addresses), -1);
 }
 
-TEST(UserDataUtilTest, GetDefaultAddressSelectionForCompleteProfiles) {
+TEST(UserDataUtilTest, GetDefaultAddressSelectionForCompleteAddresses) {
   base::Time current = base::Time::Now();
 
   // Adding email address and phone number to demonstrate that they are not
@@ -326,14 +355,16 @@ TEST(UserDataUtilTest, GetDefaultAddressSelectionForCompleteProfiles) {
                                  "", "8002", "CH", "");
   profile_complete->set_use_date(current);
 
-  // Specify profiles in reverse order to force sorting.
-  std::vector<std::unique_ptr<autofill::AutofillProfile>> profiles;
-  profiles.emplace_back(std::move(profile_with_irrelevant_details));
-  profiles.emplace_back(std::move(profile_complete));
+  // Specify addresses in reverse order to force sorting.
+  std::vector<std::unique_ptr<Address>> addresses;
+  addresses.emplace_back(
+      std::make_unique<Address>(std::move(profile_with_irrelevant_details)));
+  addresses.emplace_back(
+      std::make_unique<Address>(std::move(profile_complete)));
 
   CollectUserDataOptions options;
 
-  EXPECT_THAT(GetDefaultShippingAddressProfile(options, profiles), 1);
+  EXPECT_THAT(GetDefaultShippingAddress(options, addresses), 1);
 }
 
 TEST(UserDataUtilTest, SortsCreditCardsByCompleteness) {
@@ -364,7 +395,6 @@ TEST(UserDataUtilTest, SortsCreditCardsByCompleteness) {
 
   std::vector<int> sorted_indices =
       SortPaymentInstrumentsByCompleteness(options, payment_instruments);
-  EXPECT_THAT(sorted_indices, SizeIs(payment_instruments.size()));
   EXPECT_THAT(sorted_indices, ElementsAre(1, 0));
 }
 
@@ -396,7 +426,6 @@ TEST(UserDataUtilTest, SortsEquallyValidCardsByCardUseDate) {
 
   std::vector<int> sorted_indices =
       SortPaymentInstrumentsByCompleteness(options, payment_instruments);
-  EXPECT_THAT(sorted_indices, SizeIs(payment_instruments.size()));
   EXPECT_THAT(sorted_indices, ElementsAre(1, 0));
 }
 
@@ -424,7 +453,6 @@ TEST(UserDataUtilTest, SortsEquallyCompleteCardsByExpirationValidity) {
 
   std::vector<int> sorted_indices =
       SortPaymentInstrumentsByCompleteness(options, payment_instruments);
-  EXPECT_THAT(sorted_indices, SizeIs(payment_instruments.size()));
   EXPECT_THAT(sorted_indices, ElementsAre(1, 0));
 }
 
@@ -452,7 +480,6 @@ TEST(UserDataUtilTest, SortsEquallyCompleteCardsByNumberValidity) {
 
   std::vector<int> sorted_indices =
       SortPaymentInstrumentsByCompleteness(options, payment_instruments);
-  EXPECT_THAT(sorted_indices, SizeIs(payment_instruments.size()));
   EXPECT_THAT(sorted_indices, ElementsAre(1, 0));
 }
 
@@ -505,7 +532,6 @@ TEST(UserDataUtilTest, SortsCreditCardsByAddressCompleteness) {
 
   std::vector<int> sorted_indices =
       SortPaymentInstrumentsByCompleteness(options, payment_instruments);
-  EXPECT_THAT(sorted_indices, SizeIs(payment_instruments.size()));
   EXPECT_THAT(sorted_indices, ElementsAre(2, 1, 0));
 }
 

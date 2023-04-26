@@ -2,20 +2,29 @@
 	"archive_datas": [
         {
             "dirs": ["Chromium.app"],
+            "rename_dirs": [
+                {"from_dir": ".", "to_dir": "chrome-mac"}
+            ],
             "gcs_bucket": "chromium-browser-snapshots",
-            "gcs_path": "experimental/Mac_Arm/{%position%}/chrome-mac.zip",
+            "gcs_path": "Mac_Arm/{%position%}/chrome-mac.zip",
             "archive_type": "ARCHIVE_TYPE_ZIP",
             "latest_upload": {
-                "gcs_path": "experimental/Mac_Arm/LAST_CHANGE",
+                "gcs_path": "Mac_Arm/LAST_CHANGE",
                 "gcs_file_content": "{%position%}"
+            },
+            "revisions_file": {
+                "gcs_path": "Mac_Arm/{%position%}/REVISIONS"
             }
         },
         {
             "files": [
                 "chromedriver"
             ],
+            "rename_dirs": [
+                {"from_dir": ".", "to_dir": "chromedriver_mac64"}
+            ],
             "gcs_bucket": "chromium-browser-snapshots",
-            "gcs_path": "experimental/Mac_Arm/{%position%}/chromedriver_mac64.zip",
+            "gcs_path": "Mac_Arm/{%position%}/chromedriver_mac64.zip",
             "archive_type": "ARCHIVE_TYPE_ZIP"
         },
         {
@@ -29,14 +38,20 @@
                 "Content Shell.app",
                 "resources"
             ],
+            "rename_dirs": [
+                {"from_dir": ".", "to_dir": "content-shell"}
+            ],
             "gcs_bucket": "chromium-browser-snapshots",
-            "gcs_path": "experimental/Mac_Arm/{%position%}/content-shell.zip",
+            "gcs_path": "Mac_Arm/{%position%}/content-shell.zip",
             "archive_type": "ARCHIVE_TYPE_ZIP"
         },
         {
             "dirs": ["gen/third_party/devtools-frontend/src/front_end"],
+            "rename_dirs": [
+                {"from_dir": ".", "to_dir": "devtools-frontend"}
+            ],
             "gcs_bucket": "chromium-browser-snapshots",
-            "gcs_path": "experimental/Mac_Arm/{%position%}/devtools-frontend.zip",
+            "gcs_path": "Mac_Arm/{%position%}/devtools-frontend.zip",
             "archive_type": "ARCHIVE_TYPE_ZIP"
         },
         {
@@ -44,7 +59,7 @@
                 "remoting-me2me-host-mac.zip"
             ],
             "gcs_bucket": "chromium-browser-snapshots",
-            "gcs_path": "experimental/Mac_Arm/{%position%}",
+            "gcs_path": "Mac_Arm/{%position%}",
             "archive_type": "ARCHIVE_TYPE_FILES"
         },
         {
@@ -52,8 +67,11 @@
                 "chrome/updater/.install"
             ],
             "dirs": ["ChromiumUpdater.app", "Updater Packaging"],
+            "rename_dirs": [
+                {"from_dir": ".", "to_dir": "updater"}
+            ],
             "gcs_bucket": "chromium-browser-snapshots",
-            "gcs_path": "experimental/Mac_Arm/{%position%}/updater.zip",
+            "gcs_path": "Mac_Arm/{%position%}/updater.zip",
             "archive_type": "ARCHIVE_TYPE_ZIP"
         }
     ]

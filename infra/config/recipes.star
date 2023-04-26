@@ -60,6 +60,10 @@ build_recipe(
 )
 
 build_recipe(
+    name = "recipe:binary_size_fuchsia_trybot",
+)
+
+build_recipe(
     name = "recipe:branch_configuration/tester",
 )
 
@@ -121,6 +125,10 @@ build_recipe(
 
 build_recipe(
     name = "recipe:cronet",
+)
+
+build_recipe(
+    name = "recipe:flakiness/generate_builder_test_data",
 )
 
 build_recipe(

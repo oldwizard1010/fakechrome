@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "base/callback_helpers.h"
-#include "base/macros.h"
 #include "base/memory/read_only_shared_memory_region.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
@@ -86,6 +85,7 @@ class VIZ_SERVICE_EXPORT RootCompositorFrameSinkImpl
   void SetSupportedRefreshRates(
       const std::vector<float>& supported_refresh_rates) override;
   void PreserveChildSurfaceControls() override;
+  void SetSwapCompletionCallbackEnabled(bool enable) override;
 #endif
   void AddVSyncParameterObserver(
       mojo::PendingRemote<mojom::VSyncParameterObserver> observer) override;
@@ -189,6 +189,11 @@ class VIZ_SERVICE_EXPORT RootCompositorFrameSinkImpl
 // of lacros-chrome is complete.
 #if defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
   gfx::Size last_swap_pixel_size_;
+#endif
+
+#if defined(OS_ANDROID)
+  // Let client control whether it wants `DidCompleteSwapWithSize`.
+  bool enable_swap_competion_callback_ = false;
 #endif
 };
 

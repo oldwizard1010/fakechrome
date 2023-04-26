@@ -8,7 +8,6 @@
 #include <memory>
 #include <string>
 
-#include "base/macros.h"
 #include "components/page_load_metrics/browser/page_load_metrics_observer_delegate.h"
 #include "components/page_load_metrics/common/page_load_timing.h"
 #include "content/public/browser/global_routing_id.h"
@@ -368,6 +367,13 @@ class PageLoadMetricsObserver {
 
   virtual void OnMobileFriendlinessUpdate(
       const blink::MobileFriendliness& mobile_friendliness) {}
+
+  // OnInputTimingUpdate is triggered when an updated InputTiming is available
+  // at the subframe level. This method may be called multiple times over the
+  // course of the page load.
+  virtual void OnInputTimingUpdate(
+      content::RenderFrameHost* subframe_rfh,
+      const mojom::InputTiming& input_timing_delta) {}
 
   // OnRenderDataUpdate is triggered when an updated PageRenderData is available
   // at the subframe level. This method may be called multiple times over the

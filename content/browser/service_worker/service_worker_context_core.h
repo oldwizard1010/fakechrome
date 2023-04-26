@@ -15,7 +15,6 @@
 #include "base/callback.h"
 #include "base/containers/id_map.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list_threadsafe.h"
 #include "components/services/storage/public/mojom/quota_client.mojom.h"
@@ -114,6 +113,10 @@ class CONTENT_EXPORT ServiceWorkerContextCore
   // TODO(https://crbug.com/877356): Remove this copy mechanism.
   ServiceWorkerContextCore(ServiceWorkerContextCore* old_context,
                            ServiceWorkerContextWrapper* wrapper);
+
+  ServiceWorkerContextCore(const ServiceWorkerContextCore&) = delete;
+  ServiceWorkerContextCore& operator=(const ServiceWorkerContextCore&) = delete;
+
   ~ServiceWorkerContextCore() override;
 
   void OnStorageWiped();
@@ -481,8 +484,6 @@ class CONTENT_EXPORT ServiceWorkerContextCore
       quota_client_receiver_;
 
   base::WeakPtrFactory<ServiceWorkerContextCore> weak_factory_{this};
-
-  DISALLOW_COPY_AND_ASSIGN(ServiceWorkerContextCore);
 };
 
 }  // namespace content

@@ -21,6 +21,7 @@
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/threading/thread_task_runner_handle.h"
+#include "build/chromeos_buildflags.h"
 #include "chrome/browser/web_applications/externally_installed_web_app_prefs.h"
 #include "chrome/browser/web_applications/test/fake_data_retriever.h"
 #include "chrome/browser/web_applications/test/fake_install_finalizer.h"
@@ -175,18 +176,13 @@ class TestExternallyManagedAppInstallFinalizer : public WebAppInstallFinalizer {
             }));
   }
 
-  void UninstallFromSyncBeforeRegistryUpdate(
-      std::vector<AppId> web_apps) override {
-    NOTREACHED();
-  }
-  void UninstallFromSyncAfterRegistryUpdate(
-      std::vector<std::unique_ptr<WebApp>> web_apps,
+  void UninstallWithoutRegistryUpdateFromSync(
+      const std::vector<AppId>& web_apps,
       RepeatingUninstallCallback callback) override {
     NOTREACHED();
   }
 
   void FinalizeUpdate(const WebApplicationInfo& web_app_info,
-                      content::WebContents* web_contents,
                       InstallFinalizedCallback callback) override {
     NOTREACHED();
   }
@@ -222,6 +218,11 @@ class TestExternallyManagedAppInstallFinalizer : public WebAppInstallFinalizer {
                 UnregisterApp(app_id);
               std::move(callback).Run(uninstalled);
             }));
+  }
+
+  void RetryIncompleteUninstalls(
+      const std::vector<AppId>& apps_to_uninstall) override {
+    NOTREACHED();
   }
 
   bool CanUserUninstallWebApp(const AppId& app_id) const override {
@@ -288,6 +289,10 @@ class ExternallyManagedAppInstallTaskTest
 
   void SetUp() override {
     ChromeRenderViewHostTestHarness::SetUp();
+
+#if BUILDFLAG(IS_CHROMEOS_LACROS)
+    profile()->SetIsMainProfile(true);
+#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
     url_loader_ = std::make_unique<TestWebAppUrlLoader>();
 

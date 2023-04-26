@@ -53,23 +53,6 @@ enum NotificationType {
   // TODO(https://crbug.com/1174734): Remove.
   NOTIFICATION_EXTENSION_INSTALL_ERROR,
 
-  // Sent when an Extension object is removed from ExtensionService. This
-  // can happen when an extension is uninstalled, upgraded, or blocklisted,
-  // including all cases when the Extension is deleted. The details are an
-  // Extension, and the source is a BrowserContext*.
-  // TODO(https://crbug.com/1174736): Remove.
-  NOTIFICATION_EXTENSION_REMOVED,
-
-  // Sent when extension render process ends (whether it crashes or closes). The
-  // details are an ExtensionHost* and the source is a BrowserContext*. Not sent
-  // during browser shutdown.
-  // TODO(https://crbug.com/1174743): Remove.
-  NOTIFICATION_EXTENSION_PROCESS_TERMINATED,
-
-  // Sent when a background page is ready so other components can load.
-  // TODO(https://crbug.com/1174744): Remove.
-  NOTIFICATION_EXTENSION_BACKGROUND_PAGE_READY,
-
   // Sent when an bookmarks extensions API function was successfully invoked.
   // The source is the id of the extension that invoked the function, and the
   // details are a pointer to the const BookmarksFunction in question.

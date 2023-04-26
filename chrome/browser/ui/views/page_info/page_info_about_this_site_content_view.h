@@ -5,6 +5,7 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_PAGE_INFO_PAGE_INFO_ABOUT_THIS_SITE_CONTENT_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_PAGE_INFO_PAGE_INFO_ABOUT_THIS_SITE_CONTENT_VIEW_H_
 
+#include "components/page_info/page_info_ui.h"
 #include "components/page_info/proto/about_this_site_metadata.pb.h"
 #include "ui/views/view.h"
 
@@ -14,20 +15,21 @@ class PageInfo;
 // The view that is used as a content view of the "About this site" subpage in
 // page info. It contains short description about the website with the source
 // (usually from Wikipedia).
-class PageInfoAboutThisSiteContentView : public views::View {
+class PageInfoAboutThisSiteContentView : public views::View, public PageInfoUI {
  public:
   PageInfoAboutThisSiteContentView(PageInfo* presenter,
-                                   ChromePageInfoUiDelegate* ui_delegate);
+                                   ChromePageInfoUiDelegate* ui_delegate,
+                                   const page_info::proto::SiteInfo& info);
   ~PageInfoAboutThisSiteContentView() override;
 
  private:
   std::unique_ptr<views::View> CreateSourceLabel(
-      const absl::optional<page_info::proto::SiteInfo> info) WARN_UNUSED_RESULT;
+      const page_info::proto::SiteInfo& info) WARN_UNUSED_RESULT;
   void SourceLinkClicked(const ui::Event& event);
 
   PageInfo* presenter_;
   ChromePageInfoUiDelegate* ui_delegate_;
-  absl::optional<page_info::proto::SiteInfo> info_;
+  page_info::proto::SiteInfo info_;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_PAGE_INFO_PAGE_INFO_ABOUT_THIS_SITE_CONTENT_VIEW_H_

@@ -32,7 +32,7 @@
 #include "components/autofill/core/browser/autofill_test_utils.h"
 #include "components/autofill/core/browser/data_model/autofill_profile.h"
 #include "components/autofill/core/browser/data_model/credit_card.h"
-#include "components/autofill/core/browser/metrics/form_events.h"
+#include "components/autofill/core/browser/metrics/form_events/form_events.h"
 #include "components/autofill/core/browser/payments/test_authentication_requester.h"
 #include "components/autofill/core/browser/payments/test_payments_client.h"
 #include "components/autofill/core/browser/personal_data_manager.h"
@@ -167,7 +167,7 @@ TEST_F(CreditCardCVCAuthenticatorTest, AuthenticateServerCardSuccess) {
                                    &personal_data_manager_);
 
   OnDidGetRealPan(AutofillClient::PaymentsRpcResult::kSuccess, kTestNumber);
-  EXPECT_TRUE(requester_->did_succeed());
+  EXPECT_TRUE((*requester_->did_succeed()));
   EXPECT_EQ(kTestNumber16, requester_->number());
 }
 
@@ -179,7 +179,7 @@ TEST_F(CreditCardCVCAuthenticatorTest, AuthenticateServerCardNetworkError) {
 
   OnDidGetRealPan(AutofillClient::PaymentsRpcResult::kNetworkError,
                   std::string());
-  EXPECT_FALSE(requester_->did_succeed());
+  EXPECT_FALSE((*requester_->did_succeed()));
 }
 
 TEST_F(CreditCardCVCAuthenticatorTest, AuthenticateServerCardPermanentFailure) {
@@ -190,7 +190,7 @@ TEST_F(CreditCardCVCAuthenticatorTest, AuthenticateServerCardPermanentFailure) {
 
   OnDidGetRealPan(AutofillClient::PaymentsRpcResult::kPermanentFailure,
                   std::string());
-  EXPECT_FALSE(requester_->did_succeed());
+  EXPECT_FALSE((*requester_->did_succeed()));
 }
 
 TEST_F(CreditCardCVCAuthenticatorTest, AuthenticateServerCardTryAgainFailure) {
@@ -201,10 +201,10 @@ TEST_F(CreditCardCVCAuthenticatorTest, AuthenticateServerCardTryAgainFailure) {
 
   OnDidGetRealPan(AutofillClient::PaymentsRpcResult::kTryAgainFailure,
                   std::string());
-  EXPECT_FALSE(requester_->did_succeed());
+  EXPECT_FALSE(requester_->did_succeed().has_value());
 
   OnDidGetRealPan(AutofillClient::PaymentsRpcResult::kSuccess, kTestNumber);
-  EXPECT_TRUE(requester_->did_succeed());
+  EXPECT_TRUE((*requester_->did_succeed()));
   EXPECT_EQ(kTestNumber16, requester_->number());
 }
 

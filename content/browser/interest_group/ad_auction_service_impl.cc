@@ -11,6 +11,7 @@
 #include "base/check.h"
 #include "base/containers/contains.h"
 #include "base/no_destructor.h"
+#include "base/strings/strcat.h"
 #include "base/strings/stringprintf.h"
 #include "base/time/time.h"
 #include "content/browser/devtools/devtools_instrumentation.h"
@@ -176,6 +177,13 @@ void AdAuctionServiceImpl::CreateMojoService(
 
 void AdAuctionServiceImpl::JoinInterestGroup(
     const blink::InterestGroup& group) {
+  // If the interest group API is not allowed for this context by Permissions
+  // Policy, do nothing
+  if (!render_frame_host()->IsFeatureEnabled(
+          blink::mojom::PermissionsPolicyFeature::kJoinAdInterestGroup)) {
+    mojo::ReportBadMessage("Unexpected request");
+    return;
+  }
   // If the interest group API is not allowed for this origin do nothing.
   if (!GetContentClient()->browser()->IsInterestGroupAPIAllowed(
           render_frame_host()->GetBrowserContext(), main_frame_origin_,
@@ -199,6 +207,13 @@ void AdAuctionServiceImpl::JoinInterestGroup(
 
 void AdAuctionServiceImpl::LeaveInterestGroup(const url::Origin& owner,
                                               const std::string& name) {
+  // If the interest group API is not allowed for this context by Permissions
+  // Policy, do nothing
+  if (!render_frame_host()->IsFeatureEnabled(
+          blink::mojom::PermissionsPolicyFeature::kJoinAdInterestGroup)) {
+    mojo::ReportBadMessage("Unexpected request");
+    return;
+  }
   // If the interest group API is not allowed for this origin do nothing.
   if (!GetContentClient()->browser()->IsInterestGroupAPIAllowed(
           render_frame_host()->GetBrowserContext(), main_frame_origin_,
@@ -216,17 +231,32 @@ void AdAuctionServiceImpl::LeaveInterestGroup(const url::Origin& owner,
 }
 
 void AdAuctionServiceImpl::UpdateAdInterestGroups() {
+  // If the interest group API is not allowed for this context by Permissions
+  // Policy, do nothing
+  if (!render_frame_host()->IsFeatureEnabled(
+          blink::mojom::PermissionsPolicyFeature::kJoinAdInterestGroup)) {
+    mojo::ReportBadMessage("Unexpected request");
+    return;
+  }
   // If the interest group API is not allowed for this origin do nothing.
   if (!GetContentClient()->browser()->IsInterestGroupAPIAllowed(
           render_frame_host()->GetBrowserContext(), main_frame_origin_,
           origin().GetURL())) {
     return;
   }
-  GetInterestGroupManager().UpdateInterestGroupsOfOwner(origin());
+  GetInterestGroupManager().UpdateInterestGroupsOfOwner(
+      origin(), GetFrame()->BuildClientSecurityState());
 }
 
 void AdAuctionServiceImpl::RunAdAuction(blink::mojom::AuctionAdConfigPtr config,
                                         RunAdAuctionCallback callback) {
+  // If the run ad auction API is not allowed for this context by Permissions
+  // Policy, do nothing
+  if (!render_frame_host()->IsFeatureEnabled(
+          blink::mojom::PermissionsPolicyFeature::kRunAdAuction)) {
+    mojo::ReportBadMessage("Unexpected request");
+    return;
+  }
   if (!IsAuctionValid(*config)) {
     if (GetAuctionCompleteCallback())
       GetAuctionCompleteCallback().Run({"Invalid auction config"});
@@ -354,8 +384,9 @@ void AdAuctionServiceImpl::OnAuctionComplete(
 
   // Forward debug information to devtools.
   for (const std::string& error : errors) {
-    devtools_instrumentation::LogWorkletError(
-        static_cast<RenderFrameHostImpl*>(render_frame_host()), error);
+    devtools_instrumentation::LogWorkletMessage(
+        *GetFrame(), blink::mojom::ConsoleMessageLevel::kError,
+        base::StrCat({"Worklet error: ", error}));
   }
 
   if (!render_url) {
@@ -379,8 +410,18 @@ void AdAuctionServiceImpl::OnAuctionComplete(
   // path, and just disabling FLEDGE when fenced frames are disabled.
   if (blink::features::IsFencedFramesEnabled()) {
     render_url =
-        GetFrame()->GetPage().fenced_frame_urls_map().AddFencedFrameURL(
-            *render_url);
+        GetFrame()
+            ->GetPage()
+            .fenced_frame_urls_map()
+            .AddFencedFrameURLWithInterestGroupAdComponentUrls(
+                *render_url,
+                // Always pass in non-empty component URL vector, to avoid
+                // leaking any data to fenced frame.
+                //
+                // TODO(mmenke):  Make `ad_component_urls` non-optional
+                // everywhere instead of preserving the empty vs null
+                // distinction, only to discard it here.
+                std::move(ad_component_urls).value_or(std::vector<GURL>()));
     DCHECK(render_url->is_valid());
   }
 

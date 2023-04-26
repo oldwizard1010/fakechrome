@@ -20,10 +20,10 @@
 #include "chromeos/dbus/power/power_manager_client.h"
 #include "components/arc/arc_features.h"
 #include "components/arc/arc_prefs.h"
-#include "components/arc/arc_service_manager.h"
 #include "components/arc/mojom/power.mojom.h"
 #include "components/arc/power/arc_power_bridge.h"
 #include "components/arc/session/arc_bridge_service.h"
+#include "components/arc/session/arc_service_manager.h"
 #include "components/arc/test/arc_util_test_support.h"
 #include "components/arc/test/connection_holder_util.h"
 #include "components/arc/test/fake_arc_session.h"
@@ -162,23 +162,23 @@ TEST_F(ArcInstanceThrottleTest, TestConstructDestruct) {}
 // when ThrottleInstance is called.
 TEST_F(ArcInstanceThrottleTest, TestThrottleInstance) {
   arc_instance_throttle()->set_level_for_testing(
-      chromeos::ThrottleObserver::PriorityLevel::LOW);
+      ash::ThrottleObserver::PriorityLevel::LOW);
   EXPECT_EQ(1U, enable_cpu_restriction_counter());
   EXPECT_EQ(0U, disable_cpu_restriction_counter());
 
   // ArcInstanceThrottle level is already LOW, expect no change
   arc_instance_throttle()->set_level_for_testing(
-      chromeos::ThrottleObserver::PriorityLevel::LOW);
+      ash::ThrottleObserver::PriorityLevel::LOW);
   EXPECT_EQ(1U, enable_cpu_restriction_counter());
   EXPECT_EQ(0U, disable_cpu_restriction_counter());
 
   arc_instance_throttle()->set_level_for_testing(
-      chromeos::ThrottleObserver::PriorityLevel::CRITICAL);
+      ash::ThrottleObserver::PriorityLevel::CRITICAL);
   EXPECT_EQ(1U, enable_cpu_restriction_counter());
   EXPECT_EQ(1U, disable_cpu_restriction_counter());
 
   arc_instance_throttle()->set_level_for_testing(
-      chromeos::ThrottleObserver::PriorityLevel::LOW);
+      ash::ThrottleObserver::PriorityLevel::LOW);
   EXPECT_EQ(2U, enable_cpu_restriction_counter());
   EXPECT_EQ(1U, disable_cpu_restriction_counter());
 }
@@ -193,13 +193,13 @@ TEST_F(ArcInstanceThrottleTest, TestPowerNotificationEnabledByDefault) {
             power_instance()->last_cpu_restriction_state());
 
   arc_instance_throttle()->set_level_for_testing(
-      chromeos::ThrottleObserver::PriorityLevel::CRITICAL);
+      ash::ThrottleObserver::PriorityLevel::CRITICAL);
   EXPECT_EQ(2, power_instance()->cpu_restriction_state_count());
   EXPECT_EQ(mojom::CpuRestrictionState::CPU_RESTRICTION_FOREGROUND,
             power_instance()->last_cpu_restriction_state());
 
   arc_instance_throttle()->set_level_for_testing(
-      chromeos::ThrottleObserver::PriorityLevel::LOW);
+      ash::ThrottleObserver::PriorityLevel::LOW);
   EXPECT_EQ(3, power_instance()->cpu_restriction_state_count());
   EXPECT_EQ(mojom::CpuRestrictionState::CPU_RESTRICTION_BACKGROUND,
             power_instance()->last_cpu_restriction_state());
@@ -214,9 +214,9 @@ TEST_F(ArcInstanceThrottleTest, TestPowerNotificationDisabled) {
   // is made.
   CreatePowerInstance();
   arc_instance_throttle()->set_level_for_testing(
-      chromeos::ThrottleObserver::PriorityLevel::CRITICAL);
+      ash::ThrottleObserver::PriorityLevel::CRITICAL);
   arc_instance_throttle()->set_level_for_testing(
-      chromeos::ThrottleObserver::PriorityLevel::LOW);
+      ash::ThrottleObserver::PriorityLevel::LOW);
   EXPECT_EQ(0, power_instance()->cpu_restriction_state_count());
 }
 

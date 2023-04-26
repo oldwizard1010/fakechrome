@@ -39,16 +39,12 @@
 #include "ui/aura/native_window_occlusion_tracker_win.h"
 #endif
 
-#if defined(USE_X11)
-#include "ui/base/x/x11_util.h"  // nogncheck
-#endif
-
 #if defined(USE_OZONE)
 #include "ui/events/ozone/events_ozone.h"
 #endif
 
 #if defined(OS_FUCHSIA)
-#include "ui/platform_window/platform_window_init_properties.h"
+#include "ui/platform_window/fuchsia/initialize_presenter_api_view.h"
 #endif
 
 namespace aura {
@@ -72,7 +68,7 @@ AuraTestHelper::AuraTestHelper(ui::ContextFactory* context_factory) {
 #endif
 
 #if defined(OS_FUCHSIA)
-  ui::PlatformWindowInitProperties::allow_null_view_token_for_test = true;
+  ui::fuchsia::IgnorePresentCallsForTest();
 #endif
 
   ui::InitializeInputMethodForTesting();

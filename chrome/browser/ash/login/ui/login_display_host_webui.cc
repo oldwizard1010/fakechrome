@@ -10,6 +10,9 @@
 
 #include "ash/accessibility/ui/focus_ring_controller.h"
 #include "ash/components/audio/sounds.h"
+#include "ash/components/settings/cros_settings_names.h"
+#include "ash/components/settings/cros_settings_provider.h"
+#include "ash/components/settings/timezone_settings.h"
 #include "ash/components/timezone/timezone_resolver.h"
 #include "ash/constants/ash_switches.h"
 #include "ash/public/cpp/locale_update_controller.h"
@@ -23,7 +26,6 @@
 #include "base/command_line.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/utf_string_conversions.h"
@@ -80,9 +82,6 @@
 #include "chrome/grit/browser_resources.h"
 #include "chromeos/dbus/session_manager/session_manager_client.h"
 #include "chromeos/login/login_state/login_state.h"
-#include "chromeos/settings/cros_settings_names.h"
-#include "chromeos/settings/cros_settings_provider.h"
-#include "chromeos/settings/timezone_settings.h"
 #include "components/account_id/account_id.h"
 #include "components/language/core/browser/pref_names.h"
 #include "components/language/core/common/locale_util.h"
@@ -100,6 +99,7 @@
 #include "ui/base/ime/ash/input_method_manager.h"
 #include "ui/base/ime/ash/input_method_util.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/compositor/compositor.h"
 #include "ui/compositor/compositor_observer.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_observer.h"
@@ -337,8 +337,7 @@ void TriggerShowLoginWizardFinish(
 std::string GetManagedLoginScreenLocale() {
   auto* cros_settings = CrosSettings::Get();
   const base::ListValue* login_screen_locales = nullptr;
-  if (!cros_settings->GetList(chromeos::kDeviceLoginScreenLocales,
-                              &login_screen_locales))
+  if (!cros_settings->GetList(kDeviceLoginScreenLocales, &login_screen_locales))
     return std::string();
 
   // Currently, only the first element is used. The setting is a list for future
@@ -709,7 +708,8 @@ content::WebContents* LoginDisplayHostWebUI::GetOobeWebContents() const {
 ////////////////////////////////////////////////////////////////////////////////
 // LoginDisplayHostWebUI, WebContentsObserver:
 
-void LoginDisplayHostWebUI::RenderProcessGone(base::TerminationStatus status) {
+void LoginDisplayHostWebUI::PrimaryMainFrameRenderProcessGone(
+    base::TerminationStatus status) {
   // Do not try to restore on shutdown
   if (browser_shutdown::HasShutdownStarted())
     return;

@@ -15,7 +15,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/macros.h"
 #include "base/strings/string_split.h"
 #include "build/build_config.h"
 #include "content/common/content_export.h"
@@ -54,24 +53,18 @@ class CONTENT_EXPORT BrowserAccessibility : public ui::AXPlatformNodeDelegate {
 
   // Creates a platform specific BrowserAccessibility. Ownership passes to the
   // caller.
-  static BrowserAccessibility* Create();
+  static std::unique_ptr<BrowserAccessibility> Create(
+      BrowserAccessibilityManager* manager,
+      ui::AXNode* node);
 
   // Returns |delegate| as a BrowserAccessibility object, if |delegate| is
   // non-null and an object in the BrowserAccessibility class hierarchy.
   static BrowserAccessibility* FromAXPlatformNodeDelegate(
       ui::AXPlatformNodeDelegate* delegate);
 
-  BrowserAccessibility();
-
+  ~BrowserAccessibility() override;
   BrowserAccessibility(const BrowserAccessibility&) = delete;
   BrowserAccessibility& operator=(const BrowserAccessibility&) = delete;
-
-  ~BrowserAccessibility() override;
-
-  // Called only once, immediately after construction. The constructor doesn't
-  // take any arguments because in the Windows subclass we use a special
-  // function to construct a COM object.
-  virtual void Init(BrowserAccessibilityManager* manager, ui::AXNode* node);
 
   // Called after the object is first initialized and again every time
   // its data changes.
@@ -87,11 +80,6 @@ class CONTENT_EXPORT BrowserAccessibility : public ui::AXPlatformNodeDelegate {
 
   // Return true if this object is equal to or a descendant of |ancestor|.
   bool IsDescendantOf(const BrowserAccessibility* ancestor) const;
-
-  // Returns true if this object is at the root of what most accessibility APIs
-  // consider to be a document, such as the root of a webpage, an iframe, or a
-  // PDF.
-  bool IsPlatformDocument() const;
 
   bool IsIgnoredForTextNavigation() const;
 
@@ -359,11 +347,7 @@ class CONTENT_EXPORT BrowserAccessibility : public ui::AXPlatformNodeDelegate {
   ui::AXNodeID GetId() const;
   gfx::RectF GetLocation() const;
 
-  // TODO(nektar): Move this method to AXNode.
-  bool HasInheritedStringAttribute(ax::mojom::StringAttribute attribute) const;
-
-  // True if this is a web area, and its grandparent is a presentational iframe.
-  bool IsWebAreaForPresentationalIframe() const;
+  bool IsWebAreaForPresentationalIframe() const override;
 
   // See AXNodeData::IsClickable().
   virtual bool IsClickable() const;
@@ -473,7 +457,7 @@ class CONTENT_EXPORT BrowserAccessibility : public ui::AXPlatformNodeDelegate {
           ax::mojom::TextAffinity::kDownstream) const override;
   gfx::NativeViewAccessible GetNSWindow() override;
   gfx::NativeViewAccessible GetNativeViewAccessible() override;
-  gfx::NativeViewAccessible GetParent() override;
+  gfx::NativeViewAccessible GetParent() const override;
   int GetChildCount() const override;
   gfx::NativeViewAccessible ChildAtIndex(int index) override;
   bool HasModalDialog() const override;
@@ -534,8 +518,9 @@ class CONTENT_EXPORT BrowserAccessibility : public ui::AXPlatformNodeDelegate {
       ax::mojom::MoveDirection direction,
       ax::mojom::TextAffinity affinity) const override;
 
-  const std::vector<gfx::NativeViewAccessible> GetUIADescendants()
-      const override;
+  const std::vector<gfx::NativeViewAccessible> GetUIADirectChildrenInRange(
+      ui::AXPlatformNodeDelegate* start,
+      ui::AXPlatformNodeDelegate* end) override;
 
   std::string GetLanguage() const override;
 
@@ -621,13 +606,15 @@ class CONTENT_EXPORT BrowserAccessibility : public ui::AXPlatformNodeDelegate {
   std::string ToString() const;
 
  protected:
+  BrowserAccessibility(BrowserAccessibilityManager* manager, ui::AXNode* node);
+
   virtual ui::TextAttributeList ComputeTextAttributes() const;
 
   // The manager of this tree of accessibility objects. Weak, owns us.
-  BrowserAccessibilityManager* manager_ = nullptr;
+  BrowserAccessibilityManager* const manager_;
 
   // The underlying node. Weak, `AXTree` owns this.
-  ui::AXNode* node_ = nullptr;
+  ui::AXNode* const node_;
 
   // Protected so that it can't be called directly on a BrowserAccessibility
   // where it could be confused with an id that comes from the node data,
@@ -691,10 +678,8 @@ class CONTENT_EXPORT BrowserAccessibility : public ui::AXPlatformNodeDelegate {
   // If the node has a child tree, get the root node.
   BrowserAccessibility* PlatformGetRootOfChildTree() const;
 
-#if DCHECK_IS_ON()
   // Determines whether this object is valid.
   bool IsValid() const;
-#endif
 
   // Given a set of map of spelling text attributes and a start offset, merge
   // them into the given map of existing text attributes. Merges the given

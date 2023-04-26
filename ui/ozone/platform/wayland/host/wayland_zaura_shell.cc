@@ -11,6 +11,7 @@
 #include "base/check.h"
 #include "base/logging.h"
 #include "base/strings/utf_string_conversions.h"
+#include "ui/ozone/common/features.h"
 #include "ui/ozone/platform/wayland/host/wayland_connection.h"
 #include "ui/ozone/platform/wayland/host/wayland_output_manager.h"
 #include "ui/ozone/platform/wayland/host/wayland_screen.h"
@@ -18,7 +19,7 @@
 namespace ui {
 
 namespace {
-constexpr uint32_t kMaxAuraShellVersion = 27;
+constexpr uint32_t kMaxAuraShellVersion = 28;
 }
 
 // static
@@ -57,10 +58,10 @@ WaylandZAuraShell::WaylandZAuraShell(zaura_shell* aura_shell,
       &OnActivated,
   };
   zaura_shell_add_listener(obj_.get(), &zaura_shell_listener, this);
-  if (zaura_shell_get_version(wl_object()) >=
-      ZAURA_SHELL_SURFACE_SUBMISSION_IN_PIXEL_COORDINATES_SINCE_VERSION) {
-    if (connection->surface_submission_in_pixel_coordinates())
-      zaura_shell_surface_submission_in_pixel_coordinates(obj_.get());
+  if (IsWaylandSurfaceSubmissionInPixelCoordinatesEnabled() &&
+      zaura_shell_get_version(wl_object()) >=
+          ZAURA_TOPLEVEL_SURFACE_SUBMISSION_IN_PIXEL_COORDINATES_SINCE_VERSION) {
+    connection->set_surface_submission_in_pixel_coordinates(true);
   }
 }
 

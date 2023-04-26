@@ -28,6 +28,7 @@
 #include "chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/dom_distiller/tab_utils.h"
+#include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/favicon/favicon_utils.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/media/router/media_router_feature.h"
@@ -1344,6 +1345,12 @@ bool CanSavePage(const Browser* browser) {
           prefs::kAllowFileSelectionDialogs)) {
     return false;
   }
+  if (static_cast<DownloadPrefs::DownloadRestriction>(
+          browser->profile()->GetPrefs()->GetInteger(
+              prefs::kDownloadRestrictions)) ==
+      DownloadPrefs::DownloadRestriction::ALL_FILES) {
+    return false;
+  }
   return !browser->is_type_devtools() &&
          !(GetContentRestrictions(browser) & CONTENT_RESTRICTION_SAVE);
 }
@@ -1500,11 +1507,6 @@ void FocusBookmarksToolbar(Browser* browser) {
 void FocusInactivePopupForAccessibility(Browser* browser) {
   base::RecordAction(UserMetricsAction("FocusInactivePopupForAccessibility"));
   browser->window()->FocusInactivePopupForAccessibility();
-}
-
-void FocusHelpBubble(Browser* browser) {
-  base::RecordAction(UserMetricsAction("FocusHelpBubble"));
-  browser->window()->FocusHelpBubble();
 }
 
 void FocusNextPane(Browser* browser) {

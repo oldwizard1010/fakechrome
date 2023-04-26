@@ -13,10 +13,10 @@
 
 #include "base/feature_list.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
+#include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "url/gurl.h"
 
@@ -104,6 +104,8 @@ class TranslatePrefs {
   static const char kPrefTranslateDeniedCount[];
   static const char kPrefTranslateIgnoredCount[];
   static const char kPrefTranslateAcceptedCount[];
+  // Deprecated 10/2021.
+  static const char kPrefAlwaysTranslateListDeprecated[];
 #if defined(OS_ANDROID) || defined(OS_IOS)
   static const char kPrefTranslateAutoAlwaysCount[];
   static const char kPrefTranslateAutoNeverCount[];
@@ -341,6 +343,13 @@ class TranslatePrefs {
   void MigrateNeverPromptSites();
 
   static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
+
+  static void RegisterProfilePrefsForMigration(
+      user_prefs::PrefRegistrySyncable* registry);
+
+  static void MigrateObsoleteProfilePrefs(PrefService* pref_service);
+
+  static void ClearObsoleteProfilePrefs(PrefService* pref_service);
 
  private:
   FRIEND_TEST_ALL_PREFIXES(TranslatePrefsTest,

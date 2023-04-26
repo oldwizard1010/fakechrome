@@ -7,8 +7,6 @@
 
 #include <stdint.h>
 
-#include "base/macros.h"
-
 namespace arc {
 
 // Parameters to start request.
@@ -90,9 +88,6 @@ struct StartParams {
 
   // Enables developer options used to generate Play Auto Install rosters.
   bool arc_generate_play_auto_install = false;
-
-  // Flag to enable image copy & paste app compat.
-  bool enable_image_copy_paste_compat = false;
 
   // Flag to enable keyboard shortcut helper integration.
   bool enable_keyboard_shortcut_helper_integration = false;

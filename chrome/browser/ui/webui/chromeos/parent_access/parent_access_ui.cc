@@ -14,6 +14,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/webui/chromeos/parent_access/parent_access_ui.mojom.h"
+#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/browser_resources.h"
 #include "chrome/grit/generated_resources.h"
@@ -21,6 +22,7 @@
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
+#include "services/network/public/mojom/content_security_policy.mojom.h"
 #include "url/gurl.h"
 
 namespace chromeos {
@@ -28,7 +30,7 @@ namespace chromeos {
 namespace {
 
 const char kParentAccessDefaultURL[] =
-    "https://families.google.com/parentaccess#pac";
+    "https://families.google.com/parentaccess";
 const char kParentAccessSwitch[] = "parent-access-url";
 
 // Returns the URL of the Parent Access flow from the command-line switch,
@@ -112,17 +114,46 @@ void ParentAccessUI::SetUpResources() {
   source->EnableReplaceI18nInJS();
 
   // Forward data to the WebUI.
+  source->AddResourcePath("parent_access_controller.js",
+                          IDR_PARENT_ACCESS_CONTROLLER_JS);
+  source->AddResourcePath("parent_access_app.js", IDR_PARENT_ACCESS_APP_JS);
   source->AddResourcePath("parent_access_ui.js", IDR_PARENT_ACCESS_UI_JS);
-
-  source->AddLocalizedString("pageTitle", IDS_PARENT_ACCESS_PAGE_TITLE);
+  source->AddResourcePath("parent_access_after.js", IDR_PARENT_ACCESS_AFTER_JS);
+  source->AddResourcePath("flows/local_web_approvals_after.js",
+                          IDR_LOCAL_WEB_APPROVALS_AFTER_JS);
   source->AddResourcePath("parent_access_ui.mojom-lite.js",
                           IDR_PARENT_ACCESS_UI_MOJOM_LITE_JS);
+  source->AddResourcePath("images/parent_access_illustration_light_theme.svg",
+                          IDR_PARENT_ACCESS_ILLUSTRATION_LIGHT_THEME_SVG);
+  source->AddResourcePath("images/parent_access_illustration_dark_theme.svg",
+                          IDR_PARENT_ACCESS_ILLUSTRATION_DARK_THEME_SVG);
 
   source->UseStringsJs();
   source->SetDefaultResource(IDR_PARENT_ACCESS_HTML);
   source->AddString("webviewUrl", web_content_url_.spec());
+  // Set the filter to accept postMessages from the webviewURL's origin only.
   source->AddString("eventOriginFilter",
-                    web_content_url_.DeprecatedGetOriginAsURL().spec());
+                    web_content_url_.GetWithEmptyPath().spec());
+
+  static constexpr webui::LocalizedString kLocalizedStrings[] = {
+      {"pageTitle", IDS_PARENT_ACCESS_PAGE_TITLE},
+      {"approveButtonText", IDS_PARENT_ACCESS_AFTER_APPROVE_BUTTON},
+      {"denyButtonText", IDS_PARENT_ACCESS_AFTER_DENY_BUTTON},
+      {"localWebApprovalsAfterTitle",
+       IDS_PARENT_ACCESS_LOCAL_WEB_APPROVALS_AFTER_TITLE},
+      {"localWebApprovalsAfterSubtitle",
+       IDS_PARENT_ACCESS_LOCAL_WEB_APPROVALS_AFTER_SUBTITLE},
+      {"localWebApprovalsAfterDetails",
+       IDS_PARENT_ACCESS_LOCAL_WEB_APPROVALS_AFTER_DETAILS},
+  };
+  source->AddLocalizedStrings(kLocalizedStrings);
+
+  // Enables use of test_loader.html
+  webui::SetJSModuleDefaults(source.get());
+
+  // Allows loading of local content into an iframe for testing.
+  source->OverrideContentSecurityPolicy(
+      network::mojom::CSPDirectiveName::FrameSrc, "frame-src chrome://test/;");
 
   content::WebUIDataSource::Add(profile, source.release());
 }

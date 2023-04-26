@@ -100,8 +100,7 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
     @Nullable
     private static FirstRunActivityObserver sObserver;
 
-    private String mResultSignInAccountName;
-    private boolean mResultShowSignInSettings;
+    private String mResultSyncConsentAccountName;
 
     private boolean mFlowIsKnown;
     private boolean mPostNativeAndPolicyPagesCreated;
@@ -185,21 +184,12 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
                 () -> mFreProperties.getBoolean(SHOW_SEARCH_ENGINE_PAGE);
         BooleanSupplier showSyncConsent = () -> mFreProperties.getBoolean(SHOW_SYNC_CONSENT_PAGE);
 
-        boolean notifyAdapter = false;
-        // An optional sign-in page, the visibility of this page will be decided on the fly
-        // according to the situation.
-        if (FREMobileIdentityConsistencyFieldTrial.isEnabled()) {
-            mPages.add(new FirstRunPage<>(SyncConsentFirstRunFragment.class, showSyncConsent));
-            mFreProgressStates.add(MobileFreProgress.SYNC_CONSENT_SHOWN);
-            notifyAdapter = true;
-        }
-
         // An optional Data Saver page.
-        if (showDataReductionPromo.getAsBoolean()) {
+        if (!FREMobileIdentityConsistencyFieldTrial.isEnabled()
+                && showDataReductionPromo.getAsBoolean()) {
             mPages.add(new FirstRunPage<>(
                     DataReductionProxyFirstRunFragment.class, showDataReductionPromo));
             mFreProgressStates.add(MobileFreProgress.DATA_SAVER_SHOWN);
-            notifyAdapter = true;
         }
 
         // An optional page to select a default search engine.
@@ -207,17 +197,23 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
             mPages.add(new FirstRunPage<>(
                     DefaultSearchEngineFirstRunFragment.class, showSearchEnginePromo));
             mFreProgressStates.add(MobileFreProgress.DEFAULT_SEARCH_ENGINE_SHOWN);
-            notifyAdapter = true;
         }
 
-        // An optional sign-in page.
-        if (!FREMobileIdentityConsistencyFieldTrial.isEnabled()) {
-            mPages.add(new FirstRunPage<>(SyncConsentFirstRunFragment.class, showSyncConsent));
-            mFreProgressStates.add(MobileFreProgress.SYNC_CONSENT_SHOWN);
-            notifyAdapter = true;
+        // An optional sync consent page, the visibility of this page will be decided on the fly
+        // according to the situation.
+        mPages.add(new FirstRunPage<>(SyncConsentFirstRunFragment.class, showSyncConsent));
+        mFreProgressStates.add(MobileFreProgress.SYNC_CONSENT_SHOWN);
+
+        // An optional Data Saver page, this page will be hidden if users click the |Settings|
+        // link on the sync consent page.
+        if (FREMobileIdentityConsistencyFieldTrial.isEnabled()
+                && showDataReductionPromo.getAsBoolean()) {
+            mPages.add(new FirstRunPage<>(
+                    DataReductionProxyFirstRunFragment.class, showDataReductionPromo));
+            mFreProgressStates.add(MobileFreProgress.DATA_SAVER_SHOWN);
         }
 
-        if (notifyAdapter && mPagerAdapter != null) {
+        if (mPagerAdapter != null) {
             mPagerAdapter.notifyDataSetChanged();
         }
         mPostNativeAndPolicyPagesCreated = true;
@@ -484,12 +480,15 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
     public void completeFirstRunExperience() {
         RecordHistogram.recordMediumTimesHistogram("MobileFre.FromLaunch.FreCompleted",
                 SystemClock.elapsedRealtime() - mIntentCreationElapsedRealtimeMs);
-        recordFreProgressHistogram(TextUtils.isEmpty(mResultSignInAccountName)
-                        ? MobileFreProgress.COMPLETED_NOT_SYNC
-                        : MobileFreProgress.COMPLETED_SYNC);
+        if (mFreProperties.getBoolean(OPEN_ADVANCED_SYNC_SETTINGS)) {
+            recordFreProgressHistogram(MobileFreProgress.SYNC_CONSENT_SETTINGS_LINK_CLICK);
+        }
+        recordFreProgressHistogram(TextUtils.isEmpty(mResultSyncConsentAccountName)
+                        ? MobileFreProgress.SYNC_CONSENT_DISMISSED
+                        : MobileFreProgress.SYNC_CONSENT_ACCEPTED);
 
-        FirstRunFlowSequencer.markFlowAsCompleted(
-                mResultSignInAccountName, mResultShowSignInSettings);
+        FirstRunFlowSequencer.markFlowAsCompleted(mResultSyncConsentAccountName,
+                mFreProperties.getBoolean(OPEN_ADVANCED_SYNC_SETTINGS));
 
         if (DataReductionPromoUtils.getDisplayedFreOrSecondRunPromo()) {
             if (DataReductionProxySettings.getInstance().isDataReductionProxyEnabled()) {
@@ -543,15 +542,15 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
     }
 
     @Override
-    public void refuseSignIn() {
-        mResultSignInAccountName = null;
-        mResultShowSignInSettings = false;
+    public void refuseSync() {
+        mResultSyncConsentAccountName = null;
+        mFreProperties.putBoolean(OPEN_ADVANCED_SYNC_SETTINGS, false);
     }
 
     @Override
-    public void acceptSignIn(String accountName, boolean openSettings) {
-        mResultSignInAccountName = accountName;
-        mResultShowSignInSettings = openSettings;
+    public void acceptSync(String accountName, boolean openSettings) {
+        mResultSyncConsentAccountName = accountName;
+        mFreProperties.putBoolean(OPEN_ADVANCED_SYNC_SETTINGS, openSettings);
     }
 
     @Override

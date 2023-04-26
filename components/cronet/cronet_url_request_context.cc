@@ -22,7 +22,6 @@
 #include "base/files/scoped_file.h"
 #include "base/lazy_instance.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/statistics_recorder.h"
@@ -432,7 +431,7 @@ void CronetURLRequestContext::NetworkTasks::Initialize(
   if (context_->reporting_service()) {
     for (const auto& preloaded_header : config->preloaded_report_to_headers) {
       context_->reporting_service()->ProcessReportToHeader(
-          preloaded_header.origin.GetURL(), net::NetworkIsolationKey(),
+          preloaded_header.origin, net::NetworkIsolationKey(),
           preloaded_header.value);
     }
   }

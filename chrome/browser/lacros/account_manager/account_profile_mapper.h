@@ -5,6 +5,7 @@
 #ifndef CHROME_BROWSER_LACROS_ACCOUNT_MANAGER_ACCOUNT_PROFILE_MAPPER_H_
 #define CHROME_BROWSER_LACROS_ACCOUNT_MANAGER_ACCOUNT_PROFILE_MAPPER_H_
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -18,6 +19,7 @@
 #include "base/scoped_observation.h"
 #include "components/account_manager_core/account_manager_facade.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
+#include "third_party/abseil-cpp/absl/types/variant.h"
 
 namespace account_manager {
 struct Account;
@@ -60,6 +62,10 @@ class AccountProfileMapper
 
   using AddAccountCallback =
       base::OnceCallback<void(const absl::optional<AddAccountResult>&)>;
+  using ListAccountsCallback =
+      base::OnceCallback<void(const std::vector<account_manager::Account>&)>;
+  using MapAccountsCallback = base::OnceCallback<void(
+      const std::map<base::FilePath, std::vector<account_manager::Account>>&)>;
 
   class Observer : public base::CheckedObserver {
    public:
@@ -83,10 +89,8 @@ class AccountProfileMapper
   // Interface similar to `AccountManagerFacade`, but split per profile. If
   // there is no profile with `profile_path`, the behavior is the same as a
   // profile without accounts.
-  void GetAccounts(
-      const base::FilePath& profile_path,
-      base::OnceCallback<void(const std::vector<account_manager::Account>&)>
-          callback);
+  void GetAccounts(const base::FilePath& profile_path,
+                   ListAccountsCallback callback);
   void GetPersistentErrorForAccount(
       const base::FilePath& profile_path,
       const account_manager::AccountKey& account,
@@ -96,31 +100,71 @@ class AccountProfileMapper
       const account_manager::AccountKey& account,
       const std::string& oauth_consumer_name,
       OAuth2AccessTokenConsumer* consumer);
+
+  // Returns the whole map of accounts per profile. An empty path is used as the
+  // key for unassigned accounts (this key is not set if there are no unassigned
+  // accounts).
+  void GetAccountsMap(MapAccountsCallback callback);
+
+  // Profile creation methods and assignment of accounts to profiles:
+
   // Adds an account to the specified profile. Some notes:
   // - `callback` is called with nullopt if the operation failed;
   // - fails if the user adds a non-Gaia account;
   // - may return the empty path if the account was added but could not be
   //   assigned to the profile.
-  void ShowAddAccountDialog(const base::FilePath& profile_path,
-                            AddAccountCallback callback);
-
+  void ShowAddAccountDialog(
+      const base::FilePath& profile_path,
+      account_manager::AccountManagerFacade::AccountAdditionSource source,
+      AddAccountCallback callback);
+  // Similar to `ShowAddAccountDialog()` but uses an account that already exists
+  // in the `AccountManagerFacade` instead of creating a new one.
+  void AddAccount(const base::FilePath& profile_path,
+                  const account_manager::AccountKey& account,
+                  AddAccountCallback callback);
   // Similar to `ShowAddAccountDialog()` but creates a new profile first. The
   // new profile is omitted and ephemeral: it's the caller responsibility to
   // clean these flags if needed.
-  void ShowAddAccountDialogAndCreateNewProfile(AddAccountCallback callback);
+  void ShowAddAccountDialogAndCreateNewProfile(
+      account_manager::AccountManagerFacade::AccountAdditionSource source,
+      AddAccountCallback callback);
+  // Similar to `ShowAddAccountDialogAndCreateNewProfile()` but uses an account
+  // that already exists in the `AccountManagerFacade` instead of creating a new
+  // one.
+  void CreateNewProfileWithAccount(const account_manager::AccountKey& account,
+                                   AddAccountCallback callback);
 
   // account_manager::AccountManagerFacade::Observer:
   void OnAccountUpserted(const account_manager::Account& account) override;
   void OnAccountRemoved(const account_manager::Account& account) override;
 
+  // Adds or updates an account programmatically without user interaction
+  // Should only be used in tests.
+  void UpsertAccountForTesting(const base::FilePath& profile_path,
+                               const account_manager::Account& account,
+                               const std::string& token_value);
+
+  // Removes an account from the specified profile. Should only be used in
+  // tests.
+  // Note: this currently removes the account from the OS. A better
+  // implementation would remove it from the profile, but keep it in the OS.
+  void RemoveAccountForTesting(const base::FilePath& profile_path,
+                               const account_manager::AccountKey& account_key);
+
  private:
-  // Shared code for `ShowAddAccountDialogAndCreateNewProfile()` and
-  // `ShowAddAccountDialog()`. Pass an empty path to request a new profile.
-  void ShowAddAccountDialogInternal(const base::FilePath& profile_path,
-                                    AddAccountCallback callback);
+  // Shared code for methods related to profile creation and adding accounts to
+  // profiles. Pass an empty path to request a new profile. If
+  // `source_or_accountkey` is an account, this account is used, otherwise a new
+  // account is added with the source.
+  void AddAccountInternal(
+      const base::FilePath& profile_path,
+      const absl::variant<
+          account_manager::AccountManagerFacade::AccountAdditionSource,
+          account_manager::AccountKey>& source_or_accountkey,
+      AddAccountCallback callback);
 
   // Callback for `AddAccountHelper`, end of the flow starting with
-  // `ShowAddAccountDialogInternal()`.
+  // `AddAccounInternal()`.
   void OnAddAccountCompleted(AddAccountHelper* helper,
                              AddAccountCallback callback,
                              const absl::optional<AddAccountResult>& result);
@@ -152,6 +196,14 @@ class AccountProfileMapper
   // Returns whether the profile corresponding to `entry` should be deleted
   // after a system accounts update.
   bool ShouldDeleteProfile(ProfileAttributesEntry* entry) const;
+
+  // Ensure the profiles are in good shape at startup. This is useful in
+  // particular to migrate old profiles that were created before this class and
+  // don't have their Gaia IDs populated. This migrates both Dice profiles and
+  // the Ash main profile.
+  // TODO(https://crbug.com/1266485): Consider deleting this code once all Dice
+  // profiles were converted.
+  void MigrateOldProfiles();
 
   // All requests are delayed until the first `GetAccounts()` call completes.
   bool initialized_ = false;

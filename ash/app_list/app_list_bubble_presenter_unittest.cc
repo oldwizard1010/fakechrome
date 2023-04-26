@@ -16,12 +16,14 @@
 #include "ash/shelf/shelf_navigation_widget.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
+#include "ash/test/test_widget_builder.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/icu_test_util.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/display/display.h"
 #include "ui/gfx/geometry/vector2d.h"
 #include "ui/views/test/widget_test.h"
@@ -154,6 +156,7 @@ TEST_F(AppListBubblePresenterTest, BubbleIsNotShowingByDefault) {
   AppListBubblePresenter* presenter = GetBubblePresenter();
 
   EXPECT_FALSE(presenter->IsShowing());
+  EXPECT_FALSE(presenter->GetWindow());
 }
 
 TEST_F(AppListBubblePresenterTest, BubbleIsShowingAfterShow) {
@@ -161,6 +164,7 @@ TEST_F(AppListBubblePresenterTest, BubbleIsShowingAfterShow) {
   presenter->Show(GetPrimaryDisplay().id());
 
   EXPECT_TRUE(presenter->IsShowing());
+  EXPECT_TRUE(presenter->GetWindow());
 }
 
 TEST_F(AppListBubblePresenterTest, BubbleIsNotShowingAfterDismiss) {
@@ -169,6 +173,30 @@ TEST_F(AppListBubblePresenterTest, BubbleIsNotShowingAfterDismiss) {
   presenter->Dismiss();
 
   EXPECT_FALSE(presenter->IsShowing());
+  EXPECT_FALSE(presenter->GetWindow());
+}
+
+TEST_F(AppListBubblePresenterTest, CannotShowWhileAnimatingClosed) {
+  AppListBubblePresenter* presenter = GetBubblePresenter();
+  presenter->Show(GetPrimaryDisplay().id());
+
+  // Enable animations.
+  base::test::ScopedFeatureList features(
+      features::kProductivityLauncherAnimation);
+  ui::ScopedAnimationDurationScaleMode duration(
+      ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
+
+  WidgetDestroyedWaiter waiter(presenter->bubble_widget_for_test());
+  presenter->Dismiss();
+  // Widget is still showing because it is animating closed.
+  EXPECT_TRUE(presenter->IsShowing());
+
+  // Attempt to abort the dismiss by showing again.
+  presenter->Show(GetPrimaryDisplay().id());
+
+  // Widget closes anyway.
+  waiter.Wait();
+  EXPECT_EQ(0u, NumberOfWidgetsInAppListContainer());
 }
 
 TEST_F(AppListBubblePresenterTest, DoesNotCrashWhenNativeWidgetDestroyed) {
@@ -233,6 +261,44 @@ TEST_F(AppListBubblePresenterTest, ClickInCornerOfScreenClosesBubble) {
   EXPECT_EQ(0u, NumberOfWidgetsInAppListContainer());
 }
 
+// Regression test for https://crbug.com/1268220.
+TEST_F(AppListBubblePresenterTest, CreatingActiveWidgetClosesBubble) {
+  AppListBubblePresenter* presenter = GetBubblePresenter();
+  presenter->Show(GetPrimaryDisplay().id());
+
+  // Create a new widget, which will activate itself and deactivate the bubble.
+  std::unique_ptr<views::Widget> widget =
+      TestWidgetBuilder().SetShow(true).BuildOwnsNativeWidget();
+  EXPECT_TRUE(widget->IsActive());
+
+  // Bubble is closed.
+  EXPECT_FALSE(presenter->IsShowing());
+}
+
+// Regression test for https://crbug.com/1268220.
+TEST_F(AppListBubblePresenterTest, CreatingChildWidgetDoesNotCloseBubble) {
+  AppListBubblePresenter* presenter = GetBubblePresenter();
+  presenter->Show(GetPrimaryDisplay().id());
+
+  // Create a new widget parented to the bubble, similar to an app uninstall
+  // confirmation dialog.
+  aura::Window* bubble_window =
+      presenter->bubble_widget_for_test()->GetNativeWindow();
+  std::unique_ptr<views::Widget> widget = TestWidgetBuilder()
+                                              .SetShow(true)
+                                              .SetParent(bubble_window)
+                                              .BuildOwnsNativeWidget();
+
+  // Bubble stays open.
+  EXPECT_TRUE(presenter->IsShowing());
+
+  // Close the widget.
+  widget.reset();
+
+  // Bubble stays open.
+  EXPECT_TRUE(presenter->IsShowing());
+}
+
 TEST_F(AppListBubblePresenterTest, BubbleOpensInBottomLeftForBottomShelf) {
   GetPrimaryShelf()->SetAlignment(ShelfAlignment::kBottom);
 
@@ -276,6 +342,24 @@ TEST_F(AppListBubblePresenterTest, BubbleOpensInBottomRightForBottomShelfRTL) {
   Widget* widget = presenter->bubble_widget_for_test();
   EXPECT_TRUE(IsNear(widget->GetWindowBoundsInScreen().bottom_right(),
                      GetPrimaryDisplay().work_area().bottom_right()));
+}
+
+// Regression test for https://crbug.com/1263697
+TEST_F(AppListBubblePresenterTest,
+       BubbleStaysInBottomLeftAfterScreenResolutionChange) {
+  AppListBubblePresenter* presenter = GetBubblePresenter();
+  presenter->Show(GetPrimaryDisplay().id());
+
+  // Changing to a large display keeps the bubble in the corner.
+  UpdateDisplay("2100x2000");
+  Widget* widget = presenter->bubble_widget_for_test();
+  EXPECT_TRUE(IsNear(widget->GetWindowBoundsInScreen().bottom_left(),
+                     GetPrimaryDisplay().work_area().bottom_left()));
+
+  // Changing to a small display keeps the bubble in the corner.
+  UpdateDisplay("800x600");
+  EXPECT_TRUE(IsNear(widget->GetWindowBoundsInScreen().bottom_left(),
+                     GetPrimaryDisplay().work_area().bottom_left()));
 }
 
 TEST_F(AppListBubblePresenterTest, BubbleSizedForDisplay) {
@@ -341,16 +425,16 @@ TEST_F(AppListBubblePresenterTest, BubbleSizedForLargeDisplay) {
 
   int no_apps_bubble_view_height = presenter->bubble_view_for_test()->height();
 
-  // Add 30 apps to the app list and reopen.
+  // Add enough apps to enlarge the bubble view size from its default height.
   presenter->Dismiss();
-  AddAppItems(30);
+  AddAppItems(35);
   presenter->Show(GetPrimaryDisplay().id());
 
-  int thirty_apps_bubble_view_height =
+  int thirty_five_apps_bubble_view_height =
       presenter->bubble_view_for_test()->height();
 
-  // The AppListBubbleView should be larger after apps have neen added to it.
-  EXPECT_GT(thirty_apps_bubble_view_height, no_apps_bubble_view_height);
+  // The AppListBubbleView should be larger after apps have been added to it.
+  EXPECT_GT(thirty_five_apps_bubble_view_height, no_apps_bubble_view_height);
 
   // Add 50 more apps to the app list and reopen.
   presenter->Dismiss();
@@ -361,7 +445,8 @@ TEST_F(AppListBubblePresenterTest, BubbleSizedForLargeDisplay) {
       presenter->bubble_view_for_test()->height();
 
   // With more apps added, the height of the bubble should increase.
-  EXPECT_GT(eighty_apps_bubble_view_height, thirty_apps_bubble_view_height);
+  EXPECT_GT(eighty_apps_bubble_view_height,
+            thirty_five_apps_bubble_view_height);
 
   // The bubble height should not be larger than half the display height.
   EXPECT_LE(eighty_apps_bubble_view_height, 1000);

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
-// Next MinVersion: 11
+// Next MinVersion: 12
 
 module crosapi.mojom;
 
@@ -80,6 +80,10 @@ struct App {
   // There is no guarantee that this is sorted by any criteria.
   [MinVersion=8]
   array<Permission>? permissions@24;
+
+  [MinVersion=11]
+  // Whether the app publisher allows the app to be uninstalled.
+  OptionalBool allow_uninstall@25;
 };
 
 // The types of apps available in the registry.
@@ -401,4 +405,21 @@ enum TriState {
 union PermissionValue {
   bool bool_value;
   TriState tristate_value;
+};
+
+// Represents changes which have been made to the preferred apps list, both
+// adding new filters and removing existing filters. The map is keyed by
+// |app_id|, and the value is the list of the filters that is added/removed
+// for that |app_id|.
+[Stable]
+struct PreferredAppChanges {
+  map<string, array<IntentFilter>> added_filters;
+  map<string, array<IntentFilter>> removed_filters;
+};
+
+// Represents the entry of the preferred apps list.
+[Stable]
+struct PreferredApp {
+  IntentFilter intent_filter;
+  string app_id;
 };

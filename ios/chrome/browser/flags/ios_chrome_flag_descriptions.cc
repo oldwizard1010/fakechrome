@@ -83,6 +83,10 @@ const char kBreakpadNoDelayInitialUploadDescription[] =
     "disabled, initial upload is delayed until deferred initialization. This "
     "does not affect recovery mode.";
 
+const char kCommercePriceTrackingName[] = "Price Tracking";
+const char kCommercePriceTrackingDescription[] =
+    "Allows users to track product prices through Chrome.";
+
 const char kContextMenuActionsRefreshName[] = "Context menu actions refresh";
 const char kContextMenuActionsRefreshDescription[] =
     "When enabled, context menu actions are updated";
@@ -139,22 +143,12 @@ const char kDiscoverFeedInNtpDescription[] =
     "When enabled, replaces articles feed with new content Suggestion Feed in "
     "the NTP.";
 
-const char kDownloadMobileConfigFileName[] = "Download .mobileconfig file";
-const char kDownloadMobileConfigFileDescription[] =
-    "Allows user to download and install a .mobileconfig file";
-
 const char kDownloadVcardName[] = "Download Vcard";
 const char kDownloadVcardDescription[] = "Allows user to download & open Vcard";
 
 const char kEditPasswordsInSettingsName[] = "Edit passwords in settings";
 const char kEditPasswordsInSettingsDescription[] =
     "Enables password editing in settings.";
-
-const char kRestoreSessionFromCacheName[] =
-    "Use native WKWebView sesion restoration (iOS15 only).";
-const char kRestoreSessionFromCacheDescription[] =
-    "Enable instant session restoration for faster web session restoration "
-    "(iOS15 only).";
 
 const char kEnableAutofillAccountWalletStorageName[] =
     "Enable the account data storage for autofill";
@@ -217,10 +211,6 @@ const char kEnableManualPasswordGenerationDescription[] =
     "Enable UI that allows to generate a strong password for any password "
     "field";
 
-const char kEnableNTPMemoryEnhancementName[] = "Enable NTP Memory Enhancement";
-const char kEnableNTPMemoryEnhancementDescription[] =
-    "NTP will consume less memory.";
-
 const char kEnableOptimizationGuideName[] = "Enable optimization guide";
 const char kEnableOptimizationGuideDescription[] =
     "Enables the optimization guide to provide intelligence for page loads.";
@@ -247,6 +237,11 @@ const char kFillingAcrossAffiliatedWebsitesName[] =
 const char kFillingAcrossAffiliatedWebsitesDescription[] =
     "Enables filling password on a website when there is saved "
     "password on affiliated website.";
+
+const char kEnableWebChannelsName[] = "Enable Web Channels";
+const char kEnableWebChannelsDescription[] =
+    "Enable folowing content from web and display Following feed on NTP based "
+    "on websites that users followed.";
 
 const char kForceDisableExtendedSyncPromosName[] =
     "Disable all extended sync promos";
@@ -286,12 +281,6 @@ const char kIncognitoBrandConsistencyForIOSDescription[] =
 const char kIncognitoNtpRevampName[] = "Revamped Incognito New Tab Page";
 const char kIncognitoNtpRevampDescription[] =
     "When enabled, Incognito new tab page will have an updated UI.";
-
-const char kInterestFeedNoticeCardAutoDismissName[] =
-    "New Content Suggestions notice card auto-dismiss";
-const char kInterestFeedNoticeCardAutoDismissDescription[] =
-    "Auto-dismiss the notice card when there are enough clicks or views on the "
-    "notice card.";
 
 const char kInterestFeedV2ClickAndViewActionsConditionalUploadName[] =
     "New Content Suggestions taps/views conditional upload";
@@ -356,6 +345,10 @@ const char kModernTabStripDescription[] =
 const char kNewOverflowMenuName[] = "New Overflow Menu";
 const char kNewOverflowMenuDescription[] = "Enables the new overflow menu";
 
+const char kNTPViewHierarchyRepairName[] = "NTP View Hierarchy Repair";
+const char kNTPViewHierarchyRepairDescription[] =
+    "Checks if NTP view hierarchy is broken and fixes it if necessary.";
+
 const char kOldSyncStringFREName[] = "Use previous sync screen strings";
 const char kOldSyncStringFREDescription[] =
     "When enabled, the strings of the previous sync screen are used in the "
@@ -407,6 +400,23 @@ const char kReadingListMessagesDescription[] =
     "When enabled, a Messages prompt may be presented to allow the user to "
     "save the current page to Reading List";
 
+const char kReadingListTimeToReadName[] = "Enables Reading List Time To Read";
+const char kReadingListTimeToReadDescription[] =
+    "When enabled, a Time to Read estimate is added to each Reading List "
+    "entry.";
+
+extern const char kRemoveExcessNTPsExperimentName[] =
+    "Remove extra New Tab Pages";
+extern const char kRemoveExcessNTPsExperimentDescription[] =
+    "When enabled, extra tabs with the New Tab Page open and no navigation "
+    "history will be removed.";
+
+const char kRestoreSessionFromCacheName[] =
+    "Use native WKWebView sesion restoration (iOS15 only).";
+const char kRestoreSessionFromCacheDescription[] =
+    "Enable instant session restoration for faster web session restoration "
+    "(iOS15 only).";
+
 const char kSafeBrowsingAvailableName[] = "Make Safe Browsing available";
 const char kSafeBrowsingAvailableDescription[] =
     "When enabled, navigation URLs are compared to Safe Browsing blocklists, "
@@ -456,6 +466,12 @@ const char kSyncSandboxName[] = "Use Chrome Sync sandbox";
 const char kSyncSandboxDescription[] =
     "Connects to the testing server for Chrome Sync.";
 
+const char kSynthesizedRestoreSessionName[] =
+    "Use a synthesized native WKWebView sesion restoration (iOS15 only).";
+const char kSynthesizedRestoreSessionDescription[] =
+    "Enable instant session restoration by synthesizing WKWebView session "
+    "restoration data (iOS15 only).";
+
 const char kSyncTrustedVaultPassphraseiOSRPCName[] =
     "Enable RPC for sync trusted vault passphrase.";
 const char kSyncTrustedVaultPassphraseiOSRPCDescription[] =
@@ -484,6 +500,11 @@ const char kTabsBulkActionsName[] = "Enable Tab Grid Bulk Actions";
 const char kTabsBulkActionsDescription[] =
     "Enables the selection mode in the Tab grid where users can perform "
     "actions on multiple tabs at once for iOS 13 and above.";
+
+extern const char kTabsSearchName[] = "Enable Tabs Search";
+extern const char kTabsSearchDescription[] =
+    "Enables the search mode in the Tab grid where users can search open tabs "
+    "or recent tabs.";
 
 const char kToolbarContainerName[] = "Use Toolbar Containers";
 const char kToolbarContainerDescription[] =
@@ -521,6 +542,10 @@ const char kEnableNewDownloadAPIName[] = "Enable new download API";
 const char kEnableNewDownloadAPIDescription[] =
     "Enable new download API (restricted to iOS 15.0+).";
 
+const char kLazilyCreateWebStateOnRestorationName[] = "Unrealized WebStates";
+const char kLazilyCreateWebStateOnRestorationDescription[] =
+    "Create WebState in unrealized state upon session restoration.";
+
 const char kWebPageDefaultZoomFromDynamicTypeName[] =
     "Use dynamic type size for default text zoom level";
 const char kWebPageDefaultZoomFromDynamicTypeDescription[] =
@@ -550,6 +575,10 @@ const char kRecordSnapshotSizeDescription[] =
     "When enabled, the app will record UMA histograms for image and PDF "
     "snapshots. PDF snaphot will be taken just for the purpose of the "
     "histogram recording.";
+
+const char kSingleNtpName[] = "Enable Single NTP";
+const char kSingleNtpDescription[] =
+    "When enabled, uses one NTP for all tabs in a Browser";
 
 // Please insert your name/description above in alphabetical order.
 

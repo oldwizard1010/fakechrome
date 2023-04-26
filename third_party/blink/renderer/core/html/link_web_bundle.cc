@@ -4,6 +4,7 @@
 
 #include "third_party/blink/renderer/core/html/link_web_bundle.h"
 
+#include "base/notreached.h"
 #include "base/unguessable_token.h"
 #include "services/network/public/mojom/web_bundle_handle.mojom-blink.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink.h"
@@ -50,7 +51,7 @@ void LinkWebBundle::Trace(Visitor* visitor) const {
   SubresourceWebBundle::Trace(visitor);
 }
 
-void LinkWebBundle::NotifyLoaded() {
+void LinkWebBundle::NotifyLoadingFinished() {
   if (owner_)
     owner_->ScheduleEvent();
 }
@@ -65,6 +66,37 @@ void LinkWebBundle::OnWebBundleError(const String& message) const {
       mojom::blink::ConsoleMessageSource::kOther,
       mojom::blink::ConsoleMessageLevel::kWarning, message));
 }
+
+bool LinkWebBundle::IsScriptWebBundle() const {
+  NOTREACHED() << "Should never happen since IsScriptWebBundle() is called "
+                  "only for ScriptWebBundle in the current implementation.";
+  return false;
+}
+
+bool LinkWebBundle::WillBeReleased() const {
+  return false;
+}
+
+network::mojom::CredentialsMode LinkWebBundle::GetCredentialsMode() const {
+  NOTREACHED() << "Should never happen since GetCredentialsMode() is called "
+                  "only for ScriptWebBundle in the current implementation.";
+  return network::mojom::CredentialsMode::kOmit;
+}
+
+namespace {
+
+network::mojom::CredentialsMode BundleRequestCredentialsMode(
+    CrossOriginAttributeValue attr) {
+  switch (attr) {
+    case kCrossOriginAttributeNotSet:
+    case kCrossOriginAttributeAnonymous:
+      return network::mojom::CredentialsMode::kSameOrigin;
+    case kCrossOriginAttributeUseCredentials:
+      return network::mojom::CredentialsMode::kInclude;
+  }
+}
+
+}  // namespace
 
 void LinkWebBundle::Process() {
   if (!owner_ || !owner_->GetDocument().GetFrame())
@@ -95,7 +127,7 @@ void LinkWebBundle::Process() {
         active_bundles->Remove(*this);
         ReleaseBundleLoader();
       }
-      NotifyLoaded();
+      NotifyLoadingFinished();
       OnWebBundleError("A nested bundle is not supported: " +
                        owner_->Href().ElidedString());
       return;
@@ -106,10 +138,11 @@ void LinkWebBundle::Process() {
       active_bundles->Remove(*this);
       ReleaseBundleLoader();
     }
+
     bundle_loader_ = MakeGarbageCollected<WebBundleLoader>(
         *this, owner_->GetDocument(), owner_->Href(),
-        GetCrossOriginAttributeValue(
-            owner_->FastGetAttribute(html_names::kCrossoriginAttr)));
+        BundleRequestCredentialsMode(GetCrossOriginAttributeValue(
+            owner_->FastGetAttribute(html_names::kCrossoriginAttr))));
   }
 
   active_bundles->Add(*this);

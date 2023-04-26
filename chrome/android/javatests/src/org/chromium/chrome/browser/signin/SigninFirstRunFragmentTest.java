@@ -9,13 +9,16 @@ import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.doesNotExist;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.RootMatchers.isDialog;
+import static androidx.test.espresso.matcher.ViewMatchers.isChecked;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -67,16 +70,14 @@ import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.util.browser.signin.AccountManagerTestRule;
 import org.chromium.components.externalauth.ExternalAuthUtils;
-import org.chromium.components.signin.ChildAccountStatus;
 import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.test.util.FakeAccountInfoService;
-import org.chromium.components.signin.test.util.FakeAccountManagerFacade;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.ui.test.util.DisableAnimationsTestRule;
+import org.chromium.ui.test.util.ViewUtils;
 
-/**
- * Tests for the class {@link SigninFirstRunFragment}.
- */
+/** Tests for the class {@link SigninFirstRunFragment}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class SigninFirstRunFragmentTest {
@@ -84,7 +85,8 @@ public class SigninFirstRunFragmentTest {
     private static final String FULL_NAME1 = "Test Account1";
     private static final String GIVEN_NAME1 = "Account1";
     private static final String TEST_EMAIL2 = "test.account2@gmail.com";
-    private static final String CHILD_EMAIL = "child.account@gmail.com";
+    private static final Account CHILD_ACCOUNT =
+            AccountManagerTestRule.createChildAccount("account@gmail.com");
     private static final String CHILD_FULL_NAME = "Test Child";
 
     /**
@@ -110,23 +112,16 @@ public class SigninFirstRunFragmentTest {
         }
     }
 
-    private final FakeAccountManagerFacade mFakeAccountManagerFacade =
-            new FakeAccountManagerFacade() {
-                @Override
-                public void checkChildAccountStatus(
-                        Account account, ChildAccountStatusListener listener) {
-                    listener.onStatusReady(account.name.equals(CHILD_EMAIL)
-                                    ? ChildAccountStatus.REGULAR_CHILD
-                                    : ChildAccountStatus.NOT_CHILD);
-                }
-            };
+    // Disable animations to reduce flakiness.
+    @Rule
+    public final DisableAnimationsTestRule mNoAnimationsRule = new DisableAnimationsTestRule();
 
     @Rule
     public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Rule
     public final AccountManagerTestRule mAccountManagerTestRule =
-            new AccountManagerTestRule(mFakeAccountManagerFacade, new FakeAccountInfoService());
+            new AccountManagerTestRule(new FakeAccountInfoService());
 
     @Rule
     public final ChromeTabbedActivityTestRule mChromeActivityTestRule =
@@ -134,16 +129,16 @@ public class SigninFirstRunFragmentTest {
 
     @Mock
     private ExternalAuthUtils mExternalAuthUtilsMock;
-
     @Mock
     private FirstRunPageDelegate mFirstRunPageDelegateMock;
-
     @Mock
     private PolicyLoadListener mPolicyLoadListenerMock;
-
     @Mock
     private SigninManager mSigninManagerMock;
-
+    @Mock
+    private SigninChecker mSigninCheckerMock;
+    @Mock
+    private IdentityServicesProvider mIdentityServicesProviderMock;
     @Captor
     private ArgumentCaptor<Callback<Boolean>> mCallbackCaptor;
 
@@ -153,7 +148,7 @@ public class SigninFirstRunFragmentTest {
     public void setUp() {
         when(mExternalAuthUtilsMock.canUseGooglePlayServices()).thenReturn(true);
         ExternalAuthUtils.setInstanceForTesting(mExternalAuthUtilsMock);
-        SigninCheckerProvider.setForTests(mock(SigninChecker.class));
+        SigninCheckerProvider.setForTests(mSigninCheckerMock);
         when(mPolicyLoadListenerMock.get()).thenReturn(false);
         when(mFirstRunPageDelegateMock.getPolicyLoadListener()).thenReturn(mPolicyLoadListenerMock);
         mChromeActivityTestRule.startMainActivityOnBlankPage();
@@ -185,7 +180,7 @@ public class SigninFirstRunFragmentTest {
         onView(withText(R.string.signin_fre_dismiss_button)).check(matches(isDisplayed()));
 
         mAccountManagerTestRule.addAccount(
-                CHILD_EMAIL, CHILD_FULL_NAME, /* givenName= */ null, /* avatar= */ null);
+                CHILD_ACCOUNT.name, CHILD_FULL_NAME, /* givenName= */ null, /* avatar= */ null);
 
         checkFragmentWithChildAccount();
     }
@@ -194,11 +189,11 @@ public class SigninFirstRunFragmentTest {
     @MediumTest
     public void testFragmentWhenRemovingChildAccountDynamically() {
         mAccountManagerTestRule.addAccount(
-                CHILD_EMAIL, CHILD_FULL_NAME, /* givenName= */ null, /* avatar= */ null);
+                CHILD_ACCOUNT.name, CHILD_FULL_NAME, /* givenName= */ null, /* avatar= */ null);
         TestThreadUtils.runOnUiThreadBlocking(() -> { mFragment.onNativeInitialized(); });
         launchActivityWithFragment();
 
-        mAccountManagerTestRule.removeAccount(CHILD_EMAIL);
+        mAccountManagerTestRule.removeAccount(CHILD_ACCOUNT.name);
 
         CriteriaHelper.pollUiThread(() -> {
             return !mFragment.getView().findViewById(R.id.signin_fre_selected_account).isShown();
@@ -220,6 +215,24 @@ public class SigninFirstRunFragmentTest {
         mAccountManagerTestRule.removeAccount(TEST_EMAIL1);
 
         checkFragmentWithSelectedAccount(TEST_EMAIL2, /*fullName=*/null, /*givenName=*/null);
+    }
+
+    @Test
+    @MediumTest
+    public void testRemovingAllAccountsDismissesAccountPickerDialog() {
+        mAccountManagerTestRule.addAccount(TEST_EMAIL1, FULL_NAME1, GIVEN_NAME1, /*avatar=*/null);
+        TestThreadUtils.runOnUiThreadBlocking(() -> { mFragment.onNativeInitialized(); });
+        launchActivityWithFragment();
+        onView(withText(TEST_EMAIL1)).perform(click());
+        onView(withText(R.string.signin_account_picker_dialog_title))
+                .inRoot(isDialog())
+                .check(matches(isDisplayed()));
+
+        mAccountManagerTestRule.removeAccount(TEST_EMAIL1);
+
+        onView(withText(R.string.signin_account_picker_dialog_title)).check(doesNotExist());
+        onView(withText(R.string.signin_add_account_to_device)).check(matches(isDisplayed()));
+        onView(withText(R.string.signin_fre_dismiss_button)).check(matches(isDisplayed()));
     }
 
     @Test
@@ -253,7 +266,7 @@ public class SigninFirstRunFragmentTest {
     @Test
     @MediumTest
     public void testFragmentWhenSigninIsDisabledByPolicy() {
-        IdentityServicesProvider.setInstanceForTests(mock(IdentityServicesProvider.class));
+        IdentityServicesProvider.setInstanceForTests(mIdentityServicesProviderMock);
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             when(IdentityServicesProvider.get().getSigninManager(
                          Profile.getLastUsedRegularProfile()))
@@ -272,7 +285,7 @@ public class SigninFirstRunFragmentTest {
     @Test
     @MediumTest
     public void testFragmentWhenAddingAccountDynamicallyAndSigninIsDisabledByPolicy() {
-        IdentityServicesProvider.setInstanceForTests(mock(IdentityServicesProvider.class));
+        IdentityServicesProvider.setInstanceForTests(mIdentityServicesProviderMock);
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             when(IdentityServicesProvider.get().getSigninManager(
                          Profile.getLastUsedRegularProfile()))
@@ -303,6 +316,7 @@ public class SigninFirstRunFragmentTest {
 
         CriteriaHelper.pollUiThread(() -> mFragment.mIsAcceptTermsOfServiceCalled);
         verify(mFirstRunPageDelegateMock).acceptTermsOfService(true);
+        verify(mFirstRunPageDelegateMock, never()).recordFreProgressHistogram(anyInt());
     }
 
     @Test
@@ -339,7 +353,7 @@ public class SigninFirstRunFragmentTest {
     public void testFragmentWithChildAccount() {
         TestThreadUtils.runOnUiThreadBlocking(() -> { mFragment.onNativeInitialized(); });
         mAccountManagerTestRule.addAccount(
-                CHILD_EMAIL, CHILD_FULL_NAME, /* givenName= */ null, /* avatar= */ null);
+                CHILD_ACCOUNT.name, CHILD_FULL_NAME, /* givenName= */ null, /* avatar= */ null);
 
         launchActivityWithFragment();
 
@@ -365,6 +379,36 @@ public class SigninFirstRunFragmentTest {
         final CoreAccountInfo primaryAccount =
                 mAccountManagerTestRule.getPrimaryAccount(ConsentLevel.SIGNIN);
         Assert.assertEquals(TEST_EMAIL1, primaryAccount.getEmail());
+        verify(mFirstRunPageDelegateMock)
+                .recordFreProgressHistogram(MobileFreProgress.WELCOME_SIGNIN_WITH_DEFAULT_ACCOUNT);
+    }
+
+    @Test
+    @MediumTest
+    public void testSigninWithNonDefaultAccount() {
+        TestThreadUtils.runOnUiThreadBlocking(() -> { mFragment.onNativeInitialized(); });
+        mAccountManagerTestRule.addAccount(TEST_EMAIL1, FULL_NAME1, GIVEN_NAME1, /*avatar=*/null);
+        mAccountManagerTestRule.addAccount(
+                TEST_EMAIL2, /*fullName=*/null, /*givenName=*/null, /*avatar=*/null);
+        launchActivityWithFragment();
+        onView(withText(TEST_EMAIL1)).perform(click());
+        onView(withText(TEST_EMAIL2)).inRoot(isDialog()).perform(click());
+        final String continueAsText = mChromeActivityTestRule.getActivity().getString(
+                R.string.signin_promo_continue_as, TEST_EMAIL2);
+
+        ViewUtils.onViewWaiting(withText(continueAsText)).perform(click());
+
+        CriteriaHelper.pollUiThread(() -> {
+            return IdentityServicesProvider.get()
+                    .getIdentityManager(Profile.getLastUsedRegularProfile())
+                    .hasPrimaryAccount(ConsentLevel.SIGNIN);
+        });
+        final CoreAccountInfo primaryAccount =
+                mAccountManagerTestRule.getPrimaryAccount(ConsentLevel.SIGNIN);
+        Assert.assertEquals(TEST_EMAIL2, primaryAccount.getEmail());
+        verify(mFirstRunPageDelegateMock)
+                .recordFreProgressHistogram(
+                        MobileFreProgress.WELCOME_SIGNIN_WITH_NON_DEFAULT_ACCOUNT);
     }
 
     @Test
@@ -410,6 +454,8 @@ public class SigninFirstRunFragmentTest {
                             .hasPrimaryAccount(ConsentLevel.SIGNIN);
         });
         verify(mFirstRunPageDelegateMock).acceptTermsOfService(true);
+        verify(mFirstRunPageDelegateMock)
+                .recordFreProgressHistogram(MobileFreProgress.WELCOME_DISMISS);
     }
 
     @Test
@@ -424,6 +470,8 @@ public class SigninFirstRunFragmentTest {
         CriteriaHelper.pollUiThread(() -> mFragment.mIsAcceptTermsOfServiceCalled);
         Assert.assertNull(mAccountManagerTestRule.getPrimaryAccount(ConsentLevel.SIGNIN));
         verify(mFirstRunPageDelegateMock).acceptTermsOfService(true);
+        verify(mFirstRunPageDelegateMock)
+                .recordFreProgressHistogram(MobileFreProgress.WELCOME_DISMISS);
     }
 
     @Test
@@ -431,7 +479,7 @@ public class SigninFirstRunFragmentTest {
     public void testContinueButtonWithChildAccount() {
         TestThreadUtils.runOnUiThreadBlocking(() -> { mFragment.onNativeInitialized(); });
         mAccountManagerTestRule.addAccount(
-                CHILD_EMAIL, CHILD_FULL_NAME, /* givenName= */ null, /* avatar= */ null);
+                CHILD_ACCOUNT.name, CHILD_FULL_NAME, /* givenName= */ null, /* avatar= */ null);
         launchActivityWithFragment();
         final String continueAsText = mChromeActivityTestRule.getActivity().getString(
                 R.string.signin_promo_continue_as, CHILD_FULL_NAME);
@@ -449,7 +497,7 @@ public class SigninFirstRunFragmentTest {
         TestThreadUtils.runOnUiThreadBlocking(() -> { mFragment.onNativeInitialized(); });
         launchActivityWithFragment();
 
-        onView(withId(R.id.signin_fre_footer)).perform(clickOnClickableSpan());
+        onView(withId(R.id.signin_fre_footer)).perform(clickOnUMADialogSpan());
 
         onView(withText(R.string.signin_fre_uma_dialog_title)).check(matches(isDisplayed()));
         onView(withId(R.id.fre_uma_dialog_switch)).check(matches(isDisplayed()));
@@ -469,7 +517,7 @@ public class SigninFirstRunFragmentTest {
     public void testFragmentWhenDismissingUMADialog() {
         TestThreadUtils.runOnUiThreadBlocking(() -> { mFragment.onNativeInitialized(); });
         launchActivityWithFragment();
-        onView(withId(R.id.signin_fre_footer)).perform(clickOnClickableSpan());
+        onView(withId(R.id.signin_fre_footer)).perform(clickOnUMADialogSpan());
 
         onView(withText(R.string.done)).perform(click());
 
@@ -481,7 +529,7 @@ public class SigninFirstRunFragmentTest {
     public void testDismissButtonWhenAllowCrashUploadTurnedOff() {
         TestThreadUtils.runOnUiThreadBlocking(() -> { mFragment.onNativeInitialized(); });
         launchActivityWithFragment();
-        onView(withId(R.id.signin_fre_footer)).perform(clickOnClickableSpan());
+        onView(withId(R.id.signin_fre_footer)).perform(clickOnUMADialogSpan());
         onView(withId(R.id.fre_uma_dialog_switch)).perform(click());
         onView(withText(R.string.done)).perform(click());
 
@@ -493,11 +541,31 @@ public class SigninFirstRunFragmentTest {
 
     @Test
     @MediumTest
+    public void testUMADialogSwitchIsOffWhenAllowCrashUploadWasTurnedOffBefore() {
+        TestThreadUtils.runOnUiThreadBlocking(() -> { mFragment.onNativeInitialized(); });
+        launchActivityWithFragment();
+        onView(withId(R.id.signin_fre_footer)).perform(clickOnUMADialogSpan());
+        onView(withId(R.id.fre_uma_dialog_switch)).check(matches(isChecked())).perform(click());
+        onView(withText(R.string.done)).perform(click());
+
+        onView(withId(R.id.signin_fre_footer)).perform(clickOnUMADialogSpan());
+
+        onView(withId(R.id.fre_uma_dialog_switch))
+                .check(matches(not(isChecked())))
+                .perform(click());
+        onView(withText(R.string.done)).perform(click());
+        onView(withText(R.string.signin_fre_dismiss_button)).perform(click());
+        CriteriaHelper.pollUiThread(() -> mFragment.mIsAcceptTermsOfServiceCalled);
+        verify(mFirstRunPageDelegateMock).acceptTermsOfService(true);
+    }
+
+    @Test
+    @MediumTest
     public void testContinueButtonWhenAllowCrashUploadTurnedOff() {
         TestThreadUtils.runOnUiThreadBlocking(() -> { mFragment.onNativeInitialized(); });
         mAccountManagerTestRule.addAccount(TEST_EMAIL1, FULL_NAME1, GIVEN_NAME1, null);
         launchActivityWithFragment();
-        onView(withId(R.id.signin_fre_footer)).perform(clickOnClickableSpan());
+        onView(withId(R.id.signin_fre_footer)).perform(clickOnUMADialogSpan());
         onView(withId(R.id.fre_uma_dialog_switch)).perform(click());
         onView(withText(R.string.done)).perform(click());
 
@@ -629,7 +697,7 @@ public class SigninFirstRunFragmentTest {
         onView(withText(R.string.fre_welcome)).check(matches(isDisplayed()));
         Assert.assertFalse(
                 mFragment.getView().findViewById(R.id.signin_fre_selected_account).isEnabled());
-        onView(withText(CHILD_EMAIL)).check(matches(isDisplayed()));
+        onView(withText(CHILD_ACCOUNT.name)).check(matches(isDisplayed()));
         onView(withText(CHILD_FULL_NAME)).check(matches(isDisplayed()));
         onView(withId(R.id.signin_fre_selected_account_expand_icon))
                 .check(matches(not(isDisplayed())));
@@ -663,7 +731,7 @@ public class SigninFirstRunFragmentTest {
                 mChromeActivityTestRule.getActivity(), Stage.RESUMED);
     }
 
-    private ViewAction clickOnClickableSpan() {
+    private ViewAction clickOnUMADialogSpan() {
         return new ViewAction() {
             @Override
             public Matcher<View> getConstraints() {
@@ -672,7 +740,7 @@ public class SigninFirstRunFragmentTest {
 
             @Override
             public String getDescription() {
-                return "Clicks on the one and only clickable span in the view";
+                return "Clicks on the second clickable span which opens UMA consent dialog";
             }
 
             @Override
@@ -687,8 +755,8 @@ public class SigninFirstRunFragmentTest {
                             .withRootView(textView)
                             .build();
                 }
-                Assert.assertEquals("There should be only one clickable link", 1, spans.length);
-                spans[0].onClick(view);
+                Assert.assertEquals("There should be exactly two clickable link", 2, spans.length);
+                spans[1].onClick(view);
             }
         };
     }

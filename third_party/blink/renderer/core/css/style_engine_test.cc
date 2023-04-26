@@ -932,13 +932,9 @@ TEST_F(StyleEngineTest, RuleSetInvalidationSlotted) {
   unsigned after_count = GetStyleEngine().StyleForElementCount();
   EXPECT_EQ(4u, after_count - before_count);
 
-  before_count = after_count;
   EXPECT_EQ(ScheduleInvalidationsForRules(shadow_root,
                                           "::slotted(*) { background: green}"),
-            kRuleSetInvalidationsScheduled);
-  UpdateAllLifecyclePhases();
-  after_count = GetStyleEngine().StyleForElementCount();
-  EXPECT_EQ(4u, after_count - before_count);
+            kRuleSetInvalidationFullRecalc);
 }
 
 TEST_F(StyleEngineTest, RuleSetInvalidationHostContext) {
@@ -4777,6 +4773,21 @@ TEST_F(StyleEngineTest, EmptyDetachParent) {
   ASSERT_TRUE(parent->GetLayoutObject());
   EXPECT_FALSE(parent->GetLayoutObject()->WhitespaceChildrenMayChange());
   EXPECT_FALSE(GetDocument().NeedsLayoutTreeUpdate());
+}
+
+TEST_F(StyleEngineTest, LegacyListItemRebuildRootCrash) {
+  UpdateAllLifecyclePhases();
+
+  auto* doc_elm = GetDocument().documentElement();
+  ASSERT_TRUE(doc_elm);
+
+  doc_elm->SetInlineStyleProperty(CSSPropertyID::kDisplay, "list-item");
+  doc_elm->SetInlineStyleProperty(CSSPropertyID::kColumnCount, "1");
+  UpdateAllLifecyclePhases();
+
+  doc_elm->SetInlineStyleProperty(CSSPropertyID::kBackgroundColor, "green");
+  // Should not crash
+  UpdateAllLifecyclePhases();
 }
 
 }  // namespace blink

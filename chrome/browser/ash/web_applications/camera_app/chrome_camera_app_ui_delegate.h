@@ -7,10 +7,10 @@
 
 #include <memory>
 
+#include "ash/webui/camera_app_ui/camera_app_ui_delegate.h"
 #include "base/callback.h"
 #include "base/files/file_path_watcher.h"
 #include "chrome/browser/ui/webui/chromeos/system_web_dialog_delegate.h"
-#include "chromeos/components/camera_app_ui/camera_app_ui_delegate.h"
 #include "content/public/browser/media_stream_request.h"
 #include "content/public/browser/web_ui.h"
 
@@ -34,9 +34,9 @@ enum ModalType;
 
 /**
  * Implementation of the CameraAppUIDelegate interface. Provides the camera app
- * code in chromeos/ with functions that only exist in chrome/.
+ * code in ash/ with functions that only exist in chrome/.
  */
-class ChromeCameraAppUIDelegate : public CameraAppUIDelegate {
+class ChromeCameraAppUIDelegate : public ash::CameraAppUIDelegate {
  public:
   class CameraAppDialog : public chromeos::SystemWebDialogDelegate {
    public:
@@ -92,7 +92,7 @@ class ChromeCameraAppUIDelegate : public CameraAppUIDelegate {
       delete;
   ~ChromeCameraAppUIDelegate() override;
 
-  // CameraAppUIDelegate
+  // ash::CameraAppUIDelegate
   void SetLaunchDirectory() override;
   void PopulateLoadTimeData(content::WebUIDataSource* source) override;
   bool IsMetricsAndCrashReportingEnabled() override;

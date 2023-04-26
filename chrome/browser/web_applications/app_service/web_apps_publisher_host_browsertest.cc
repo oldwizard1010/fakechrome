@@ -34,6 +34,7 @@
 #include "chrome/browser/web_applications/externally_installed_web_app_prefs.h"
 #include "chrome/browser/web_applications/web_app_constants.h"
 #include "chrome/browser/web_applications/web_app_id.h"
+#include "chrome/browser/web_applications/web_app_install_finalizer.h"
 #include "chrome/browser/web_applications/web_app_install_manager.h"
 #include "chrome/browser/web_applications/web_app_install_utils.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
@@ -216,9 +217,8 @@ IN_PROC_BROWSER_TEST_F(WebAppsPublisherHostBrowserTest, ManifestUpdate) {
     web_app_info->description = updated_description;
 
     base::RunLoop run_loop;
-    provider().install_manager().UpdateWebAppFromInfo(
-        app_id, std::move(web_app_info),
-        /*redownload_app_icons=*/false,
+    provider().install_finalizer().FinalizeUpdate(
+        *web_app_info,
         base::BindLambdaForTesting(
             [&run_loop](const AppId& app_id, InstallResultCode code) {
               run_loop.Quit();
@@ -405,8 +405,10 @@ IN_PROC_BROWSER_TEST_F(WebAppsPublisherHostBrowserTest, Launch) {
 
   content::TestNavigationObserver navigation_observer(app_url);
   navigation_observer.StartWatchingNewWebContents();
-  web_apps_publisher_host.Launch(app_id, 0,
-                                 apps::mojom::LaunchSource::kFromTest, nullptr);
+  auto launch_params = crosapi::mojom::LaunchParams::New();
+  launch_params->app_id = app_id;
+  launch_params->launch_source = apps::mojom::LaunchSource::kFromTest;
+  web_apps_publisher_host.Launch(std::move(launch_params), base::DoNothing());
   navigation_observer.Wait();
 }
 

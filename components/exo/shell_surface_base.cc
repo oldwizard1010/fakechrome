@@ -19,13 +19,13 @@
 #include "ash/wm/desks/desks_controller.h"
 #include "ash/wm/desks/desks_util.h"
 #include "ash/wm/drag_window_resizer.h"
+#include "ash/wm/resize_shadow_controller.h"
 #include "ash/wm/screen_pinning_controller.h"
 #include "ash/wm/window_resizer.h"
 #include "ash/wm/window_state.h"
 #include "ash/wm/window_state_delegate.h"
 #include "ash/wm/window_util.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
@@ -441,6 +441,28 @@ void ShellSurfaceBase::SetSystemModal(bool system_modal) {
   }
 
   non_system_modal_window_was_active_ = non_system_modal_window_was_active;
+}
+
+void ShellSurfaceBase::SetBoundsForShadows(
+    const absl::optional<gfx::Rect>& shadow_bounds) {
+  if (shadow_bounds_ != shadow_bounds) {
+    // Set normal shadow bounds.
+    shadow_bounds_ = shadow_bounds;
+    shadow_bounds_changed_ = true;
+    if (widget_ && shadow_bounds) {
+      // Set resize shadow bounds and origin.
+      const gfx::Rect bounds = shadow_bounds.value();
+      const gfx::Point absolute_origin =
+          widget_->GetNativeWindow()->bounds().origin();
+      const gfx::Rect absolute_bounds =
+          gfx::Rect(absolute_origin.x(), absolute_origin.y(), bounds.width(),
+                    bounds.height());
+      ash::Shell::Get()
+          ->resize_shadow_controller()
+          ->UpdateResizeShadowBoundsOfWindow(widget_->GetNativeWindow(),
+                                             absolute_bounds);
+    }
+  }
 }
 
 void ShellSurfaceBase::UpdateSystemModal() {
@@ -1377,7 +1399,33 @@ void ShellSurfaceBase::UpdateShadow() {
     if (!shadow)
       return;
 
-    shadow->SetContentBounds(GetShadowBounds());
+    gfx::Rect shadow_bounds = GetShadowBounds();
+    gfx::Point origin = GetClientViewBounds().origin();
+
+    if (!window->GetProperty(aura::client::kUseWindowBoundsForShadow)) {
+      origin += GetSurfaceOrigin().OffsetFromOrigin();
+      origin -= ToFlooredVector2d(ScaleVector2d(
+          root_surface_origin().OffsetFromOrigin(), 1.f / GetScale()));
+      if (origin.x() != 0 || origin.y() != 0) {
+        shadow_bounds.set_origin(origin);
+        if (widget_) {
+          gfx::Point widget_origin =
+              widget_->GetWindowBoundsInScreen().origin();
+          origin += ToFlooredVector2d(
+              ScaleVector2d(gfx::Vector2d(widget_origin.x(), widget_origin.y()),
+                            1.f / GetScale()));
+          gfx::Rect bounds = geometry_;
+          bounds.set_origin(origin);
+          ash::Shell::Get()
+              ->resize_shadow_controller()
+              ->UpdateResizeShadowBoundsOfWindow(widget_->GetNativeWindow(),
+                                                 bounds);
+        }
+      }
+    }
+
+    shadow->SetContentBounds(shadow_bounds);
+
     // Surfaces that can't be activated are usually menus and tooltips. Use a
     // small style shadow for them.
     if (!CanActivate())
@@ -1538,6 +1586,11 @@ void ShellSurfaceBase::CommitWidget() {
   UpdateWidgetBounds();
   SurfaceTreeHost::UpdateHostWindowBounds();
   UpdateFrameType();
+  gfx::Rect bounds = geometry_;
+  if (!bounds.IsEmpty() && !widget_->GetNativeWindow()->GetProperty(
+                               aura::client::kUseWindowBoundsForShadow)) {
+    SetBoundsForShadows(absl::make_optional(bounds));
+  }
   UpdateShadow();
 
   // System modal container is used by clients to implement overlay

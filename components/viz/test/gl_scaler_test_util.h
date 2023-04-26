@@ -10,7 +10,6 @@
 #include <string>
 #include <vector>
 
-#include "base/macros.h"
 #include "gpu/command_buffer/client/gles2_interface.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkColor.h"
@@ -88,6 +87,11 @@ class GLScalerTestUtil {
   // one alpha) remain interleaved (i.e., no pixel blending or format transform
   // is being done).
   static void ConvertRGBABitmapToYUV(SkBitmap* image);
+
+  // Performs a transform of the given |color| from DefaultRGBColorSpace() to
+  // DefaultYUVColorSpace(). The color channels (plus one alpha) remain
+  // interleaved (i.e., no pixel blending or format transform is being done).
+  static SkColor ConvertRGBAColorToYUV(SkColor color);
 
   static SkBitmap CopyAndConvertToRGBA(const SkBitmap& bitmap);
 

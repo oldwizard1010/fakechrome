@@ -10,7 +10,6 @@
 #include <set>
 #include <vector>
 
-#include "base/macros.h"
 #include "chrome/browser/supervised_user/supervised_user_error_page/supervised_user_error_page.h"
 #include "chrome/browser/supervised_user/supervised_user_navigation_throttle.h"
 #include "chrome/browser/supervised_user/supervised_user_service_observer.h"
@@ -138,12 +137,13 @@ class SupervisedUserNavigationObserver
   // be called when an interstitial is no longer showing. This should be
   // enforced by the mojo caller.
   void GoBack() override;
-  void RequestPermission(RequestPermissionCallback callback) override;
+  void RequestUrlAccessRemote(RequestUrlAccessRemoteCallback callback) override;
+  void RequestUrlAccessLocal(RequestUrlAccessLocalCallback callback) override;
   void Feedback() override;
 
-  // When a request is successfully created, this method is called
-  // asynchronously.
-  void RequestCreated(RequestPermissionCallback callback,
+  // When a remote URL approval request is successfully created, this method is
+  // called asynchronously.
+  void RequestCreated(RequestUrlAccessRemoteCallback callback,
                       const std::string& host,
                       bool successfully_created_request);
 

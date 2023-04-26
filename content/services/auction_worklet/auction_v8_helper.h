@@ -39,6 +39,7 @@ class V8Inspector;
 namespace auction_worklet {
 
 class AuctionV8DevToolsAgent;
+class DebugCommandQueue;
 
 // Helper for Javascript operations. Owns a V8 isolate, and manages operations
 // on it. Must be deleted after all V8 objects created using its isolate. It
@@ -178,6 +179,14 @@ class AuctionV8Helper
                                       base::span<v8::Local<v8::Value>> args,
                                       std::vector<std::string>& error_out);
 
+  // If any debugging session targeting `context_group_id` has set an active
+  // DOM instrumentation breakpoint `name`, asks for v8 to do a debugger pause
+  // on the next statement.
+  //
+  // Expected to be run before a corresponding RunScript.
+  void MaybeTriggerInstrumentationBreakpoint(int context_group_id,
+                                             const std::string& name);
+
   void set_script_timeout_for_testing(base::TimeDelta script_timeout);
 
   // If non-nullptr, this returns a pointer to the of vector representing the
@@ -313,6 +322,9 @@ class AuctionV8Helper
 
   // This is keyed by group IDs, and is used to keep track of what's valid.
   std::map<int, base::OnceClosure> resume_callbacks_
+      GUARDED_BY_CONTEXT(sequence_checker_);
+
+  std::unique_ptr<DebugCommandQueue> debug_command_queue_
       GUARDED_BY_CONTEXT(sequence_checker_);
 
   // Destruction order between `devtools_agent_` and `v8_inspector_` is

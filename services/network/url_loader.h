@@ -103,6 +103,30 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) URLLoader
 
   using DeleteCallback = base::OnceCallback<void(mojom::URLLoader* loader)>;
 
+  // Holds a sync and async implementation of URLLoaderClient. The sync
+  // implementation can be used if present to avoid posting a task to call back
+  // into CorsURLLoader.
+  class MaybeSyncURLLoaderClient {
+   public:
+    MaybeSyncURLLoaderClient(
+        mojo::PendingRemote<mojom::URLLoaderClient> mojo_client,
+        base::WeakPtr<mojom::URLLoaderClient> sync_client);
+    ~MaybeSyncURLLoaderClient();
+
+    // Resets both URLLoaderClients.
+    void Reset();
+
+    // Rebinds the mojo URLLoaderClient and uses it for future calls.
+    mojo::PendingReceiver<mojom::URLLoaderClient> BindNewPipeAndPassReceiver();
+
+    // Gets the sync URLLoaderClient if available, otherwise the mojo remote.
+    mojom::URLLoaderClient* Get();
+
+   private:
+    mojo::Remote<mojom::URLLoaderClient> mojo_client_;
+    base::WeakPtr<mojom::URLLoaderClient> sync_client_;
+  };
+
   // |delete_callback| tells the URLLoader's owner to destroy the URLLoader.
   // The URLLoader must be destroyed before the |url_request_context|.
   // The |origin_policy_manager| must always be provided for requests that
@@ -122,6 +146,7 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) URLLoader
       int32_t options,
       const ResourceRequest& request,
       mojo::PendingRemote<mojom::URLLoaderClient> url_loader_client,
+      base::WeakPtr<mojom::URLLoaderClient> sync_url_loader_client,
       const net::NetworkTrafficAnnotationTag& traffic_annotation,
       const mojom::URLLoaderFactoryParams* factory_params,
       mojom::CrossOriginEmbedderPolicyReporter* reporter,
@@ -261,12 +286,13 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) URLLoader
    public:
     explicit UnownedPointer(URLLoader* pointer) : pointer_(pointer) {}
 
+    UnownedPointer(const UnownedPointer&) = delete;
+    UnownedPointer& operator=(const UnownedPointer&) = delete;
+
     URLLoader* get() const { return pointer_; }
 
    private:
     URLLoader* const pointer_;
-
-    DISALLOW_COPY_AND_ASSIGN(UnownedPointer);
   };
 
   class FileOpenerForUpload;
@@ -445,7 +471,7 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) URLLoader
       auth_challenge_responder_receiver_{this};
   mojo::Receiver<mojom::ClientCertificateResponder>
       client_cert_responder_receiver_{this};
-  mojo::Remote<mojom::URLLoaderClient> url_loader_client_;
+  MaybeSyncURLLoaderClient url_loader_client_;
   int64_t total_written_bytes_ = 0;
 
   mojo::ScopedDataPipeProducerHandle response_body_stream_;
@@ -592,10 +618,10 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) URLLoader
   // Even if this is false but there is a QUIC/H2 stream, the upload is allowed.
   const bool allow_http1_for_streaming_upload_;
 
-  mojo::Remote<mojom::AcceptCHFrameObserver> accept_ch_frame_observer_;
+  bool emitted_devtools_raw_request_ = false;
+  bool emitted_devtools_raw_response_ = false;
 
-  // Globally-unique id identifying this URLLoader for tracing.
-  const uint64_t trace_id_;
+  mojo::Remote<mojom::AcceptCHFrameObserver> accept_ch_frame_observer_;
 
   base::WeakPtrFactory<URLLoader> weak_ptr_factory_{this};
 };

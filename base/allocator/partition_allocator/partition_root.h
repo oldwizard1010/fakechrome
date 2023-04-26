@@ -43,7 +43,6 @@
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
-#include "base/allocator/partition_allocator/partition_alloc_features.h"
 #include "base/allocator/partition_allocator/partition_alloc_forward.h"
 #include "base/allocator/partition_allocator/partition_alloc_hooks.h"
 #include "base/allocator/partition_allocator/partition_alloc_notreached.h"
@@ -60,6 +59,7 @@
 #include "base/compiler_specific.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
+#include "build/chromecast_buildflags.h"
 
 // We use this to make MEMORY_TOOL_REPLACES_ALLOCATOR behave the same for max
 // size as other alloc code.
@@ -136,19 +136,26 @@ struct PartitionOptions {
     kIfAvailable,
   };
 
+  enum class LazyCommit : uint8_t {
+    kDisabled,
+    kEnabled,
+  };
+
   // Constructor to suppress aggregate initialization.
   constexpr PartitionOptions(AlignedAlloc aligned_alloc,
                              ThreadCache thread_cache,
                              Quarantine quarantine,
                              Cookie cookie,
                              BackupRefPtr backup_ref_ptr,
-                             UseConfigurablePool use_configurable_pool)
+                             UseConfigurablePool use_configurable_pool,
+                             LazyCommit lazy_commit)
       : aligned_alloc(aligned_alloc),
         thread_cache(thread_cache),
         quarantine(quarantine),
         cookie(cookie),
         backup_ref_ptr(backup_ref_ptr),
-        use_configurable_pool(use_configurable_pool) {}
+        use_configurable_pool(use_configurable_pool),
+        lazy_commit(lazy_commit) {}
 
   AlignedAlloc aligned_alloc;
   ThreadCache thread_cache;
@@ -156,6 +163,7 @@ struct PartitionOptions {
   Cookie cookie;
   BackupRefPtr backup_ref_ptr;
   UseConfigurablePool use_configurable_pool;
+  LazyCommit lazy_commit;
 };
 
 namespace internal {
@@ -357,7 +365,7 @@ struct alignas(64) BASE_EXPORT PartitionRoot {
   void Init(PartitionOptions);
 
   void EnableThreadCacheIfSupported();
-  void ConfigureLazyCommit();
+  void ConfigureLazyCommit(bool enabled);
 
   ALWAYS_INLINE static bool IsValidSlotSpan(SlotSpan* slot_span);
   ALWAYS_INLINE static PartitionRoot* FromSlotSpan(SlotSpan* slot_span);
@@ -386,7 +394,8 @@ struct alignas(64) BASE_EXPORT PartitionRoot {
   ALWAYS_INLINE bool TryRecommitSystemPagesForData(
       void* address,
       size_t length,
-      PageAccessibilityDisposition accessibility_disposition);
+      PageAccessibilityDisposition accessibility_disposition)
+      LOCKS_EXCLUDED(lock_);
 
   [[noreturn]] NOINLINE void OutOfMemory(size_t size);
 
@@ -459,7 +468,7 @@ struct alignas(64) BASE_EXPORT PartitionRoot {
   ALWAYS_INLINE size_t AllocationCapacityFromRequestedSize(size_t size) const;
 
   // Frees memory from this partition, if possible, by decommitting pages or
-  // even etnire slot spans. |flags| is an OR of base::PartitionPurgeFlags.
+  // even entire slot spans. |flags| is an OR of base::PartitionPurgeFlags.
   void PurgeMemory(int flags);
 
   // Reduces the size of the empty slot spans ring, until the dirty size is <=
@@ -513,9 +522,9 @@ struct alignas(64) BASE_EXPORT PartitionRoot {
       return internal::GetConfigurablePool();
     }
 #if BUILDFLAG(USE_BACKUP_REF_PTR)
-    return brp_enabled() ? internal::GetBRPPool() : internal::GetNonBRPPool();
+    return brp_enabled() ? internal::GetBRPPool() : internal::GetRegularPool();
 #else
-    return internal::GetNonBRPPool();
+    return internal::GetRegularPool();
 #endif  // BUILDFLAG(USE_BACKUP_REF_PTR)
   }
 
@@ -914,7 +923,7 @@ ALWAYS_INLINE void* PartitionRoot<thread_safe>::AllocFromBucket(
   PA_DCHECK(slot_span);
   PA_DCHECK(slot_span->num_allocated_slots >= 0);
 
-  void* slot_start = slot_span->freelist_head;
+  void* slot_start = slot_span->get_freelist_head();
   // Use the fast path when a slot is readily available on the free list of the
   // first active slot span. However, fall back to the slow path if a
   // higher-order alignment is requested, because an inner slot of an existing
@@ -934,10 +943,8 @@ ALWAYS_INLINE void* PartitionRoot<thread_safe>::AllocFromBucket(
     // the size metadata.
     PA_DCHECK(!slot_span->CanStoreRawSize());
     PA_DCHECK(!slot_span->bucket->is_direct_mapped());
-    internal::PartitionFreelistEntry* new_head =
-        slot_span->freelist_head->GetNext(bucket->slot_size);
-    slot_span->SetFreelistHead(new_head);
-    slot_span->num_allocated_slots++;
+    void* entry = slot_span->PopForAlloc(bucket->slot_size);
+    PA_DCHECK(entry == slot_start);
 
     PA_DCHECK(slot_span->bucket == bucket);
   } else {
@@ -999,7 +1006,15 @@ ALWAYS_INLINE void PartitionRoot<thread_safe>::FreeNoHooks(void* ptr) {
   // This is a crash to detect imperfect symbol interception. However, we can
   // forward allocations we don't own to the system malloc() implementation in
   // these rare cases, assuming that some remain.
-#if defined(OS_ANDROID) && BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+  //
+  // On Chromecast, this is already checked in PartitionFree() in the shim.
+  //
+  // On Linux, this is intended to ease debugging of crbug.com/1266412. Enabled
+  // on 64 bit only, as the check is pretty cheap in this case (range check,
+  // essentially).
+#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&            \
+    ((defined(OS_ANDROID) && !BUILDFLAG(IS_CHROMECAST)) || \
+     (defined(OS_LINUX) && defined(ARCH_CPU_64_BITS)))
   PA_CHECK(IsManagedByPartitionAlloc(ptr));
 #endif
 
@@ -1087,7 +1102,6 @@ ALWAYS_INLINE void PartitionRoot<thread_safe>::FreeNoHooksImmediate(
   // Note: ref-count and cookie can be 0-sized.
   //
   // For more context, see the other "Layout inside the slot" comment below.
-
 
 #if DCHECK_IS_ON()
   if (allow_cookie) {
@@ -1313,14 +1327,23 @@ ALWAYS_INLINE void PartitionRoot<thread_safe>::DecommitSystemPagesForData(
   DecreaseCommittedPages(length);
 }
 
+// Not unified with TryRecommitSystemPagesForData() to preserve error codes.
 template <bool thread_safe>
 ALWAYS_INLINE void PartitionRoot<thread_safe>::RecommitSystemPagesForData(
     void* address,
     size_t length,
     PageAccessibilityDisposition accessibility_disposition) {
   internal::ScopedSyscallTimer<thread_safe> timer{this};
-  RecommitSystemPages(address, length, PageReadWriteTagged,
-                      accessibility_disposition);
+
+  bool ok = TryRecommitSystemPages(address, length, PageReadWriteTagged,
+                                   accessibility_disposition);
+  if (UNLIKELY(!ok)) {
+    // Decommit some memory and retry. The alternative is crashing.
+    DecommitEmptySlotSpans();
+    RecommitSystemPages(address, length, PageReadWriteTagged,
+                        accessibility_disposition);
+  }
+
   IncreaseCommittedPages(length);
 }
 
@@ -1332,6 +1355,17 @@ ALWAYS_INLINE bool PartitionRoot<thread_safe>::TryRecommitSystemPagesForData(
   internal::ScopedSyscallTimer<thread_safe> timer{this};
   bool ok = TryRecommitSystemPages(address, length, PageReadWriteTagged,
                                    accessibility_disposition);
+#if defined(PA_COMMIT_CHARGE_IS_LIMITED)
+  if (UNLIKELY(!ok)) {
+    {
+      ScopedGuard guard(lock_);
+      DecommitEmptySlotSpans();
+    }
+    ok = TryRecommitSystemPages(address, length, PageReadWriteTagged,
+                                accessibility_disposition);
+  }
+#endif  // defined(PA_COMMIT_CHARGE_IS_LIMITED)
+
   if (ok)
     IncreaseCommittedPages(length);
 

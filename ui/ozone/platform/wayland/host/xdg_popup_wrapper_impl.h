@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/macros.h"
 #include "ui/ozone/platform/wayland/host/shell_popup_wrapper.h"
 
 namespace ui {
@@ -62,6 +61,9 @@ class XDGPopupWrapperImpl : public ShellPopupWrapper {
 
   // XDG Shell Stable object.
   wl::Object<xdg_popup> xdg_popup_;
+
+  // Aura shell popup object
+  wl::Object<zaura_popup> aura_popup_;
 
   // Parameters that help to configure this popup.
   ShellPopupParams params_;

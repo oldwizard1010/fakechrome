@@ -286,7 +286,7 @@ AXPlatformNodeDelegateBase::GetNativeViewAccessible() {
   return nullptr;
 }
 
-gfx::NativeViewAccessible AXPlatformNodeDelegateBase::GetParent() {
+gfx::NativeViewAccessible AXPlatformNodeDelegateBase::GetParent() const {
   return nullptr;
 }
 
@@ -770,6 +770,17 @@ bool AXPlatformNodeDelegateBase::IsCellOrHeaderOfAriaGrid() const {
   return false;
 }
 
+bool AXPlatformNodeDelegateBase::IsWebAreaForPresentationalIframe() const {
+  if (!IsPlatformDocument(GetRole()))
+    return false;
+
+  AXPlatformNodeDelegate* parent = GetParentDelegate();
+  if (!parent)
+    return false;
+
+  return parent->GetRole() == ax::mojom::Role::kIframePresentational;
+}
+
 bool AXPlatformNodeDelegateBase::IsOrderedSetItem() const {
   return false;
 }
@@ -941,7 +952,9 @@ absl::optional<int> AXPlatformNodeDelegateBase::FindTextBoundary(
 }
 
 const std::vector<gfx::NativeViewAccessible>
-AXPlatformNodeDelegateBase::GetUIADescendants() const {
+AXPlatformNodeDelegateBase::GetUIADirectChildrenInRange(
+    ui::AXPlatformNodeDelegate* start,
+    ui::AXPlatformNodeDelegate* end) {
   return {};
 }
 
@@ -949,7 +962,7 @@ std::string AXPlatformNodeDelegateBase::GetLanguage() const {
   return std::string();
 }
 
-AXPlatformNodeDelegate* AXPlatformNodeDelegateBase::GetParentDelegate() {
+AXPlatformNodeDelegate* AXPlatformNodeDelegateBase::GetParentDelegate() const {
   AXPlatformNode* parent_node =
       ui::AXPlatformNode::FromNativeViewAccessible(GetParent());
   if (parent_node)

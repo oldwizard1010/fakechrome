@@ -366,15 +366,20 @@ WRAPPED_INSTANTIATE_TEST_SUITE_P(
 WRAPPED_INSTANTIATE_TEST_SUITE_P(
     ZipFiles, /* zip_files.js */
     FilesAppBrowserTest,
-    ::testing::Values(TestCase("zipFileOpenDownloads").InGuestMode(),
-                      TestCase("zipFileOpenDownloads"),
-                      TestCase("zipFileOpenDrive"),
-                      TestCase("zipFileOpenUsb"),
-                      TestCase("zipNotifyFileTasks"),
-                      TestCase("zipCreateFileDownloads").InGuestMode(),
-                      TestCase("zipCreateFileDownloads"),
-                      TestCase("zipCreateFileDrive"),
-                      TestCase("zipCreateFileUsb")));
+    ::testing::Values(
+        TestCase("zipFileOpenDownloads").InGuestMode(),
+        TestCase("zipFileOpenDownloads"),
+        TestCase("zipFileOpenDrive"),
+        TestCase("zipFileOpenUsb"),
+        TestCase("zipNotifyFileTasks"),
+        TestCase("zipCreateFileDownloads").InGuestMode(),
+        TestCase("zipCreateFileDownloads"),
+        TestCase("zipCreateFileDownloads").InGuestMode().FilesSwa(),
+        TestCase("zipCreateFileDownloads").FilesSwa(),
+        TestCase("zipCreateFileDrive"),
+        TestCase("zipCreateFileDrive").FilesSwa(),
+        TestCase("zipCreateFileUsb"),
+        TestCase("zipCreateFileUsb").FilesSwa()));
 
 WRAPPED_INSTANTIATE_TEST_SUITE_P(
     CreateNewFolder, /* create_new_folder.js */
@@ -391,18 +396,31 @@ WRAPPED_INSTANTIATE_TEST_SUITE_P(
     FilesAppBrowserTest,
     ::testing::Values(
         TestCase("keyboardDeleteDownloads").InGuestMode(),
+        TestCase("keyboardDeleteDownloads").InGuestMode().FilesSwa(),
         TestCase("keyboardDeleteDownloads"),
+        TestCase("keyboardDeleteDownloads").FilesSwa(),
         TestCase("keyboardDeleteDownloads").EnableTrash(),
+        TestCase("keyboardDeleteDownloads").EnableTrash().FilesSwa(),
         TestCase("keyboardDeleteDrive"),
+        TestCase("keyboardDeleteDrive").FilesSwa(),
         TestCase("keyboardDeleteDrive").EnableTrash(),
+        TestCase("keyboardDeleteDrive").EnableTrash().FilesSwa(),
         TestCase("keyboardDeleteFolderDownloads").InGuestMode(),
+        TestCase("keyboardDeleteFolderDownloads").InGuestMode().FilesSwa(),
         TestCase("keyboardDeleteFolderDownloads"),
+        TestCase("keyboardDeleteFolderDownloads").FilesSwa(),
         TestCase("keyboardDeleteFolderDownloads").EnableTrash(),
+        TestCase("keyboardDeleteFolderDownloads").EnableTrash().FilesSwa(),
         TestCase("keyboardDeleteFolderDrive"),
+        TestCase("keyboardDeleteFolderDrive").FilesSwa(),
         TestCase("keyboardCopyDownloads").InGuestMode(),
+        TestCase("keyboardCopyDownloads").InGuestMode().FilesSwa(),
         TestCase("keyboardCopyDownloads"),
+        TestCase("keyboardCopyDownloads").FilesSwa(),
         TestCase("keyboardCopyDownloads").EnableTrash(),
+        TestCase("keyboardCopyDownloads").EnableTrash().FilesSwa(),
         TestCase("keyboardCopyDrive"),
+        TestCase("keyboardCopyDrive").FilesSwa(),
 // TODO(crbug.com/1236842): Remove flakiness and enable this test.
 #if !defined(ADDRESS_SANITIZER) && defined(NDEBUG)
         TestCase("keyboardFocusOutlineVisible"),
@@ -495,8 +513,11 @@ WRAPPED_INSTANTIATE_TEST_SUITE_P(
                       TestCase("toolbarDeleteButtonOpensDeleteConfirmDialog"),
                       TestCase("toolbarDeleteButtonKeepFocus"),
                       TestCase("toolbarDeleteEntry").InGuestMode(),
+                      TestCase("toolbarDeleteEntry").InGuestMode().FilesSwa(),
                       TestCase("toolbarDeleteEntry"),
+                      TestCase("toolbarDeleteEntry").FilesSwa(),
                       TestCase("toolbarDeleteEntry").EnableTrash(),
+                      TestCase("toolbarDeleteEntry").EnableTrash().FilesSwa(),
                       TestCase("toolbarRefreshButtonWithSelection")
                           .EnableGenericDocumentsProvider(),
                       TestCase("toolbarAltACommand"),
@@ -513,8 +534,7 @@ WRAPPED_INSTANTIATE_TEST_SUITE_P(
         TestCase("openQuickView"),
         TestCase("openQuickView").FilesSwa(),
         TestCase("openQuickViewDialog"),
-        // Doesn't work because using an "open" dialog.
-        // TestCase("openQuickViewDialog").FilesSwa(),
+        TestCase("openQuickViewDialog").FilesSwa(),
         TestCase("openQuickViewAndEscape"),
         TestCase("openQuickViewAndEscape").FilesSwa(),
         TestCase("openQuickView").InGuestMode(),
@@ -670,10 +690,7 @@ WRAPPED_INSTANTIATE_TEST_SUITE_P(
         TestCase("directoryTreeExpandHorizontalScroll"),
         TestCase("directoryTreeExpandHorizontalScrollRTL"),
         TestCase("directoryTreeVerticalScroll"),
-// TODO(crbug.com/1259959): Determine failure reason and enable this test.
-#if !defined(MEMORY_SANITIZER) && !defined(OS_CHROMEOS)
         TestCase("directoryTreeExpandFolder"),
-#endif
         TestCase(
             "directoryTreeExpandFolderWithHiddenFileAndShowHiddenFilesOff"),
         TestCase(
@@ -866,33 +883,18 @@ WRAPPED_INSTANTIATE_TEST_SUITE_P(
         TestCase("transferFromDownloadsToTeamDrive").FilesSwa(),
         TestCase("transferBetweenTeamDrives"),
         TestCase("transferBetweenTeamDrives").FilesSwa(),
-// TODO(crbug.com/1259959): Determine failure reason and enable this test.
-#if !defined(MEMORY_SANITIZER) && !defined(OS_CHROMEOS)
         TestCase("transferDragDropActiveLeave"),
-#endif
         TestCase("transferDragDropActiveLeave").FilesSwa(),
-// TODO(crbug.com/1259959): Determine failure reason and enable this test.
-#if !defined(MEMORY_SANITIZER) && !defined(OS_CHROMEOS)
         TestCase("transferDragDropActiveDrop"),
-#endif
         TestCase("transferDragDropActiveDrop").FilesSwa(),
-// TODO(crbug.com/1259959): Determine failure reason and enable this test.
-#if !defined(MEMORY_SANITIZER) && !defined(OS_CHROMEOS)
         TestCase("transferDragDropTreeItemAccepts"),
-#endif
         TestCase("transferDragDropTreeItemAccepts").FilesSwa(),
 // TODO(crbug.com/1236842): Remove flakiness and enable this test.
 #if !defined(ADDRESS_SANITIZER) && defined(NDEBUG)
-// TODO(crbug.com/1259959): Determine failure reason and enable this test.
-#if !defined(MEMORY_SANITIZER) && !defined(OS_CHROMEOS)
         TestCase("transferDragDropTreeItemDenies"),
-#endif
         TestCase("transferDragDropTreeItemDenies").FilesSwa(),
 #endif
-// TODO(crbug.com/1259959): Determine failure reason and enable this test.
-#if !defined(MEMORY_SANITIZER) && !defined(OS_CHROMEOS)
         TestCase("transferDragAndHoverTreeItemEntryList"),
-#endif
         TestCase("transferDragAndHoverTreeItemEntryList").FilesSwa(),
 // TODO(crbug.com/1236842): Remove flakiness and enable this test.
 #if !defined(ADDRESS_SANITIZER) && defined(NDEBUG)
@@ -904,20 +906,11 @@ WRAPPED_INSTANTIATE_TEST_SUITE_P(
             .EnableSinglePartitionFormat()
             .FilesSwa(),
 #endif
-// TODO(crbug.com/1259959): Determine failure reason and enable this test.
-#if !defined(MEMORY_SANITIZER) && !defined(OS_CHROMEOS)
         TestCase("transferDragFileListItemSelects"),
-#endif
         TestCase("transferDragFileListItemSelects").FilesSwa(),
-// TODO(crbug.com/1259959): Determine failure reason and enable this test.
-#if !defined(MEMORY_SANITIZER) && !defined(OS_CHROMEOS)
         TestCase("transferDragAndDrop"),
-#endif
         TestCase("transferDragAndDrop").FilesSwa(),
-// TODO(crbug.com/1259959): Determine failure reason and enable this test.
-#if !defined(MEMORY_SANITIZER) && !defined(OS_CHROMEOS)
         TestCase("transferDragAndHover"),
-#endif
         TestCase("transferDragAndHover").FilesSwa(),
         TestCase("transferDropBrowserFile"),
         TestCase("transferDropBrowserFile").FilesSwa(),
@@ -930,9 +923,11 @@ WRAPPED_INSTANTIATE_TEST_SUITE_P(
         TestCase("transferInfoIsRemembered"),
         // TestCase("transferInfoIsRemembered").FilesSwa(),
         TestCase("transferToUsbHasDestinationText"),
-        TestCase("transferToUsbHasDestinationText").FilesSwa(),
+        // TODO(lucmult): Re-enable this once SWA uses the feedback panel.
+        // TestCase("transferToUsbHasDestinationText").FilesSwa(),
         TestCase("transferDismissedErrorIsRemembered"),
-        TestCase("transferDismissedErrorIsRemembered").FilesSwa(),
+        // TODO(lucmult): Re-enable this once SWA uses the feedback panel.
+        // TestCase("transferDismissedErrorIsRemembered").FilesSwa(),
         TestCase("transferNotSupportedOperationHasNoRemainingTimeText"),
         TestCase("transferNotSupportedOperationHasNoRemainingTimeText")
             .FilesSwa(),

@@ -13,7 +13,6 @@
 
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/viz/common/quads/compositor_render_pass.h"
 #include "components/viz/common/quads/draw_quad.h"
@@ -344,6 +343,8 @@ class VIZ_SERVICE_EXPORT SurfaceAggregator {
 
   // Whether de-jelly may be active.
   const bool de_jelly_enabled_;
+
+  const bool clip_prewalk_damage_;
 
   bool output_is_secure_ = false;
 

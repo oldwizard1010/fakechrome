@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "build/build_config.h"
@@ -142,7 +141,7 @@ class MediaRouterUI
 
  private:
   friend class MediaRouterViewsUITest;
-  friend class MediaRouterUiForTest;
+  friend class MediaRouterCastUiForTest;
   FRIEND_TEST_ALL_PREFIXES(MediaRouterViewsUITest, SetDialogHeader);
   FRIEND_TEST_ALL_PREFIXES(MediaRouterViewsUITest,
                            UpdateSinksWhenDialogMovesToAnotherDisplay);

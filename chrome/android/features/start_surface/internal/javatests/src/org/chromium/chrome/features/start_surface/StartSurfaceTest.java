@@ -83,8 +83,7 @@ import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.FlakyTest;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
-import org.chromium.chrome.browser.feed.FeedSurfaceCoordinator;
-import org.chromium.chrome.browser.feed.FeedSurfaceMediator;
+import org.chromium.chrome.browser.feed.FeedPlaceholderLayout;
 import org.chromium.chrome.browser.flags.CachedFeatureFlags;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
@@ -347,7 +346,7 @@ public class StartSurfaceTest {
     }
 
     @Test
-    @MediumTest
+    @LargeTest
     @Feature({"StartSurface"})
     // clang-format off
     @CommandLineFlags.Add({BASE_PARAMS + "/single" +
@@ -398,7 +397,7 @@ public class StartSurfaceTest {
     }
 
     @Test
-    @MediumTest
+    @LargeTest
     @Feature({"StartSurface"})
     // clang-format off
     @CommandLineFlags.Add({BASE_PARAMS + "/single/exclude_mv_tiles/true" +
@@ -720,7 +719,11 @@ public class StartSurfaceTest {
     @EnableFeatures({ChromeFeatureList.TAB_SWITCHER_ON_RETURN + "<Study",
             ChromeFeatureList.TAB_GRID_LAYOUT_ANDROID,
             ChromeFeatureList.START_SURFACE_ANDROID + "<Study"})
-    @CommandLineFlags.Add({BASE_PARAMS + "/single/show_last_active_tab_only/true"})
+    @CommandLineFlags.Add({
+            BASE_PARAMS + "/single/show_last_active_tab_only/true",
+            // Disable feed placeholder animation because it causes waitForDeferredStartup() to time
+            // out.
+            FeedPlaceholderLayout.DISABLE_ANIMATION_SWITCH})
     public void startSurfaceRecordHistogramsTest() {
         // clang-format on
         if (!mImmediateReturn) {
@@ -765,13 +768,13 @@ public class StartSurfaceTest {
         Assert.assertEquals(expectedRecordCount,
                 RecordHistogram.getHistogramTotalCountForTesting(
                         StartSurfaceConfiguration.getHistogramName(
-                                FeedSurfaceMediator.FEED_CONTENT_FIRST_LOADED_TIME_MS_UMA,
+                                ExploreSurfaceCoordinator.FEED_CONTENT_FIRST_LOADED_TIME_MS_UMA,
                                 isInstantStart)));
 
         Assert.assertEquals(expectedRecordCount,
                 RecordHistogram.getHistogramTotalCountForTesting(
                         StartSurfaceConfiguration.getHistogramName(
-                                FeedSurfaceCoordinator.FEED_STREAM_CREATED_TIME_MS_UMA,
+                                ExploreSurfaceCoordinator.FEED_STREAM_CREATED_TIME_MS_UMA,
                                 isInstantStart)));
 
         Assert.assertEquals(isInstantReturn() ? 1 : 0,
@@ -1737,7 +1740,8 @@ public class StartSurfaceTest {
     @Test
     @MediumTest
     @Feature({"StartSurface"})
-    @CommandLineFlags.Add({BASE_PARAMS + "/single"})
+    // Disable feed placeholder animation because it causes waitForSnackbar() to time out.
+    @CommandLineFlags.Add({BASE_PARAMS + "/single", FeedPlaceholderLayout.DISABLE_ANIMATION_SWITCH})
     public void testDismissTileWithContextMenuAndUndo() throws Exception {
         if (!mImmediateReturn) {
             StartSurfaceTestUtils.pressHomePageButton(mActivityTestRule.getActivity());

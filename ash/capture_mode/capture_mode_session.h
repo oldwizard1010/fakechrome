@@ -37,6 +37,7 @@ class CaptureModeController;
 class CaptureModeSessionFocusCycler;
 class CaptureModeSettingsView;
 class CaptureWindowObserver;
+class UserNudgeController;
 class WindowDimmer;
 
 // Encapsulates an active capture mode session (i.e. an instance of this class
@@ -73,6 +74,7 @@ class ASH_EXPORT CaptureModeSession
   views::Widget* capture_mode_bar_widget() {
     return capture_mode_bar_widget_.get();
   }
+  views::Widget* capture_label_widget() { return capture_label_widget_.get(); }
   views::Widget* capture_mode_settings_widget() {
     return capture_mode_settings_widget_.get();
   }
@@ -174,7 +176,6 @@ class ASH_EXPORT CaptureModeSession
   friend class CaptureModeSessionTestApi;
   friend class CaptureModeTestApi;
   class CursorSetter;
-  class ScopedA11yOverrideWindowSetter;
 
   enum class CaptureLabelAnimation {
     // No animation on the capture label.
@@ -186,6 +187,25 @@ class ASH_EXPORT CaptureModeSession
     // the capture label animates into a countdown label.
     kCountdownStart,
   };
+
+  // Sets the correct screen bounds on the `capture_mode_bar_widget_` based on
+  // the `current_root_`, potentially moving the bar to a new display if
+  // `current_root_` is different`.
+  void RefreshBarWidgetBounds();
+
+  // If possible, this recreates and shows the nudge that alerts the user about
+  // the new folder selection settings. The nudge will be created on top of the
+  // the settings button on the capture mode bar.
+  void MaybeCreateUserNudge();
+
+  // If there's a user nudge currently showing, it will be dismissed forever,
+  // and will no longer be shown to the user.
+  void MaybeDismissUserNudgeForever();
+
+  // Called to accept and trigger a capture operation. This happens e.g. when
+  // the user hits enter, selects a window/display to capture, or presses on the
+  // record button in the capture label view.
+  void DoPerformCapture();
 
   // Gets the bounds of current window selected for |kWindow| capture source.
   gfx::Rect GetSelectedWindowBounds() const;
@@ -418,10 +438,6 @@ class ASH_EXPORT CaptureModeSession
   // The object which handles tab focus while in a capture session.
   std::unique_ptr<CaptureModeSessionFocusCycler> focus_cycler_;
 
-  // Accessibility features will focus on the capture bar widget while this
-  // object is alive.
-  std::unique_ptr<ScopedA11yOverrideWindowSetter> scoped_a11y_overrider_;
-
   // This is guarded by the |ImprovedScreenCaptureSettings| feature flag.
   // TODO(conniekxu): remove it when the work of capture mode new settings
   // is done.
@@ -440,6 +456,8 @@ class ASH_EXPORT CaptureModeSession
   // shown.
   std::unique_ptr<FolderSelectionDialogController>
       folder_selection_dialog_controller_;
+
+  std::unique_ptr<UserNudgeController> user_nudge_controller_;
 };
 
 }  // namespace ash

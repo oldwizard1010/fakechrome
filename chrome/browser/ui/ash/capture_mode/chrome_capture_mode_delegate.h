@@ -45,7 +45,8 @@ class ChromeCaptureModeDelegate : public ash::CaptureModeDelegate {
       const aura::Window* window,
       const gfx::Rect& bounds,
       base::OnceClosure stop_callback) override;
-  void StopObservingRestrictedContent() override;
+  void StopObservingRestrictedContent(
+      ash::OnCaptureModeDlpRestrictionChecked callback) override;
   mojo::Remote<recording::mojom::RecordingService> LaunchRecordingService()
       override;
   void BindAudioStreamFactory(
@@ -53,6 +54,7 @@ class ChromeCaptureModeDelegate : public ash::CaptureModeDelegate {
       override;
   void OnSessionStateChanged(bool started) override;
   void OnServiceRemoteReset() override;
+  bool GetDriveFsMountPointPath(base::FilePath* path) const override;
   std::unique_ptr<ash::RecordingOverlayView> CreateRecordingOverlayView()
       const override;
 

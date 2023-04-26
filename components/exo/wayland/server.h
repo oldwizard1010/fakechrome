@@ -8,8 +8,9 @@
 #include <memory>
 #include <string>
 
+#include "base/callback.h"
 #include "base/containers/flat_map.h"
-#include "base/macros.h"
+#include "base/files/file_path.h"
 #include "base/time/time.h"
 #include "components/exo/wayland/scoped_wl.h"
 #include "ui/display/display_observer.h"
@@ -21,6 +22,7 @@ struct wl_resource;
 struct wl_client;
 
 namespace exo {
+class Capabilities;
 class Display;
 
 namespace wayland {
@@ -42,7 +44,7 @@ class WaylandWatcher;
 // requests are dispatched into the given Exosphere display.
 class Server : public display::DisplayObserver {
  public:
-  explicit Server(Display* display);
+  Server(Display* display, std::unique_ptr<Capabilities> capabilities);
 
   Server(const Server&) = delete;
   Server& operator=(const Server&) = delete;
@@ -53,7 +55,22 @@ class Server : public display::DisplayObserver {
   // default socket name.
   static std::unique_ptr<Server> Create(Display* display);
 
+  // As above, but where the socket's name is |socket_path|.
+  static std::unique_ptr<Server> Create(
+      Display* display,
+      std::unique_ptr<Capabilities> capabilities,
+      const base::FilePath& socket_path);
+
+  // As above, but asynchronously.
+  static void CreateAsync(
+      Display* display,
+      std::unique_ptr<Capabilities> capabilities,
+      const base::FilePath& socket_path,
+      base::OnceCallback<void(std::unique_ptr<Server>)> callback);
+
   void Initialize();
+
+  void Finalize();
 
   // This adds a Unix socket to the Wayland display server which can be used
   // by clients to connect to the display server.
@@ -79,6 +96,11 @@ class Server : public display::DisplayObserver {
 
   Display* GetDisplay() { return display_; }
 
+  // Public version of the protected accessor below, to be used in tests.
+  wl_display* GetWaylandDisplayForTesting() const {
+    return GetWaylandDisplay();
+  }
+
  protected:
   void AddWaylandOutput(int64_t id,
                         std::unique_ptr<WaylandDisplayOutput> output);
@@ -86,6 +108,7 @@ class Server : public display::DisplayObserver {
 
  private:
   Display* const display_;
+  std::unique_ptr<Capabilities> capabilities_;
   // Deleting wl_display depends on SerialTracker.
   std::unique_ptr<SerialTracker> serial_tracker_;
   std::unique_ptr<wl_display, WlDisplayDeleter> wl_display_;

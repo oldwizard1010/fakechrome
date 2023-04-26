@@ -11,7 +11,6 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/macros.h"
 #include "base/message_loop/message_pump.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/path_service.h"
@@ -63,6 +62,9 @@ class DummyTaskRunner : public base::SingleThreadTaskRunner {
  public:
   DummyTaskRunner() : thread_id_(base::PlatformThread::CurrentId()) {}
 
+  DummyTaskRunner(const DummyTaskRunner&) = delete;
+  DummyTaskRunner& operator=(const DummyTaskRunner&) = delete;
+
   bool PostDelayedTask(const base::Location& from_here,
                        base::OnceClosure task,
                        base::TimeDelta delay) override {
@@ -85,8 +87,6 @@ class DummyTaskRunner : public base::SingleThreadTaskRunner {
   ~DummyTaskRunner() override {}
 
   base::PlatformThreadId thread_id_;
-
-  DISALLOW_COPY_AND_ASSIGN(DummyTaskRunner);
 };
 
 #if defined(V8_USE_EXTERNAL_STARTUP_DATA)

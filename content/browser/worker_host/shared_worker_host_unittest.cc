@@ -9,7 +9,6 @@
 #include <utility>
 
 #include "base/callback_helpers.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
 #include "base/test/scoped_feature_list.h"
@@ -73,6 +72,9 @@ class SharedWorkerHostTest : public testing::Test {
   SharedWorkerHostTest()
       : service_(nullptr /* storage_partition */,
                  nullptr /* service_worker_context */) {}
+
+  SharedWorkerHostTest(const SharedWorkerHostTest&) = delete;
+  SharedWorkerHostTest& operator=(const SharedWorkerHostTest&) = delete;
 
   base::WeakPtr<SharedWorkerHost> CreateHost() {
     SharedWorkerInstance instance(
@@ -168,8 +170,6 @@ class SharedWorkerHostTest : public testing::Test {
   scoped_refptr<SiteInstanceImpl> site_instance_;
 
   SharedWorkerServiceImpl service_;
-
-  DISALLOW_COPY_AND_ASSIGN(SharedWorkerHostTest);
 };
 
 TEST_F(SharedWorkerHostTest, Normal) {

@@ -58,17 +58,7 @@ gpu_android_builder(
 )
 
 gpu_android_builder(
-    name = "gpu-fyi-try-android-l-nexus-6-32",
-    pool = "luci.chromium.gpu.android.nexus6.try",
-)
-
-gpu_android_builder(
     name = "gpu-fyi-try-android-m-nexus-5x-64",
-    pool = "luci.chromium.gpu.android.nexus5x.try",
-)
-
-gpu_android_builder(
-    name = "gpu-fyi-try-android-m-nexus-5x-deqp-64",
     pool = "luci.chromium.gpu.android.nexus5x.try",
 )
 
@@ -155,11 +145,6 @@ gpu_linux_builder(
 )
 
 gpu_linux_builder(
-    name = "gpu-fyi-try-linux-intel-dqp",
-    pool = "luci.chromium.gpu.linux.intel.try",
-)
-
-gpu_linux_builder(
     name = "gpu-fyi-try-linux-intel-exp",
     pool = "luci.chromium.gpu.linux.intel.try",
 )
@@ -181,11 +166,6 @@ gpu_linux_builder(
 
 gpu_linux_builder(
     name = "gpu-fyi-try-linux-nvidia-dbg",
-    pool = "luci.chromium.gpu.linux.nvidia.try",
-)
-
-gpu_linux_builder(
-    name = "gpu-fyi-try-linux-nvidia-dqp",
     pool = "luci.chromium.gpu.linux.nvidia.try",
 )
 
@@ -279,11 +259,6 @@ gpu_mac_builder(
 gpu_mac_builder(
     name = "gpu-fyi-try-mac-intel-rel",
     pool = "luci.chromium.gpu.mac.mini.intel.try",
-)
-
-gpu_mac_builder(
-    name = "gpu-fyi-try-mac-intel-uhd-630-rel",
-    pool = "luci.chromium.gpu.mac.mini.intel.uhd630.try",
 )
 
 gpu_mac_builder(

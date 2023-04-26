@@ -38,10 +38,15 @@ WITH
       exported.id,
       test_id,
       status,
+      duration,
       (
         SELECT value
         FROM tr.tags
         WHERE key = "step_name") as step_name,
+      (
+        SELECT value
+        FROM tr.tags
+        WHERE key = "web_tests_base_timeout") as timeout,
       ARRAY(
         SELECT value
         FROM tr.tags
@@ -129,8 +134,19 @@ KNOWN_TEST_ID_PREFIXES = [
     'ninja://:webgpu_blink_web_tests',
 ]
 
+# The default timeout of most web tests is 6 seconds, so use that if we happen
+# to get a result that doesn't report its own timeout.
+DEFAULT_TIMEOUT = 6
+
 
 class WebTestBigQueryQuerier(queries_module.BigQueryQuerier):
+    def _ConvertJsonResultToResultObject(self, json_result):
+        result = super(WebTestBigQueryQuerier,
+                       self)._ConvertJsonResultToResultObject(json_result)
+        result.SetDuration(json_result['duration'], json_result['timeout']
+                           or DEFAULT_TIMEOUT)
+        return result
+
     def _GetRelevantExpectationFilesForQueryResult(self, query_result):
         # Files in the query are either relative to the web tests directory or
         # are an absolute path. The paths are always POSIX-style. We don't

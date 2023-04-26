@@ -56,10 +56,7 @@ class ExtensionAppsChromeOs : public ExtensionAppsBase,
                               public MediaCaptureDevicesDispatcher::Observer,
                               public AppWebContentsData::Client {
  public:
-  ExtensionAppsChromeOs(
-      const mojo::Remote<apps::mojom::AppService>& app_service,
-      Profile* profile,
-      apps::InstanceRegistry* instance_registry);
+  explicit ExtensionAppsChromeOs(AppServiceProxy* proxy);
   ~ExtensionAppsChromeOs() override;
 
   ExtensionAppsChromeOs(const ExtensionAppsChromeOs&) = delete;
@@ -74,14 +71,15 @@ class ExtensionAppsChromeOs : public ExtensionAppsBase,
   void ObserveArc();
 
  private:
-  void Initialize();
+  void Initialize(const mojo::Remote<apps::mojom::AppService>& app_service);
 
   // apps::mojom::Publisher overrides.
   void LaunchAppWithIntent(const std::string& app_id,
                            int32_t event_flags,
                            apps::mojom::IntentPtr intent,
                            apps::mojom::LaunchSource launch_source,
-                           apps::mojom::WindowInfoPtr window_info) override;
+                           apps::mojom::WindowInfoPtr window_info,
+                           LaunchAppWithIntentCallback callback) override;
   void PauseApp(const std::string& app_id) override;
   void UnpauseApp(const std::string& app_id) override;
   void GetMenuModel(const std::string& app_id,
@@ -143,6 +141,8 @@ class ExtensionAppsChromeOs : public ExtensionAppsBase,
   void SetShowInFields(apps::mojom::AppPtr& app,
                        const extensions::Extension* extension) override;
   bool ShouldShownInLauncher(const extensions::Extension* extension) override;
+  std::unique_ptr<App> CreateApp(const extensions::Extension* extension,
+                                 Readiness readiness) override;
   apps::mojom::AppPtr Convert(const extensions::Extension* extension,
                               apps::mojom::Readiness readiness) override;
 

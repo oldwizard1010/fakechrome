@@ -9,7 +9,6 @@
 
 #include "base/compiler_specific.h"
 #include "base/containers/circular_deque.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/synchronization/lock.h"
 #include "base/threading/thread_checker.h"
@@ -32,6 +31,11 @@ class PepperMediaStreamAudioTrackHost : public PepperMediaStreamTrackHostBase {
                                   PP_Instance instance,
                                   PP_Resource resource,
                                   const blink::WebMediaStreamTrack& track);
+
+  PepperMediaStreamAudioTrackHost(const PepperMediaStreamAudioTrackHost&) =
+      delete;
+  PepperMediaStreamAudioTrackHost& operator=(
+      const PepperMediaStreamAudioTrackHost&) = delete;
 
  private:
   // A helper class for receiving audio samples in the audio thread.
@@ -169,8 +173,6 @@ class PepperMediaStreamAudioTrackHost : public PepperMediaStreamTrackHostBase {
   bool connected_;
 
   AudioSink audio_sink_;
-
-  DISALLOW_COPY_AND_ASSIGN(PepperMediaStreamAudioTrackHost);
 };
 
 }  // namespace content

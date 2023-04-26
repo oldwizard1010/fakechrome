@@ -8,7 +8,6 @@
 #include <map>
 #include <string>
 
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "components/translate/content/common/translate.mojom.h"
@@ -143,10 +142,14 @@ class ContentTranslateDriver : public TranslateDriver,
   void InitiateTranslationIfReload(
       content::NavigationHandle* navigation_handle);
 
-  // Runs the provided callback with the loaded model file
-  // to pass it to the connected translate agent.
-  void OnLanguageDetectionModelFile(GetLanguageDetectionModelCallback callback,
-                                    base::File model_file);
+  // Notifies |this| that the translate model service is available for model
+  // requests or is invalidating existing requests specified by |is_available|.
+  //  |callback| will be either forwarded to a request to get the actual model
+  // file or will be run with an empty file if the translate model service is
+  // rejecting requests.
+  void OnLanguageModelFileAvailabilityChanged(
+      GetLanguageDetectionModelCallback callback,
+      bool is_available);
 
   // The navigation controller of the tab we are associated with.
   content::NavigationController* navigation_controller_;

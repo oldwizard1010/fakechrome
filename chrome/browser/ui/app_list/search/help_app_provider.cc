@@ -16,7 +16,6 @@
 #include "ash/webui/help_app_ui/url_constants.h"
 #include "base/bind.h"
 #include "base/feature_list.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
 #include "base/time/time.h"
@@ -105,6 +104,7 @@ HelpAppResult::HelpAppResult(Profile* profile,
     : profile_(profile) {
   DCHECK(profile_);
   set_id(id);
+  SetCategory(Category::kHelp);
   SetTitle(title);
   // Show this in the first position, in front of any other chips that may be
   // also claiming the first slot.

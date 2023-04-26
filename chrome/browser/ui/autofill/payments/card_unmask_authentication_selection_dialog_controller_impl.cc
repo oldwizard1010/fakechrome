@@ -7,12 +7,10 @@
 #include <string>
 
 #include "chrome/browser/ui/autofill/payments/card_unmask_authentication_selection_dialog_view.h"
+#include "components/autofill/core/browser/metrics/autofill_metrics.h"
 #include "components/autofill/core/browser/payments/card_unmask_challenge_option.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/vector_icons/vector_icons.h"
-#include "content/public/browser/web_contents.h"
-#include "content/public/browser/web_contents_observer.h"
-#include "content/public/browser/web_contents_user_data.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/views/controls/image_view.h"
 
@@ -24,25 +22,98 @@ CardUnmaskAuthenticationSelectionDialogControllerImpl::
   // dialog is visible. In this case the controller is destroyed before
   // CardUnmaskAuthenticationSelectionDialogViews::dtor() is called,
   // but the reference to controller is not reset. This reference needs to be
-  // reset via
-  // CardUnmaskAuthenticationSelectionDialogView::OnControllerDestroying() to
-  // avoid a crash.
+  // reset via CardUnmaskAuthenticationSelectionDialogView::Dismiss() to avoid a
+  // crash.
   if (dialog_view_)
-    dialog_view_->OnControllerDestroying();
+    dialog_view_->Dismiss(/*user_closed_dialog=*/true,
+                          /*server_success=*/false);
+}
+
+// Static
+CardUnmaskAuthenticationSelectionDialogControllerImpl*
+CardUnmaskAuthenticationSelectionDialogControllerImpl::GetOrCreate(
+    content::WebContents* web_contents) {
+  CardUnmaskAuthenticationSelectionDialogControllerImpl::CreateForWebContents(
+      web_contents);
+  CardUnmaskAuthenticationSelectionDialogControllerImpl* controller =
+      CardUnmaskAuthenticationSelectionDialogControllerImpl::FromWebContents(
+          web_contents);
+  DCHECK(controller);
+  return controller;
 }
 
 void CardUnmaskAuthenticationSelectionDialogControllerImpl::ShowDialog(
-    const std::vector<CardUnmaskChallengeOption>& challenge_options) {
+    const std::vector<CardUnmaskChallengeOption>& challenge_options,
+    base::OnceCallback<void(const std::string&)>
+        confirm_unmasking_method_callback,
+    base::OnceClosure cancel_unmasking_closure) {
   if (dialog_view_)
     return;
 
-  challenge_options_ = challenge_options;
+  // Currently we only display the first challenge option available.
+  DCHECK(!challenge_options.empty());
+  challenge_options_ = {challenge_options[0]};
+
+  confirm_unmasking_method_callback_ =
+      std::move(confirm_unmasking_method_callback);
+  cancel_unmasking_closure_ = std::move(cancel_unmasking_closure);
+
   dialog_view_ = CardUnmaskAuthenticationSelectionDialogView::CreateAndShow(
-      this, web_contents());
+      this, &GetWebContents());
+
+  DCHECK(dialog_view_);
+  AutofillMetrics::LogCardUnmaskAuthenticationSelectionDialogShown();
 }
 
-void CardUnmaskAuthenticationSelectionDialogControllerImpl::OnDialogClosed() {
+void CardUnmaskAuthenticationSelectionDialogControllerImpl::
+    DismissDialogUponServerProcessedAuthenticationMethodRequest(
+        bool server_success) {
+  if (!dialog_view_)
+    return;
+
+  dialog_view_->Dismiss(/*user_closed_dialog=*/false, server_success);
+}
+
+void CardUnmaskAuthenticationSelectionDialogControllerImpl::OnDialogClosed(
+    bool user_closed_dialog,
+    bool server_success) {
+  if (user_closed_dialog) {
+    AutofillMetrics::LogCardUnmaskAuthenticationSelectionDialogResultMetric(
+        challenge_option_selected_
+            ? AutofillMetrics::
+                  CardUnmaskAuthenticationSelectionDialogResultMetric::
+                      kCanceledByUserAfterSelection
+            : AutofillMetrics::
+                  CardUnmaskAuthenticationSelectionDialogResultMetric::
+                      kCanceledByUserBeforeSelection);
+    // |cancel_unmasking_closure_| can be null in tests.
+    if (cancel_unmasking_closure_)
+      std::move(cancel_unmasking_closure_).Run();
+  } else {
+    AutofillMetrics::LogCardUnmaskAuthenticationSelectionDialogResultMetric(
+        server_success
+            ? AutofillMetrics::
+                  CardUnmaskAuthenticationSelectionDialogResultMetric::
+                      kDismissedByServerRequestSuccess
+            : AutofillMetrics::
+                  CardUnmaskAuthenticationSelectionDialogResultMetric::
+                      kDismissedByServerRequestFailure);
+  }
+
+  challenge_option_selected_ = false;
   dialog_view_ = nullptr;
+  confirm_unmasking_method_callback_.Reset();
+  cancel_unmasking_closure_.Reset();
+}
+
+void CardUnmaskAuthenticationSelectionDialogControllerImpl::OnOkButtonClicked(
+    const std::string& selected_challenge_option_id) {
+  // |confirm_unmasking_method_callback_| can be null in tests.
+  if (confirm_unmasking_method_callback_) {
+    std::move(confirm_unmasking_method_callback_)
+        .Run(selected_challenge_option_id);
+  }
+  challenge_option_selected_ = true;
 }
 
 std::u16string
@@ -109,18 +180,12 @@ CardUnmaskAuthenticationSelectionDialogControllerImpl::GetProgressLabel()
       IDS_AUTOFILL_CARD_UNMASK_PROGRESS_BAR_MESSAGE);
 }
 
-#if defined(UNIT_TEST)
-CardUnmaskAuthenticationSelectionDialogView*
-CardUnmaskAuthenticationSelectionDialogControllerImpl::
-    GetDialogViewForTesting() {
-  return dialog_view_;
-}
-#endif
-
 CardUnmaskAuthenticationSelectionDialogControllerImpl::
     CardUnmaskAuthenticationSelectionDialogControllerImpl(
         content::WebContents* web_contents)
-    : content::WebContentsObserver(web_contents) {}
+    : content::WebContentsUserData<
+          CardUnmaskAuthenticationSelectionDialogControllerImpl>(
+          *web_contents) {}
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(
     CardUnmaskAuthenticationSelectionDialogControllerImpl);

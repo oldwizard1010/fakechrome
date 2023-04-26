@@ -38,7 +38,6 @@
 #include "third_party/blink/renderer/platform/geometry/float_rect.h"
 #include "third_party/blink/renderer/platform/geometry/float_rounded_rect.h"
 #include "third_party/blink/renderer/platform/geometry/int_rect.h"
-#include "third_party/blink/renderer/platform/graphics/dark_mode_filter_helper.h"
 #include "third_party/blink/renderer/platform/graphics/dark_mode_settings_builder.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_context_state_saver.h"
 #include "third_party/blink/renderer/platform/graphics/interpolation_space.h"
@@ -81,11 +80,11 @@ SkRect GetRectForTextLine(FloatPoint pt, float width, float stroke_thickness) {
   return r;
 }
 
-std::pair<IntPoint, IntPoint> GetPointsForTextLine(FloatPoint pt,
-                                                   float width,
-                                                   float stroke_thickness) {
+std::pair<gfx::Point, gfx::Point> GetPointsForTextLine(FloatPoint pt,
+                                                       float width,
+                                                       float stroke_thickness) {
   int y = floorf(pt.y() + std::max<float>(stroke_thickness / 2.0f, 0.5f));
-  return {IntPoint(pt.x(), y), IntPoint(pt.x() + width, y)};
+  return {gfx::Point(pt.x(), y), gfx::Point(pt.x() + width, y)};
 }
 
 Color DarkModeColor(GraphicsContext& context,
@@ -458,8 +457,8 @@ static void EnforceDotsAtEndpoints(GraphicsContext& context,
   }
 }
 
-void GraphicsContext::DrawLine(const IntPoint& point1,
-                               const IntPoint& point2,
+void GraphicsContext::DrawLine(const gfx::Point& point1,
+                               const gfx::Point& point2,
                                const AutoDarkMode& auto_dark_mode,
                                bool is_text_line,
                                const PaintFlags* paint_flags) {
@@ -524,8 +523,8 @@ void GraphicsContext::DrawLineForText(const FloatPoint& pt,
   auto stroke_style = GetStrokeStyle();
   DCHECK_NE(stroke_style, kWavyStroke);
   if (ShouldUseStrokeForTextLine(stroke_style)) {
-    IntPoint start;
-    IntPoint end;
+    gfx::Point start;
+    gfx::Point end;
     std::tie(start, end) = GetPointsForTextLine(pt, width, StrokeThickness());
     DrawLine(start, end, auto_dark_mode, true, paint_flags);
   } else {
@@ -744,15 +743,12 @@ void GraphicsContext::DrawImage(
   image_flags.setBlendMode(op);
   image_flags.setColor(SK_ColorBLACK);
 
-  if (auto_dark_mode.enabled) {
-    DarkModeFilterHelper::ApplyToImageIfNeeded(*GetDarkModeFilter(), image,
-                                               &image_flags, src, dest);
-  }
-  ImageDrawOptions draw_options;
-  draw_options.sampling_options = ComputeSamplingOptions(image, dest, src);
-  draw_options.respect_orientation = should_respect_image_orientation;
-  draw_options.decode_mode = decode_mode;
-  draw_options.apply_dark_mode = auto_dark_mode.enabled;
+  SkSamplingOptions sampling = ComputeSamplingOptions(image, dest, src);
+  ImageDrawOptions draw_options(
+      auto_dark_mode.enabled ? GetDarkModeFilter() : nullptr, sampling,
+      should_respect_image_orientation, Image::kClampImageToSourceRect,
+      decode_mode, auto_dark_mode.enabled);
+
   image->Draw(canvas_, image_flags, dest, src, draw_options);
   paint_controller_.SetImagePainted();
 }
@@ -787,16 +783,10 @@ void GraphicsContext::DrawImageRRect(
   image_flags.setBlendMode(op);
   image_flags.setColor(SK_ColorBLACK);
 
-  if (auto_dark_mode.enabled) {
-    DarkModeFilterHelper::ApplyToImageIfNeeded(
-        *GetDarkModeFilter(), image, &image_flags, src_rect, dest.Rect());
-  }
-
-  ImageDrawOptions draw_options;
-  draw_options.sampling_options = sampling;
-  draw_options.respect_orientation = respect_orientation;
-  draw_options.decode_mode = decode_mode;
-  draw_options.apply_dark_mode = auto_dark_mode.enabled;
+  ImageDrawOptions draw_options(
+      auto_dark_mode.enabled ? GetDarkModeFilter() : nullptr, sampling,
+      respect_orientation, Image::kClampImageToSourceRect, decode_mode,
+      auto_dark_mode.enabled);
 
   bool use_shader = (visible_src == src_rect) &&
                     (respect_orientation == kDoNotRespectImageOrientation ||
@@ -804,7 +794,8 @@ void GraphicsContext::DrawImageRRect(
   if (use_shader) {
     const SkMatrix local_matrix =
         SkMatrix::RectToRect(visible_src, dest.Rect());
-    use_shader = image->ApplyShader(image_flags, local_matrix, draw_options);
+    use_shader = image->ApplyShader(image_flags, local_matrix, dest.Rect(),
+                                    src_rect, draw_options);
   }
 
   if (use_shader) {
@@ -863,17 +854,12 @@ void GraphicsContext::DrawImageTiled(
 
   PaintFlags image_flags = ImmutableState()->FillFlags();
   image_flags.setBlendMode(op);
+  SkSamplingOptions sampling = ImageSamplingOptions();
+  ImageDrawOptions draw_options(
+      auto_dark_mode.enabled ? GetDarkModeFilter() : nullptr, sampling,
+      respect_orientation, Image::kClampImageToSourceRect, Image::kSyncDecode,
+      auto_dark_mode.enabled);
 
-  if (auto_dark_mode.enabled) {
-    DarkModeFilterHelper::ApplyToImageIfNeeded(
-        *GetDarkModeFilter(), image, &image_flags, tiling_info.image_rect,
-        dest_rect);
-  }
-
-  ImageDrawOptions draw_options;
-  draw_options.sampling_options = ImageSamplingOptions();
-  draw_options.respect_orientation = respect_orientation;
-  draw_options.apply_dark_mode = auto_dark_mode.enabled;
   image->DrawPattern(*this, image_flags, dest_rect, tiling_info, draw_options);
   paint_controller_.SetImagePainted();
 }
@@ -1182,7 +1168,7 @@ void GraphicsContext::SetURLFragmentForRect(const String& dest_name,
 }
 
 void GraphicsContext::SetURLDestinationLocation(const String& name,
-                                                const IntPoint& location) {
+                                                const gfx::Point& location) {
   DCHECK(canvas_);
 
   // Paint previews don't make use of linked destinations.
@@ -1227,14 +1213,13 @@ Path GraphicsContext::GetPathForTextLine(const FloatPoint& pt,
   Path path;
   DCHECK_NE(stroke_style, kWavyStroke);
   if (ShouldUseStrokeForTextLine(stroke_style)) {
-    IntPoint start;
-    IntPoint end;
+    gfx::Point start;
+    gfx::Point end;
     std::tie(start, end) = GetPointsForTextLine(pt, width, stroke_thickness);
-    path.MoveTo(FloatPoint(start));
-    path.AddLineTo(FloatPoint(end));
+    path.MoveTo(ToGfxPointF(FloatPoint(start)));
+    path.AddLineTo(ToGfxPointF(FloatPoint(end)));
   } else {
-    SkRect r = GetRectForTextLine(pt, width, stroke_thickness);
-    path.AddRect(r);
+    path.AddRect(GetRectForTextLine(pt, width, stroke_thickness));
   }
   return path;
 }

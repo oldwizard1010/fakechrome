@@ -33,7 +33,7 @@ export class InputController {
   }
 
   /**
-   * Sets up Dictation's speech recognizer and various listeners.
+   * Sets up Dictation's various IME listeners.
    * @private
    */
   initialize_() {
@@ -42,6 +42,15 @@ export class InputController {
         (context) => this.onImeFocus_(context));
     chrome.input.ime.onBlur.addListener(
         (contextId) => this.onImeBlur_(contextId));
+  }
+
+  /**
+   * Whether this is the active IME and has a focused input.
+   * @return {boolean}
+   */
+  isActive() {
+    return this.activeImeContextId_ !==
+        InputController.NO_ACTIVE_IME_CONTEXT_ID_;
   }
 
   /**
@@ -99,8 +108,7 @@ export class InputController {
    * @param {string} text
    */
   setCompositionText(text) {
-    if (this.activeImeContextId_ ===
-        InputController.NO_ACTIVE_IME_CONTEXT_ID_) {
+    if (!this.isActive()) {
       return;
     }
     // Set the composition text for interim results.
@@ -117,8 +125,7 @@ export class InputController {
    * @param {function():void} callback
    */
   clearCompositionText(callback) {
-    if (this.activeImeContextId_ ===
-        InputController.NO_ACTIVE_IME_CONTEXT_ID_) {
+    if (!this.isActive()) {
       return;
     }
     chrome.input.ime.clearComposition(
@@ -130,8 +137,7 @@ export class InputController {
    * @param {string} text The text to commit
    */
   commitText(text) {
-    if (this.activeImeContextId_ ===
-        InputController.NO_ACTIVE_IME_CONTEXT_ID_) {
+    if (!this.isActive()) {
       return;
     }
     chrome.input.ime.commitText({contextID: this.activeImeContextId_, text});

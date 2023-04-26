@@ -8,7 +8,6 @@
 #include <memory>
 #include <utility>
 
-#include "base/macros.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/gfx/image/image_skia.h"
@@ -129,6 +128,18 @@ BuilderT& SetImage(const gfx::ImageSkia* value) & {
   return *static_cast<BuilderT*>(this);
 }
 BuilderT&& SetImage(const gfx::ImageSkia* value) && {
+  return std::move(this->SetImage(value));
+}
+BuilderT& SetImage(const ui::ImageModel& value) & {
+  auto setter = std::make_unique<::views::internal::PropertySetter<
+      ViewClass_, ui::ImageModel,
+      decltype((static_cast<void (ViewClass_::*)(const ui::ImageModel&)>(
+          &ViewClass_::SetImage))),
+      &ViewClass_::SetImage>>(value);
+  ::views::internal::ViewBuilderCore::AddPropertySetter(std::move(setter));
+  return *static_cast<BuilderT*>(this);
+}
+BuilderT&& SetImage(const ui::ImageModel& value) && {
   return std::move(this->SetImage(value));
 }
 END_VIEW_BUILDER

@@ -23,8 +23,12 @@
 #include "components/content_settings/core/browser/content_settings_observer.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings_types.h"
+#include "components/services/app_service/public/cpp/app_types.h"
+#include "components/services/app_service/public/cpp/icon_types.h"
+#include "components/services/app_service/public/mojom/app_service.mojom.h"
 #include "components/services/app_service/public/mojom/types.mojom.h"
 #include "components/webapps/browser/installable/installable_metrics.h"
+#include "ui/gfx/native_widget_types.h"
 
 #if defined(OS_CHROMEOS)
 #include "chrome/browser/apps/app_service/app_notifications.h"
@@ -50,10 +54,16 @@ class WebApp;
 class WebAppProvider;
 class WebAppRegistrar;
 class WebAppLaunchManager;
+class LinkCapturingMigrationManager;
 
 struct ShortcutIdTypeMarker {};
 
 typedef base::IdTypeU32<ShortcutIdTypeMarker> ShortcutId;
+
+void UninstallImpl(WebAppProvider* provider,
+                   const std::string& app_id,
+                   apps::mojom::UninstallSource uninstall_source,
+                   gfx::NativeWindow parent_window);
 
 class WebAppPublisherHelper : public AppRegistrarObserver,
 #if defined(OS_CHROMEOS)
@@ -79,7 +89,7 @@ class WebAppPublisherHelper : public AppRegistrarObserver,
         absl::optional<bool> accessing_microphone) = 0;
   };
 
-  using LoadIconCallback = base::OnceCallback<void(apps::mojom::IconValuePtr)>;
+  using LoadIconCallback = base::OnceCallback<void(apps::IconValuePtr)>;
 
   WebAppPublisherHelper(Profile* profile,
                         WebAppProvider* provider,
@@ -113,6 +123,11 @@ class WebAppPublisherHelper : public AppRegistrarObserver,
       const WebApp* web_app,
       std::vector<apps::mojom::PermissionPtr>* target);
 
+#if !BUILDFLAG(IS_CHROMEOS_LACROS)
+  // Creates an |std::unique_ptr<apps::App>| describing |web_app|.
+  std::unique_ptr<apps::App> CreateWebApp(const WebApp* web_app);
+#endif
+
   // Creates an |apps::mojom::App| describing |web_app|.
   apps::mojom::AppPtr ConvertWebApp(const WebApp* web_app);
 
@@ -145,8 +160,8 @@ class WebAppPublisherHelper : public AppRegistrarObserver,
   bool IsPaused(const std::string& app_id);
 
   void LoadIcon(const std::string& app_id,
-                apps::mojom::IconKeyPtr icon_key,
-                apps::mojom::IconType icon_type,
+                const apps::IconKey& icon_key,
+                apps::IconType icon_type,
                 int32_t size_hint_in_dip,
                 LoadIconCallback callback);
 
@@ -164,12 +179,13 @@ class WebAppPublisherHelper : public AppRegistrarObserver,
   content::WebContents* MaybeNavigateExistingWindow(const std::string& app_id,
                                                     absl::optional<GURL> url);
 
-  content::WebContents* LaunchAppWithIntent(
+  void LaunchAppWithIntent(
       const std::string& app_id,
       int32_t event_flags,
       apps::mojom::IntentPtr intent,
       apps::mojom::LaunchSource launch_source,
-      apps::mojom::WindowInfoPtr window_info);
+      apps::mojom::WindowInfoPtr window_info,
+      apps::mojom::Publisher::LaunchAppWithIntentCallback callback);
 
   content::WebContents* LaunchAppWithParams(apps::AppLaunchParams params);
 
@@ -181,6 +197,8 @@ class WebAppPublisherHelper : public AppRegistrarObserver,
 #endif
 
   void OpenNativeSettings(const std::string& app_id);
+
+  apps::mojom::WindowMode GetWindowMode(const std::string& app_id);
 
   void SetWindowMode(const std::string& app_id,
                      apps::mojom::WindowMode window_mode);
@@ -270,9 +288,10 @@ class WebAppPublisherHelper : public AppRegistrarObserver,
 #endif
 
   // content_settings::Observer:
-  void OnContentSettingChanged(const ContentSettingsPattern& primary_pattern,
-                               const ContentSettingsPattern& secondary_pattern,
-                               ContentSettingsType content_type) override;
+  void OnContentSettingChanged(
+      const ContentSettingsPattern& primary_pattern,
+      const ContentSettingsPattern& secondary_pattern,
+      ContentSettingsTypeSet content_type_set) override;
 
   void Init(bool observe_media_requests);
 
@@ -280,12 +299,15 @@ class WebAppPublisherHelper : public AppRegistrarObserver,
 
   const WebApp* GetWebApp(const AppId& app_id) const;
 
-  content::WebContents* LaunchAppWithIntentImpl(
+  // Returns the WebContents for the launch via `callback`. This value may be
+  // null if the launch fails.
+  void LaunchAppWithIntentImpl(
       const std::string& app_id,
       int32_t event_flags,
       apps::mojom::IntentPtr intent,
       apps::mojom::LaunchSource launch_source,
-      int64_t display_id);
+      int64_t display_id,
+      base::OnceCallback<void(content::WebContents*)> callback);
 
 #if defined(OS_CHROMEOS)
   // Updates app visibility.
@@ -302,6 +324,23 @@ class WebAppPublisherHelper : public AppRegistrarObserver,
       const std::string& app_id,
       apps::mojom::OptionalBool has_notification_indicator);
 #endif
+
+  // Checks that the user permits the app launch (possibly presenting a blocking
+  // user choice dialog). Launches the app with read access to the files in
+  // `params.launch_files` and returns the created WebContents via `callback`,
+  // or doesn't launch the app and returns null in `callback`.
+  void LaunchAppWithFilesCheckingUserPermission(
+      const std::string& app_id,
+      apps::AppLaunchParams params,
+      base::OnceCallback<void(content::WebContents*)> callback);
+
+  // Called after the user has allowed or denied an app launch with files.
+  void OnFileHandlerDialogCompleted(
+      std::string app_id,
+      apps::AppLaunchParams params,
+      base::OnceCallback<void(content::WebContents*)> callback,
+      bool allowed,
+      bool remember_user_choice);
 
   Profile* const profile_;
 
@@ -343,6 +382,9 @@ class WebAppPublisherHelper : public AppRegistrarObserver,
 
   std::map<std::string, WebApplicationShortcutsMenuItemInfo> shortcut_id_map_;
   ShortcutId::Generator shortcut_id_generator_;
+
+  std::unique_ptr<web_app::LinkCapturingMigrationManager>
+      link_capturing_migration_manager_;
 
   base::WeakPtrFactory<WebAppPublisherHelper> weak_ptr_factory_{this};
 };

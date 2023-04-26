@@ -423,8 +423,8 @@ bool ChromeVirtualKeyboardDelegate::IsSettingsEnabled() {
 
 void ChromeVirtualKeyboardDelegate::OnClipboardHistoryItemListAddedOrRemoved() {
   EventRouter* router = EventRouter::Get(browser_context_);
-  if (!router->HasEventListener(
-          keyboard_api::OnClipboardHistoryChanged::kEventName)) {
+  if (!router || !router->HasEventListener(
+                     keyboard_api::OnClipboardHistoryChanged::kEventName)) {
     return;
   }
 
@@ -447,8 +447,8 @@ void ChromeVirtualKeyboardDelegate::OnClipboardHistoryItemListAddedOrRemoved() {
 void ChromeVirtualKeyboardDelegate::OnClipboardHistoryItemsUpdated(
     const std::vector<base::UnguessableToken>& menu_item_ids) {
   EventRouter* router = EventRouter::Get(browser_context_);
-  if (!router->HasEventListener(
-          keyboard_api::OnClipboardItemUpdated::kEventName)) {
+  if (!router || !router->HasEventListener(
+                     keyboard_api::OnClipboardItemUpdated::kEventName)) {
     return;
   }
 
@@ -528,21 +528,23 @@ void ChromeVirtualKeyboardDelegate::OnHasInputDevices(
       base::FeatureList::IsEnabled(
           chromeos::features::kHandwritingLegacyRecognition)));
   features.Append(GenerateFeatureFlag(
+      "handwritinglegacyrecognitionall",
+      base::FeatureList::IsEnabled(
+          chromeos::features::kHandwritingLegacyRecognitionAllLang)));
+  features.Append(GenerateFeatureFlag(
       "multiword", chromeos::features::IsAssistiveMultiWordEnabled()));
   features.Append(GenerateFeatureFlag(
       "stylushandwriting",
       base::FeatureList::IsEnabled(chromeos::features::kImeStylusHandwriting)));
 
   // Flag used to enable system built-in IME decoder instead of NaCl.
-  bool mojo_decoder =
-      base::FeatureList::IsEnabled(chromeos::features::kImeMojoDecoder);
-  features.Append(GenerateFeatureFlag("usemojodecoder", mojo_decoder));
+  features.Append(GenerateFeatureFlag("usemojodecoder", true));
   // Enabling MojoDecoder implies the 2 previous flags are auto-enabled.
   //   * fstinputlogic
   //   * hmminputlogic
   // TODO(b/171846787): Remove the 3 flags after they are removed from clients.
-  features.Append(GenerateFeatureFlag("fstinputlogic", mojo_decoder));
-  features.Append(GenerateFeatureFlag("hmminputlogic", mojo_decoder));
+  features.Append(GenerateFeatureFlag("fstinputlogic", true));
+  features.Append(GenerateFeatureFlag("hmminputlogic", true));
   features.Append(GenerateFeatureFlag(
       "imemozcproto",
       base::FeatureList::IsEnabled(chromeos::features::kImeMozcProto)));
@@ -562,9 +564,7 @@ void ChromeVirtualKeyboardDelegate::OnHasInputDevices(
   features.Append(GenerateFeatureFlag(
       "systemkoreanphysicaltyping",
       chromeos::features::IsSystemKoreanPhysicalTypingEnabled()));
-  features.Append(GenerateFeatureFlag(
-      "systemlatinphysicaltyping",
-      chromeos::features::IsSystemLatinPhysicalTypingEnabled()));
+  features.Append(GenerateFeatureFlag("systemlatinphysicaltyping", true));
   features.Append(GenerateFeatureFlag(
       "multilingualtyping",
       base::FeatureList::IsEnabled(chromeos::features::kMultilingualTyping)));
@@ -588,8 +588,8 @@ void ChromeVirtualKeyboardDelegate::DispatchConfigChangeEvent(
     std::unique_ptr<base::DictionaryValue> settings) {
   EventRouter* router = EventRouter::Get(browser_context_);
 
-  if (!router->HasEventListener(
-          keyboard_api::OnKeyboardConfigChanged::kEventName))
+  if (!router || !router->HasEventListener(
+                     keyboard_api::OnKeyboardConfigChanged::kEventName))
     return;
 
   auto event_args = std::make_unique<base::ListValue>();

@@ -18,6 +18,7 @@
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "build/build_config.h"
+#include "content/browser/fenced_frame/fenced_frame_url_mapping.h"
 #include "content/browser/loader/navigation_url_loader_delegate.h"
 #include "content/browser/navigation_subresource_loader_params.h"
 #include "content/browser/prerender/prerender_host.h"
@@ -81,7 +82,6 @@ struct URLLoaderCompletionStatus;
 
 namespace content {
 
-class AppCacheNavigationHandle;
 class CrossOriginEmbedderPolicyReporter;
 class WebBundleHandleTracker;
 class WebBundleNavigationInfo;
@@ -93,6 +93,7 @@ class NavigationUIData;
 class NavigatorDelegate;
 class PrefetchedSignedExchangeCache;
 class ServiceWorkerMainResourceHandle;
+class SiteInfo;
 struct SubresourceLoaderParams;
 
 // The primary implementation of NavigationHandle.
@@ -128,6 +129,11 @@ class CONTENT_EXPORT NavigationRequest
     // The navigation is visible to embedders (via NavigationHandle). Wait for
     // the NavigationThrottles to finish running the WillStartRequest event.
     // This is potentially asynchronous.
+    // For navigations that have already committed synchronously in the renderer
+    // (see |is_synchronous_renderer_commit_|), this will synchronously proceed
+    // to DID_COMMIT directly without any waiting (or the navigation might not
+    // commit in certain cases, and be cleared in this state). All other
+    // navigations can only reach DID_COMMIT from READY_TO_COMMIT.
     WILL_START_REQUEST,
 
     // The request is being redirected. Wait for the NavigationThrottles to
@@ -352,6 +358,7 @@ class CONTENT_EXPORT NavigationRequest
   network::mojom::WebSandboxFlags SandboxFlagsToCommit() override;
   bool IsWaitingToCommit() override;
   bool WasResourceHintsReceived() override;
+  bool IsPdf() override;
   void WriteIntoTrace(perfetto::TracedValue context) override;
   bool SetNavigationTimeout(base::TimeDelta timeout) override;
 
@@ -595,12 +602,6 @@ class CONTENT_EXPORT NavigationRequest
   // navigation being committed (e.g. canceled navigations).
   virtual bool DidEncounterError() const;
 
-  std::unique_ptr<AppCacheNavigationHandle> TakeAppCacheHandle();
-
-  AppCacheNavigationHandle* appcache_handle() const {
-    return appcache_handle_.get();
-  }
-
   void set_complete_callback_for_testing(
       ThrottleChecksFinishedCallback callback) {
     complete_callback_for_testing_ = std::move(callback);
@@ -636,7 +637,7 @@ class CONTENT_EXPORT NavigationRequest
   }
 
   network::mojom::RequestDestination request_destination() const {
-    return begin_params_->request_destination;
+    return common_params_->request_destination;
   }
 
   blink::mojom::MixedContentContextType mixed_content_context_type() const {
@@ -873,6 +874,11 @@ class CONTENT_EXPORT NavigationRequest
     DCHECK(prerender_frame_tree_node_id_.has_value())
         << "Must be called after StartNavigation()";
     return prerender_frame_tree_node_id_.value();
+  }
+
+  const absl::optional<FencedFrameURLMapping::PendingAdComponentsMap>&
+  pending_ad_components_map() const {
+    return pending_ad_components_map_;
   }
 
   void RenderFallbackContentForObjectTag();
@@ -1117,11 +1123,6 @@ class CONTENT_EXPORT NavigationRequest
     ALLOW_REQUEST,
     BLOCK_REQUEST,
   };
-
-  // Block subresources requests that target "legacy" protocol (like "ftp") when
-  // the main document is not served from a "legacy" protocol.
-  LegacyProtocolInSubresourceCheckResult CheckLegacyProtocolInSubresource()
-      const;
 
   // Block about:srcdoc navigation that aren't expected to happen. For instance,
   // main frame navigations or about:srcdoc#foo.
@@ -1493,6 +1494,9 @@ class CONTENT_EXPORT NavigationRequest
   // true, except for 204/205 responses and downloads.
   bool response_should_be_rendered_ = false;
 
+  // Whether devtools overrides were applied on the User-Agent request header.
+  bool devtools_user_agent_override_ = false;
+
   // The type of SiteInstance associated with this navigation.
   AssociatedSiteInstanceType associated_site_instance_type_ =
       AssociatedSiteInstanceType::NONE;
@@ -1546,7 +1550,7 @@ class CONTENT_EXPORT NavigationRequest
   base::OnceClosure on_start_checks_complete_closure_;
 
   // Used in the network service world to pass the subressource loader params
-  // to the renderer. Used by AppCache and ServiceWorker, and
+  // to the renderer. Used by ServiceWorker and
   // SignedExchangeSubresourcePrefetch.
   absl::optional<SubresourceLoaderParams> subresource_loader_params_;
 
@@ -1643,11 +1647,6 @@ class CONTENT_EXPORT NavigationRequest
 
   // The time this navigation was ready to commit.
   base::TimeTicks ready_to_commit_time_;
-
-  // Manages the lifetime of a pre-created AppCacheHost until a browser side
-  // navigation is ready to be committed, i.e we have a renderer process ready
-  // to service the navigation request.
-  std::unique_ptr<AppCacheNavigationHandle> appcache_handle_;
 
   // Set in ReadyToCommitNavigation.
   bool is_same_process_ = true;
@@ -1902,6 +1901,13 @@ class CONTENT_EXPORT NavigationRequest
 
   // Indicates that this navigation is for PDF content in a renderer.
   bool is_pdf_ = false;
+
+  // If this navigation is a load in a fenced frame of a URN URL that resulted
+  // from an interest group auction, this contains the ad component URLs
+  // associated with that auction's winning bid, and the corresponding URNs that
+  // will be mapped to them.
+  absl::optional<FencedFrameURLMapping::PendingAdComponentsMap>
+      pending_ad_components_map_;
 
   base::WeakPtrFactory<NavigationRequest> weak_factory_{this};
 };

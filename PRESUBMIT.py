@@ -972,14 +972,6 @@ _BANNED_CPP_FUNCTIONS = (
           r'^base[\\/]win[\\/]scoped_winrt_initializer\.cc$'
       ),
     ),
-    (
-      r'/DISALLOW_(COPY|ASSIGN|COPY_AND_ASSIGN|IMPLICIT_CONSTRUCTORS)\(',
-      (
-        'DISALLOW_xxx macros are deprecated. See base/macros.h for details.',
-      ),
-      False,
-      (),
-    ),
 )
 
 # Format: Sequence of tuples containing:
@@ -4277,6 +4269,9 @@ def ChecksCommon(input_api, output_api):
 def CheckPatchFiles(input_api, output_api):
   problems = [f.LocalPath() for f in input_api.AffectedFiles()
       if f.LocalPath().endswith(('.orig', '.rej'))]
+  # Cargo.toml.orig files are part of third-party crates downloaded from
+  # crates.io and should be included.
+  problems = [f for f in problems if not f.endswith('Cargo.toml.orig')]
   if problems:
     return [output_api.PresubmitError(
         "Don't commit .rej and .orig files.", problems)]

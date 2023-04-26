@@ -92,19 +92,19 @@ WorkQueue::TaskPusher::TaskPusher(TaskPusher&& other)
   other.work_queue_ = nullptr;
 }
 
-void WorkQueue::TaskPusher::Push(Task* task) {
+void WorkQueue::TaskPusher::Push(Task task) {
   DCHECK(work_queue_);
 
 #ifndef NDEBUG
-  DCHECK(task->enqueue_order_set());
+  DCHECK(task.enqueue_order_set());
 #endif
 
   // Make sure the |enqueue_order()| is monotonically increasing.
   DCHECK(work_queue_->tasks_.empty() ||
-         work_queue_->tasks_.back().enqueue_order() < task->enqueue_order());
+         work_queue_->tasks_.back().enqueue_order() < task.enqueue_order());
 
   // Amortized O(1).
-  work_queue_->tasks_.push_back(std::move(*task));
+  work_queue_->tasks_.push_back(std::move(task));
 }
 
 WorkQueue::TaskPusher::~TaskPusher() {
@@ -282,19 +282,6 @@ bool WorkQueue::RemoveFence() {
     return true;
   }
   return false;
-}
-
-bool WorkQueue::ShouldRunBefore(const WorkQueue* other_queue) const {
-  DCHECK(!tasks_.empty());
-  DCHECK(!other_queue->tasks_.empty());
-  EnqueueOrder enqueue_order;
-  EnqueueOrder other_enqueue_order;
-  bool have_task = GetFrontTaskEnqueueOrder(&enqueue_order);
-  bool have_other_task =
-      other_queue->GetFrontTaskEnqueueOrder(&other_enqueue_order);
-  DCHECK(have_task);
-  DCHECK(have_other_task);
-  return enqueue_order < other_enqueue_order;
 }
 
 void WorkQueue::MaybeShrinkQueue() {

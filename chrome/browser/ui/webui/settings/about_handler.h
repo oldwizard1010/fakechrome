@@ -9,7 +9,6 @@
 #include <string>
 
 #include "base/compiler_specific.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
@@ -136,7 +135,7 @@ class AboutHandler : public settings::SettingsPageUIHandler,
   // status.
   void HandleRefreshTPMFirmwareUpdateStatus(const base::ListValue* args);
   void RefreshTPMFirmwareUpdateStatus(
-      const std::set<chromeos::tpm_firmware_update::Mode>& modes);
+      const std::set<ash::tpm_firmware_update::Mode>& modes);
 #endif
 
   // Checks for and applies update.

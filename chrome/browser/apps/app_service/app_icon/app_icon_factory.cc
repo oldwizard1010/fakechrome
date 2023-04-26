@@ -298,8 +298,6 @@ void ArcRawIconPngDataToImageSkia(
 
   // For non-adaptive icons, add the white color background, and apply the mask.
   if (!icon->is_adaptive_icon) {
-    base::UmaHistogramBoolean("Arc.AdaptiveIconLoad.FromNonArcAppIcon", false);
-
     if (!icon->icon_png_data.has_value()) {
       std::move(callback).Run(gfx::ImageSkia());
       return;
@@ -311,8 +309,6 @@ void ArcRawIconPngDataToImageSkia(
     icon_loader->LoadArcIconPngData(icon->icon_png_data.value());
     return;
   }
-
-  base::UmaHistogramBoolean("Arc.AdaptiveIconLoad.FromNonArcAppIcon", true);
 
   if (!icon->foreground_icon_png_data.has_value() ||
       icon->foreground_icon_png_data.value().empty() ||
@@ -418,8 +414,8 @@ gfx::ImageSkia ConvertIconBitmapsToImageSkia(
 
 void ApplyIconEffects(IconEffects icon_effects,
                       int size_hint_in_dip,
-                      apps::mojom::IconValuePtr iv,
-                      apps::mojom::Publisher::LoadIconCallback callback) {
+                      IconValuePtr iv,
+                      LoadIconCallback callback) {
   scoped_refptr<AppIconLoader> icon_loader =
       base::MakeRefCounted<AppIconLoader>(size_hint_in_dip,
                                           std::move(callback));
@@ -431,7 +427,7 @@ void LoadIconFromExtension(IconType icon_type,
                            content::BrowserContext* context,
                            const std::string& extension_id,
                            IconEffects icon_effects,
-                           apps::mojom::Publisher::LoadIconCallback callback) {
+                           LoadIconCallback callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   constexpr bool is_placeholder_icon = false;
@@ -450,7 +446,7 @@ void LoadIconFromWebApp(content::BrowserContext* context,
                         int size_hint_in_dip,
                         const std::string& web_app_id,
                         IconEffects icon_effects,
-                        apps::mojom::Publisher::LoadIconCallback callback) {
+                        LoadIconCallback callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   DCHECK(context);
   web_app::WebAppProvider* web_app_provider =
@@ -473,9 +469,8 @@ void LoadIconFromFileWithFallback(
     int size_hint_in_dip,
     const base::FilePath& path,
     IconEffects icon_effects,
-    apps::mojom::Publisher::LoadIconCallback callback,
-    base::OnceCallback<void(apps::mojom::Publisher::LoadIconCallback)>
-        fallback) {
+    LoadIconCallback callback,
+    base::OnceCallback<void(LoadIconCallback)> fallback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   constexpr bool is_placeholder_icon = false;
 
@@ -486,12 +481,11 @@ void LoadIconFromFileWithFallback(
   icon_loader->LoadCompressedIconFromFile(path);
 }
 
-void LoadIconFromCompressedData(
-    IconType icon_type,
-    int size_hint_in_dip,
-    IconEffects icon_effects,
-    const std::string& compressed_icon_data,
-    apps::mojom::Publisher::LoadIconCallback callback) {
+void LoadIconFromCompressedData(IconType icon_type,
+                                int size_hint_in_dip,
+                                IconEffects icon_effects,
+                                const std::string& compressed_icon_data,
+                                LoadIconCallback callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   constexpr bool is_placeholder_icon = false;
 
@@ -507,7 +501,7 @@ void LoadIconFromResource(IconType icon_type,
                           int resource_id,
                           bool is_placeholder_icon,
                           IconEffects icon_effects,
-                          apps::mojom::Publisher::LoadIconCallback callback) {
+                          LoadIconCallback callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   // There is no fallback icon for a resource.
   constexpr int fallback_icon_resource = 0;

@@ -16,7 +16,6 @@
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
 #include "base/containers/unique_ptr_adapters.h"
-#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_checker.h"
@@ -64,8 +63,9 @@ class VIZ_SERVICE_EXPORT FrameSinkManagerImpl
  public:
   struct VIZ_SERVICE_EXPORT InitParams {
     InitParams();
-    InitParams(SharedBitmapManager* shared_bitmap_manager,
-               OutputSurfaceProvider* output_surface_provider);
+    explicit InitParams(
+        SharedBitmapManager* shared_bitmap_manager,
+        OutputSurfaceProvider* output_surface_provider = nullptr);
     InitParams(InitParams&& other);
     ~InitParams();
     InitParams& operator=(InitParams&& other);
@@ -81,10 +81,6 @@ class VIZ_SERVICE_EXPORT FrameSinkManagerImpl
     gfx::RenderingPipeline* gpu_pipeline = nullptr;
   };
   explicit FrameSinkManagerImpl(const InitParams& params);
-  // TODO(kylechar): Cleanup tests and remove this constructor.
-  FrameSinkManagerImpl(
-      SharedBitmapManager* shared_bitmap_manager,
-      OutputSurfaceProvider* output_surface_provider = nullptr);
 
   FrameSinkManagerImpl(const FrameSinkManagerImpl&) = delete;
   FrameSinkManagerImpl& operator=(const FrameSinkManagerImpl&) = delete;

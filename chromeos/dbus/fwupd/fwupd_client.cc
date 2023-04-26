@@ -51,41 +51,60 @@ class FwupdClientImpl : public FwupdClient {
                        weak_ptr_factory_.GetWeakPtr()));
   }
 
-  void GetUpgrades(std::string device_id) override {
+  void RequestUpgrades(std::string device_id) override {
     dbus::MethodCall method_call(kFwupdServiceInterface,
                                  kFwupdGetUpgradesMethodName);
     dbus::MessageWriter writer(&method_call);
     writer.AppendString(device_id);
     proxy_->CallMethodWithErrorResponse(
         &method_call, dbus::ObjectProxy::TIMEOUT_USE_DEFAULT,
-        base::BindOnce(&FwupdClientImpl::GetUpgradesCallback,
+        base::BindOnce(&FwupdClientImpl::RequestUpgradesCallback,
                        weak_ptr_factory_.GetWeakPtr()));
   }
 
-  void GetDevices() override {
+  void RequestDevices() override {
     dbus::MethodCall method_call(kFwupdServiceInterface,
                                  kFwupdGetDevicesMethodName);
     proxy_->CallMethodWithErrorResponse(
         &method_call, dbus::ObjectProxy::TIMEOUT_USE_DEFAULT,
-        base::BindOnce(&FwupdClientImpl::GetDevicesCallback,
+        base::BindOnce(&FwupdClientImpl::RequestDevicesCallback,
                        weak_ptr_factory_.GetWeakPtr()));
   }
 
  private:
-  void GetUpgradesCallback(dbus::Response* response,
-                           dbus::ErrorResponse* error_response) {
-    if (!response) {
-      LOG(ERROR) << "No Dbus response received from fwupd.";
-      return;
+  // Pops a string-to-variant-string dictionary from the reader.
+  std::unique_ptr<base::DictionaryValue> PopStringToStringDictionary(
+      dbus::MessageReader* reader) {
+    dbus::MessageReader array_reader(nullptr);
+
+    if (!reader->PopArray(&array_reader)) {
+      LOG(ERROR) << "Failed to pop array into the array reader.";
+      return nullptr;
     }
 
-    // TODO(swifton): This is a stub implementation. Replace this with a
-    // callback call for FirmwareUpdateHandler when it's implemented.
-    ++get_upgrades_callback_call_count_for_testing_;
+    auto result = std::make_unique<base::DictionaryValue>();
+
+    while (array_reader.HasMoreData()) {
+      dbus::MessageReader entry_reader(nullptr);
+      dbus::MessageReader variant_reader(nullptr);
+      std::string key;
+      std::string value;
+
+      const bool success = array_reader.PopDictEntry(&entry_reader) &&
+                           entry_reader.PopString(&key) &&
+                           entry_reader.PopVariant(&variant_reader) &&
+                           variant_reader.PopString(&value);
+
+      if (success)
+        result->SetKey(key, base::Value(value));
+      else
+        LOG(ERROR) << "Failed to get a dictionary entry.";
+    }
+    return result;
   }
 
-  void GetDevicesCallback(dbus::Response* response,
-                          dbus::ErrorResponse* error_response) {
+  void RequestUpgradesCallback(dbus::Response* response,
+                               dbus::ErrorResponse* error_response) {
     if (!response) {
       LOG(ERROR) << "No Dbus response received from fwupd.";
       return;
@@ -93,7 +112,48 @@ class FwupdClientImpl : public FwupdClient {
 
     // TODO(swifton): This is a stub implementation. Replace this with a
     // callback call for FirmwareUpdateHandler when it's implemented.
-    ++get_devices_callback_call_count_for_testing_;
+    ++request_upgrades_callback_call_count_for_testing_;
+  }
+
+  void RequestDevicesCallback(dbus::Response* response,
+                              dbus::ErrorResponse* error_response) {
+    if (!response) {
+      LOG(ERROR) << "No Dbus response received from fwupd.";
+      return;
+    }
+
+    dbus::MessageReader reader(response);
+    dbus::MessageReader array_reader(nullptr);
+
+    if (!reader.PopArray(&array_reader)) {
+      LOG(ERROR) << "Failed to parse string from DBus Signal";
+      return;
+    }
+
+    auto devices = std::make_unique<FwupdDeviceList>();
+
+    while (array_reader.HasMoreData()) {
+      // Parse device description.
+      std::unique_ptr<base::DictionaryValue> dict(
+          PopStringToStringDictionary(&array_reader));
+      if (!dict) {
+        LOG(ERROR) << "Failed to parse the device description.";
+        return;
+      }
+
+      const auto* id = dict->FindKey("DeviceId");
+      const auto* name = dict->FindKey("Name");
+
+      if (id && name) {
+        devices->push_back(FwupdDevice(id->GetString(), name->GetString()));
+      } else {
+        LOG(ERROR) << "No device id or name found.";
+        return;
+      }
+    }
+
+    for (auto& observer : observers_)
+      observer.OnDeviceListResponse(devices.get());
   }
 
   void OnSignalConnected(const std::string& interface_name,
@@ -119,15 +179,27 @@ class FwupdClientImpl : public FwupdClient {
   base::WeakPtrFactory<FwupdClientImpl> weak_ptr_factory_{this};
 };
 
-FwupdClientImpl::FwupdClientImpl() {
+void FwupdClient::AddObserver(FwupdClient::Observer* observer) {
+  observers_.AddObserver(observer);
+}
+
+void FwupdClient::RemoveObserver(FwupdClient::Observer* observer) {
+  observers_.RemoveObserver(observer);
+}
+
+FwupdClient::FwupdClient() {
   DCHECK(!g_instance);
   g_instance = this;
 }
 
-FwupdClientImpl::~FwupdClientImpl() {
+FwupdClient::~FwupdClient() {
   DCHECK_EQ(g_instance, this);
   g_instance = nullptr;
 }
+
+FwupdClientImpl::FwupdClientImpl() = default;
+
+FwupdClientImpl::~FwupdClientImpl() = default;
 
 // static
 std::unique_ptr<FwupdClient> FwupdClient::Create() {

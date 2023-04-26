@@ -535,6 +535,11 @@ const char kTouchpadScrollAcceleration[] =
 // A boolean pref set to true if touchpad haptic feedback is enabled.
 const char kTouchpadHapticFeedback[] = "settings.touchpad.haptic_feedback";
 
+// A integer pref for the touchpad haptic click sensitivity ranging from Soft
+// feedback to Firm feedback [1, 3, 5].
+const char kTouchpadHapticClickSensitivity[] =
+    "settings.touchpad.haptic_click_sensitivity";
+
 // A integer pref for the touchpad sensitivity.
 const char kMouseSensitivity[] = "settings.mouse.sensitivity2";
 
@@ -2536,10 +2541,6 @@ const char kChromeOsReleaseChannel[] = "cros.system.releaseChannel";
 const char kPerformanceTracingEnabled[] =
     "feedback.performance_tracing_enabled";
 
-// Boolean indicating whether tabstrip uses stacked layout (on touch devices).
-// Defaults to false.
-const char kTabStripStackedLayout[] = "tab-strip-stacked-layout";
-
 // Indicates that factory reset was requested from options page or reset screen.
 const char kFactoryResetRequested[] = "FactoryResetRequested";
 
@@ -2612,6 +2613,13 @@ const char kRelaunchHeadsUpPeriod[] = "browser.relaunch_heads_up_period";
 const char kMacRestoreLocationPermissionsExperimentCount[] =
     "mac_restore_location_permissions_experiment_count";
 #endif  // defined(OS_MAC)
+
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+// Boolean indicating whether the Enrollment ID (EID) has already been uploaded
+// to DM Server. Only used on Chromad devices. If this pref is true, the device
+// is ready for the remote migration to cloud management.
+const char kEnrollmentIdUploadedOnChromad[] = "chromad.enrollment_id_uploaded";
+#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 // *************** SERVICE PREFS ***************
 // These are attached to the service process.
@@ -2756,6 +2764,7 @@ const char kRLZBrand[] = "rlz.brand";
 const char kRLZDisabled[] = "rlz.disabled";
 // Keeps local state of app list while sync service is not available.
 const char kAppListLocalState[] = "app_list.local_state";
+const char kAppListPreferredOrder[] = "app_list.preferred_order";
 #endif
 
 // An integer that is incremented whenever changes are made to app shortcuts.
@@ -3167,7 +3176,7 @@ const char kSignedHTTPExchangeEnabled[] = "web_package.signed_exchange.enabled";
 // TODO(https://crbug.com/1003101): Remove this in Chrome 88.
 const char kAllowSyncXHRInPageDismissal[] = "allow_sync_xhr_in_page_dismissal";
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 // Enum that specifies client certificate management permissions for user. It
 // can have one of the following values.
 // 0: Users can manage all certificates.
@@ -3252,11 +3261,6 @@ const char kMediaFeedsSafeSearchEnabled[] = "media_feeds_safe_search_enabled";
 
 // This pref enables automated selection of Media Feeds to fetch.
 const char kMediaFeedsAutoSelectEnabled[] = "media_feeds_auto_select_enabled";
-
-// This pref reenables AppCache temporarily during its deprecation process.
-// In particular, this sets the AppcacheRequireOriginTrial feature to false.
-// TODO(enne): Remove this once AppCache has been removed.
-const char kAppCacheForceEnabled[] = "app_cache_force_enabled";
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 // Boolean pref indicating whether the notification informing the user that
@@ -3390,5 +3394,10 @@ const char kLensRegionSearchEnabled[] = "policy.lens_region_search_enabled";
 
 // A boolean indicating whether the Privacy Review Welcome Card should be shown.
 const char kPrivacyReviewShowWelcomeCard[] = "privacy_review.show_welcome_card";
+
+// A boolean indicating support of "CORS non-wildcard request header name".
+// https://fetch.spec.whatwg.org/#cors-non-wildcard-request-header-name
+const char kCorsNonWildcardRequestHeadersSupport[] =
+    "cors_non_wildcard_request_headers_support";
 
 }  // namespace prefs

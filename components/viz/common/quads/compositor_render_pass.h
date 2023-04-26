@@ -13,7 +13,6 @@
 
 #include "base/callback.h"
 #include "base/hash/hash.h"
-#include "base/macros.h"
 #include "base/types/id_type.h"
 #include "cc/base/list_container.h"
 #include "cc/paint/filter_operations.h"
@@ -21,7 +20,7 @@
 #include "components/viz/common/quads/largest_draw_quad.h"
 #include "components/viz/common/quads/quad_list.h"
 #include "components/viz/common/quads/render_pass_internal.h"
-#include "components/viz/common/surfaces/region_capture_bounds.h"
+#include "components/viz/common/shared_element_resource_id.h"
 #include "components/viz/common/surfaces/subtree_capture_id.h"
 #include "components/viz/common/viz_common_export.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
@@ -74,9 +73,9 @@ class VIZ_COMMON_EXPORT CompositorRenderPass : public RenderPassInternal {
               const cc::FilterOperations& filters,
               const cc::FilterOperations& backdrop_filters,
               const absl::optional<gfx::RRectF>& backdrop_filter_bounds,
-              SubtreeCaptureId subtree_capture_id,
+              SubtreeCaptureId capture_id,
               gfx::Size subtree_capture_size,
-              std::unique_ptr<RegionCaptureBounds> capture_bounds,
+              SharedElementResourceId resource_id,
               bool has_transparent_background,
               bool cache_render_pass,
               bool has_damage_from_contributing_content,
@@ -106,11 +105,9 @@ class VIZ_COMMON_EXPORT CompositorRenderPass : public RenderPassInternal {
   // copied.
   gfx::Size subtree_size;
 
-  // A map of region capture crop ids known in this render pass to the gfx::Rect
-  // of the region that they represent. A nullptr here may be considered
-  // simply an empty set.
-  // TODO(crbug.com/1254877): merge with |subtree_size|.
-  std::unique_ptr<RegionCaptureBounds> capture_bounds;
+  // A unique ID that identifies an element that this render pass corresponds
+  // to. This is used to implement a live snapshot of an element's content.
+  SharedElementResourceId shared_element_resource_id;
 
   // Set to true if at least one of the quads in the |quad_list| contains damage
   // that is not contained in |damage_rect|. Only the root render pass in a

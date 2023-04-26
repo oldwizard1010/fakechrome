@@ -10,7 +10,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/macros.h"
 #include "base/strings/string_split.h"
 #include "build/build_config.h"
 #include "ui/accessibility/ax_enums.mojom-forward.h"
@@ -60,12 +59,9 @@ struct AX_EXPORT AXLegacyHypertext {
 
 class AX_EXPORT AXPlatformNodeBase : public AXPlatformNode {
  public:
-  AXPlatformNodeBase();
   ~AXPlatformNodeBase() override;
   AXPlatformNodeBase(const AXPlatformNodeBase&) = delete;
   AXPlatformNodeBase& operator=(const AXPlatformNodeBase&) = delete;
-
-  virtual void Init(AXPlatformNodeDelegate* delegate);
 
   // These are simple wrappers to our delegate.
   const AXNodeData& GetData() const;
@@ -417,6 +413,11 @@ class AX_EXPORT AXPlatformNodeBase : public AXPlatformNode {
   bool IsPlatformDocument() const;
 
  protected:
+  AXPlatformNodeBase();
+
+  // AXPlatformNode overrides.
+  void Init(AXPlatformNodeDelegate* delegate) override;
+
   bool IsStructuredAnnotation() const;
   bool IsSelectionItemSupported() const;
 
@@ -570,6 +571,9 @@ class AX_EXPORT AXPlatformNodeBase : public AXPlatformNode {
 
   // Is there an aria-describedby that points to a role="tooltip".
   bool IsDescribedByTooltip() const;
+
+  friend AXPlatformNode* AXPlatformNode::Create(
+      AXPlatformNodeDelegate* delegate);
 };
 
 }  // namespace ui

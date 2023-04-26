@@ -11,7 +11,6 @@
 #include "ash/public/cpp/test/shell_test_api.h"
 #include "base/bind.h"
 #include "base/command_line.h"
-#include "base/macros.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/values.h"
@@ -58,7 +57,7 @@
 #include "chromeos/attestation/attestation_flow_utils.h"
 #include "chromeos/dbus/update_engine/update_engine_client.h"
 #include "chromeos/system/fake_statistics_provider.h"
-#include "components/arc/arc_service_manager.h"
+#include "components/arc/session/arc_service_manager.h"
 #include "components/arc/session/arc_session_runner.h"
 #include "components/arc/test/arc_util_test_support.h"
 #include "components/arc/test/fake_arc_session.h"
@@ -742,8 +741,9 @@ void OobeInteractiveUITest::SimpleEndToEnd() {
 }
 
 // Disabled on *San bots since they time out.
+// crbug.com/1260131: SimpleEndToEnd is flaky on builder "linux-chromeos-dbg"
 #if defined(MEMORY_SANITIZER) || defined(ADDRESS_SANITIZER) || \
-    defined(LEAK_SANITIZER)
+    defined(LEAK_SANITIZER) || !defined(NDEBUG)
 #define MAYBE_SimpleEndToEnd DISABLED_SimpleEndToEnd
 #else
 #define MAYBE_SimpleEndToEnd SimpleEndToEnd
@@ -832,7 +832,7 @@ void OobeZeroTouchInteractiveUITest::ZeroTouchEndToEnd() {
 // crbug.com/997987. Disabled on MSAN since they time out.
 // crbug.com/1055853: EndToEnd is flaky on Linux Chromium OS ASan LSan
 #if defined(MEMORY_SANITIZER) || defined(ADDRESS_SANITIZER) || \
-    defined(LEAK_SANITIZER) || (defined(OS_CHROMEOS) && !defined(NDEBUG))
+    defined(LEAK_SANITIZER) || !defined(NDEBUG)
 #define MAYBE_EndToEnd DISABLED_EndToEnd
 #else
 #define MAYBE_EndToEnd EndToEnd

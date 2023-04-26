@@ -14,7 +14,6 @@
 #include "ash/public/cpp/app_list/app_list_config.h"
 #include "ash/public/cpp/app_list/app_list_features.h"
 #include "ash/public/cpp/app_list/app_list_switches.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "ui/base/cursor/cursor.h"
@@ -39,9 +38,10 @@ namespace {
 // The max folder name length.
 constexpr int kMaxFolderNameChars = 28;
 
-// The folder header dimensions:
+// Folder header dimensions. The max header width is based on the width of a
+// folder with 2 items.
 constexpr int kMinFolderHeaderWidth = 24;
-constexpr int kMaxFolderHeaderWidth = 200;
+constexpr int kMaxFolderHeaderWidth = 168;
 constexpr int kFolderHeaderHeight = 32;
 
 // The min width of folder name - ensures the folder name is easily tappable.
@@ -61,8 +61,8 @@ SkColor GetFolderBackgroundColor(bool is_active) {
     return SK_ColorTRANSPARENT;
 
   const AppListColorProvider* color_provider = AppListColorProvider::Get();
-  return SkColorSetA(color_provider->GetRippleAttributesBaseColor(),
-                     color_provider->GetRippleAttributesInkDropOpacity() * 255);
+  return SkColorSetA(color_provider->GetInkDropBaseColor(),
+                     color_provider->GetInkDropOpacity() * 255);
 }
 
 }  // namespace
@@ -121,7 +121,7 @@ class FolderHeaderView::FolderNameView : public views::Textfield,
 
   void OnFocus() override {
     SetNameViewBorderAndBackground(/*is_active=*/true);
-    SetText(base::UTF8ToUTF16(folder_header_view_->folder_item_->name()));
+    SetText(folder_header_view_->GetFolderName());
     starting_name_ = GetText();
     folder_header_view_->previous_folder_name_ = starting_name_;
 
@@ -139,8 +139,7 @@ class FolderHeaderView::FolderNameView : public views::Textfield,
         this, base::CollapseWhitespace(GetText(), false));
 
     // Ensure folder name is truncated when FolderNameView loses focus.
-    SetText(folder_header_view_->GetElidedFolderName(
-        base::UTF8ToUTF16(folder_header_view_->folder_item_->name())));
+    SetText(folder_header_view_->GetElidedFolderName());
 
     // Record metric each time a folder is renamed.
     if (GetText() != starting_name_) {
@@ -306,8 +305,7 @@ void FolderHeaderView::Update() {
 
   folder_name_view_->SetVisible(folder_name_visible_);
   if (folder_name_visible_) {
-    std::u16string folder_name = base::UTF8ToUTF16(folder_item_->name());
-    std::u16string elided_folder_name = GetElidedFolderName(folder_name);
+    std::u16string elided_folder_name = GetElidedFolderName();
     folder_name_view_->SetText(elided_folder_name);
     UpdateFolderNameAccessibleName();
   }
@@ -359,9 +357,19 @@ int FolderHeaderView::GetMaxFolderNameCharLengthForTest() const {
   return kMaxFolderNameChars;
 }
 
-std::u16string FolderHeaderView::GetElidedFolderName(
-    const std::u16string& folder_name) const {
+std::u16string FolderHeaderView::GetFolderName() const {
+  if (!folder_item_)
+    return std::u16string();
+
+  return base::UTF8ToUTF16(folder_item_->name());
+}
+
+std::u16string FolderHeaderView::GetElidedFolderName() const {
+  if (!folder_item_)
+    return std::u16string();
+
   // Enforce the maximum folder name length.
+  std::u16string folder_name = GetFolderName();
   std::u16string name = folder_name.substr(0, kMaxFolderNameChars);
 
   // Get maximum text width for fitting into |folder_name_view_|.

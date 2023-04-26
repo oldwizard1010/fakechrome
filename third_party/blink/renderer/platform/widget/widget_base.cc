@@ -9,7 +9,6 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/ranges/algorithm.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "cc/mojo_embedder/async_layer_tree_frame_sink.h"
 #include "cc/trees/layer_tree_host.h"
 #include "cc/trees/layer_tree_settings.h"
@@ -461,6 +460,33 @@ void WidgetBase::WasShown(base::TimeTicks show_request_timestamp,
   }
 
   client_->WasShown(was_evicted);
+}
+
+void WidgetBase::RequestPresentationTimeForNextFrame(
+    base::TimeTicks show_request_timestamp,
+    mojom::blink::RecordContentToVisibleTimeRequestPtr visible_time_request) {
+  DCHECK(visible_time_request);
+  if (is_hidden_)
+    return;
+
+  // Tab was shown while widget was already painting, eg. due to being
+  // captured.
+  LayerTreeHost()->RequestPresentationTimeForNextFrame(
+      tab_switch_time_recorder_.TabWasShown(
+          false /* has_saved_frames */, visible_time_request->event_start_time,
+          visible_time_request->destination_is_loaded,
+          visible_time_request->show_reason_tab_switching,
+          visible_time_request->show_reason_unoccluded,
+          visible_time_request->show_reason_bfcache_restore,
+          show_request_timestamp));
+}
+
+void WidgetBase::CancelPresentationTimeRequest() {
+  if (is_hidden_)
+    return;
+
+  // Tab was hidden while widget keeps painting, eg. due to being captured.
+  tab_switch_time_recorder_.TabWasHidden();
 }
 
 void WidgetBase::ApplyViewportChanges(
@@ -997,7 +1023,7 @@ void WidgetBase::ClearTextInputState() {
 }
 
 void WidgetBase::ShowVirtualKeyboardOnElementFocus() {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // On ChromeOS, virtual keyboard is triggered only when users leave the
   // mouse button or the finger and a text input element is focused at that
   // time. Focus event itself shouldn't trigger virtual keyboard.
@@ -1512,7 +1538,7 @@ bool WidgetBase::ComputePreferCompositingToLCDText() {
       *base::CommandLine::ForCurrentProcess();
   if (command_line.HasSwitch(switches::kDisablePreferCompositingToLCDText))
     return false;
-#if defined(OS_ANDROID) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_ANDROID) || defined(OS_CHROMEOS)
   // On Android, we never have subpixel antialiasing. On Chrome OS we prefer to
   // composite all scrollers for better scrolling performance.
   return true;

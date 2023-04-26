@@ -361,9 +361,8 @@ class PLATFORM_EXPORT MainThreadTaskQueue
       return *this;
     }
 
-    QueueCreationParams SetTimeDomain(
-        base::sequence_manager::TimeDomain* domain) {
-      spec = spec.SetTimeDomain(domain);
+    QueueCreationParams SetNonWaking(bool non_waking) {
+      spec = spec.SetNonWaking(non_waking);
       return *this;
     }
 
@@ -424,6 +423,9 @@ class PLATFORM_EXPORT MainThreadTaskQueue
   void OnTaskCompleted(const base::sequence_manager::Task& task,
                        TaskQueue::TaskTiming* task_timing,
                        base::sequence_manager::LazyNow* lazy_now);
+
+  void LogTaskExecution(perfetto::EventContext& ctx,
+                        const base::sequence_manager::Task& task);
 
   void SetOnIPCTaskPosted(
       base::RepeatingCallback<void(const base::sequence_manager::Task&)>

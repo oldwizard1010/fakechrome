@@ -9,7 +9,6 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "cc/layers/layer_collections.h"
 #include "cc/resources/ui_resource_client.h"
@@ -118,6 +117,7 @@ class CompositorView : public content::CompositorClient,
   void PreserveChildSurfaceControls(
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& object);
+  void SetDidSwapBuffersCallbackEnabled(JNIEnv* env, jboolean enable);
 
   // CompositorClient implementation:
   void RecreateSurface() override;

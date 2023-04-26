@@ -14,6 +14,7 @@
 #include "third_party/blink/renderer/platform/animation/compositor_animation_delegate.h"
 #include "third_party/blink/renderer/platform/graphics/compositor_element_id.h"
 #include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/prefinalizer.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "ui/gfx/animation/keyframe/animation_curve.h"
 
@@ -99,10 +100,6 @@ class CORE_EXPORT ScrollAnimatorCompositorCoordinator
   // and continues it on the main thread. This should only be called when in
   // DocumentLifecycle::LifecycleState::CompositingClean state.
   virtual void TakeOverCompositorAnimation();
-  // Updates the scroll offset of the animator's ScrollableArea by
-  // adjustment and update the target of an ongoing scroll offset animation.
-  virtual void AdjustAnimationAndSetScrollOffset(const ScrollOffset&,
-                                                 mojom::blink::ScrollType);
   virtual void UpdateCompositorAnimations();
 
   virtual ScrollableArea* GetScrollableArea() const = 0;

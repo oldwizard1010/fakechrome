@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "base/compiler_specific.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "content/common/web_ui.mojom.h"
 #include "content/public/browser/web_ui.h"
@@ -53,10 +52,10 @@ class CONTENT_EXPORT WebUIImpl : public WebUI,
   void RenderFrameDeleted();
 
   // Called right after AllowBindings is notified to a RenderFrame.
-  void SetupMojoConnection();
+  void SetUpMojoConnection();
 
   // Called when a RenderFrame is deleted for a WebUI (i.e. a renderer crash).
-  void InvalidateMojoConnection();
+  void TearDownMojoConnection();
 
   // Add a property to the WebUI binding object.
   void SetProperty(const std::string& name, const std::string& value);

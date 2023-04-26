@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "build/build_config.h"
 #include "ui/accessibility/ax_enums.mojom.h"
@@ -77,9 +76,14 @@ class AnnounceTextView : public View {
 
   // View:
   void GetAccessibleNodeData(ui::AXNodeData* node_data) override {
+#if defined(OS_CHROMEOS)
+    // On ChromeOS, kAlert role can invoke an unnecessary event on reparenting.
+    node_data->role = ax::mojom::Role::kStaticText;
+#else
     // TODO(crbug.com/1024898): Use live regions (do not use alerts).
     // May require setting kLiveStatus, kContainerLiveStatus to "polite".
     node_data->role = ax::mojom::Role::kAlert;
+#endif
     node_data->SetName(announce_text_);
     node_data->AddState(ax::mojom::State::kInvisible);
   }

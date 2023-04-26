@@ -39,6 +39,7 @@
 #include "third_party/blink/renderer/platform/heap/heap_test_objects.h"
 #include "third_party/blink/renderer/platform/heap/heap_test_platform.h"
 #include "third_party/blink/renderer/platform/heap/heap_test_utilities.h"
+#include "third_party/blink/renderer/platform/heap/prefinalizer.h"
 #include "third_party/blink/renderer/platform/heap/self_keep_alive.h"
 #include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
 #include "third_party/blink/renderer/platform/scheduler/public/thread.h"
@@ -1684,7 +1685,7 @@ int ThingWithDestructor::live_things_with_destructor_;
 class RefCountedAndGarbageCollected final
     : public GarbageCollected<RefCountedAndGarbageCollected> {
  public:
-  RefCountedAndGarbageCollected() : keep_alive_(PERSISTENT_FROM_HERE) {}
+  RefCountedAndGarbageCollected() = default;
   ~RefCountedAndGarbageCollected() { ++destructor_calls_; }
 
   void AddRef() {

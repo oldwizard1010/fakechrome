@@ -12,7 +12,6 @@
 #include "ash/public/cpp/login_types.h"
 #include "ash/public/cpp/session/user_info.h"
 #include "base/compiler_specific.h"
-#include "base/macros.h"
 #include "base/scoped_observation.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -82,6 +81,10 @@ class UserSelectionScreen
       const proximity_auth::ScreenlockBridge::UserPodCustomIconInfo& icon_info)
       override;
   void HideUserPodCustomIcon(const AccountId& account_id) override;
+  void SetSmartLockState(const AccountId& account_id,
+                         SmartLockState state) override;
+  void NotifySmartLockAuthResult(const AccountId& account_id,
+                                 bool success) override;
 
   void EnableInput() override;
   void SetAuthType(const AccountId& account_id,

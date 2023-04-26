@@ -378,7 +378,8 @@ CSSValueList* ConsumeFontFamily(CSSParserTokenRange&);
 CSSValue* ConsumeGenericFamily(CSSParserTokenRange&);
 CSSValue* ConsumeFamilyName(CSSParserTokenRange&);
 String ConcatenateFamilyName(CSSParserTokenRange&);
-CSSIdentifierValue* ConsumeFontStretchKeywordOnly(CSSParserTokenRange&);
+CSSIdentifierValue* ConsumeFontStretchKeywordOnly(CSSParserTokenRange&,
+                                                  const CSSParserContext&);
 CSSValue* ConsumeFontStretch(CSSParserTokenRange&, const CSSParserContext&);
 CSSValue* ConsumeFontStyle(CSSParserTokenRange&, const CSSParserContext&);
 CSSValue* ConsumeFontWeight(CSSParserTokenRange&, const CSSParserContext&);
@@ -546,6 +547,19 @@ CSSValue* ConsumePositionLonghand(CSSParserTokenRange& range,
   }
   return ConsumeLengthOrPercent(range, context,
                                 CSSPrimitiveValue::ValueRange::kAll);
+}
+
+inline bool AtIdent(const CSSParserToken& token, const char* ident) {
+  return token.GetType() == kIdentToken &&
+         EqualIgnoringASCIICase(token.Value(), ident);
+}
+
+template <typename T>
+bool ConsumeIfIdent(T& range_or_stream, const char* ident) {
+  if (!AtIdent(range_or_stream.Peek(), ident))
+    return false;
+  range_or_stream.ConsumeIncludingWhitespace();
+  return true;
 }
 
 }  // namespace css_parsing_utils

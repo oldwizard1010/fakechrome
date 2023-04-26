@@ -390,6 +390,7 @@ class AnimationCompositorAnimationsTest : public PaintTestConfigurations,
                 MakeGarbageCollected<CompositorKeyframeDouble>(offset)) {}
       bool IsNeutral() const final { return true; }
       bool IsRevert() const final { return false; }
+      bool IsRevertLayer() const final { return false; }
       PropertySpecificKeyframe* CloneWithOffset(double) const final {
         NOTREACHED();
         return nullptr;
@@ -2097,8 +2098,8 @@ TEST_P(AnimationCompositorAnimationsTest, CompositedTransformAnimation) {
   auto* property_trees =
       document->View()->RootCcLayer()->layer_tree_host()->property_trees();
   auto* cc_transform = property_trees->transform_tree.Node(
-      property_trees->element_id_to_transform_node_index
-          [transform->GetCompositorElementId()]);
+      property_trees->element_id_to_transform_node_index.at(
+          transform->GetCompositorElementId()));
   ASSERT_NE(nullptr, cc_transform);
   EXPECT_TRUE(cc_transform->has_potential_animation);
   EXPECT_TRUE(cc_transform->is_currently_animating);
@@ -2127,8 +2128,8 @@ TEST_P(AnimationCompositorAnimationsTest, CompositedScaleAnimation) {
   auto* property_trees =
       document->View()->RootCcLayer()->layer_tree_host()->property_trees();
   auto* cc_transform = property_trees->transform_tree.Node(
-      property_trees->element_id_to_transform_node_index
-          [transform->GetCompositorElementId()]);
+      property_trees->element_id_to_transform_node_index.at(
+          transform->GetCompositorElementId()));
   ASSERT_NE(nullptr, cc_transform);
   EXPECT_TRUE(cc_transform->has_potential_animation);
   EXPECT_TRUE(cc_transform->is_currently_animating);
@@ -2161,8 +2162,8 @@ TEST_P(AnimationCompositorAnimationsTest,
   auto* property_trees =
       document->View()->RootCcLayer()->layer_tree_host()->property_trees();
   auto* cc_transform = property_trees->transform_tree.Node(
-      property_trees->element_id_to_transform_node_index
-          [transform->GetCompositorElementId()]);
+      property_trees->element_id_to_transform_node_index.at(
+          transform->GetCompositorElementId()));
   ASSERT_NE(nullptr, cc_transform);
   EXPECT_TRUE(cc_transform->has_potential_animation);
   EXPECT_TRUE(cc_transform->is_currently_animating);
@@ -2191,8 +2192,8 @@ TEST_P(AnimationCompositorAnimationsTest,
   property_trees =
       document->View()->RootCcLayer()->layer_tree_host()->property_trees();
   cc_transform = property_trees->transform_tree.Node(
-      property_trees->element_id_to_transform_node_index
-          [transform->GetCompositorElementId()]);
+      property_trees->element_id_to_transform_node_index.at(
+          transform->GetCompositorElementId()));
   ASSERT_NE(nullptr, cc_transform);
   EXPECT_TRUE(cc_transform->has_potential_animation);
   EXPECT_TRUE(cc_transform->is_currently_animating);
@@ -2385,13 +2386,15 @@ TEST_P(AnimationCompositorAnimationsTest, Fragmented) {
   Element* target = GetDocument().getElementById("target");
   const Animation& animation =
       *target->GetElementAnimations()->Animations().begin()->key;
-  if (RuntimeEnabledFeatures::CompositeAfterPaintEnabled()) {
+  if (RuntimeEnabledFeatures::CompositeAfterPaintEnabled() ||
+      RuntimeEnabledFeatures::LayoutNGBlockFragmentationEnabled()) {
     EXPECT_TRUE(target->GetLayoutObject()->FirstFragment().NextFragment());
     EXPECT_EQ(CompositorAnimations::kTargetHasInvalidCompositingState,
               animation.CheckCanStartAnimationOnCompositor(
                   GetDocument().View()->GetPaintArtifactCompositor()));
   } else {
-    // In pre-CAP we don't fragment composited layers.
+    // In pre-CAP + legacy block fragmentation we don't fragment composited
+    // layers.
     EXPECT_FALSE(target->GetLayoutObject()->FirstFragment().NextFragment());
     EXPECT_EQ(CompositorAnimations::kNoFailure,
               animation.CheckCanStartAnimationOnCompositor(

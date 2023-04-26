@@ -277,6 +277,11 @@ builder.
   Path regular expressions:
   * [`//ios/.+`](https://cs.chromium.org/chromium/src/ios/)
 
+* [ios-simulator-noncq](https://ci.chromium.org/p/chromium/builders/try/ios-simulator-noncq) ([definition](https://cs.chromium.org/search?q=+file:/try.star$+""ios-simulator-noncq"")) ([matching builders](https://cs.chromium.org/search?q=+file:trybots.py+""ios-simulator-noncq""))
+
+  Path regular expressions:
+  * [`//third_party/crashpad/crashpad/.+`](https://cs.chromium.org/chromium/src/third_party/crashpad/crashpad/)
+
 * [linux-blink-rel](https://ci.chromium.org/p/chromium/builders/try/linux-blink-rel) ([definition](https://cs.chromium.org/search?q=+file:/try.star$+""linux-blink-rel"")) ([matching builders](https://cs.chromium.org/search?q=+file:trybots.py+""linux-blink-rel""))
 
   Path regular expressions:
@@ -385,6 +390,11 @@ builder.
   * [`//tools/clang/scripts/update.py`](https://cs.chromium.org/search?q=+file:tools/clang/scripts/update.py)
   * [`//ui/gl/.+`](https://cs.chromium.org/chromium/src/ui/gl/)
 
+* [reclient-config-deployment-verifier](https://ci.chromium.org/p/chromium/builders/try/reclient-config-deployment-verifier) ([definition](https://cs.chromium.org/search?q=+file:/try.star$+""reclient-config-deployment-verifier"")) ([matching builders](https://cs.chromium.org/search?q=+file:trybots.py+""reclient-config-deployment-verifier""))
+
+  Path regular expressions:
+  * [`//tools/clang/scripts/update.py`](https://cs.chromium.org/search?q=+file:tools/clang/scripts/update.py)
+
 * [win-updater-try-builder-dbg](https://ci.chromium.org/p/chromium/builders/try/win-updater-try-builder-dbg) ([definition](https://cs.chromium.org/search?q=+file:/try.star$+""win-updater-try-builder-dbg"")) ([matching builders](https://cs.chromium.org/search?q=+file:trybots.py+""win-updater-try-builder-dbg""))
 
   Path regular expressions:
@@ -399,6 +409,7 @@ builder.
 
   Path regular expressions:
   * [`//sandbox/win/.+`](https://cs.chromium.org/chromium/src/sandbox/win/)
+  * [`//sandbox/policy/win/.+`](https://cs.chromium.org/chromium/src/sandbox/policy/win/)
 
 * [win_optional_gpu_tests_rel](https://ci.chromium.org/p/chromium/builders/try/win_optional_gpu_tests_rel) ([definition](https://cs.chromium.org/search?q=+file:/try.star$+""win_optional_gpu_tests_rel"")) ([matching builders](https://cs.chromium.org/search?q=+file:trybots.py+""win_optional_gpu_tests_rel""))
 
@@ -445,6 +456,9 @@ as required builders.
 * [android-pie-arm64-rel-rts](https://ci.chromium.org/p/chromium/builders/try/android-pie-arm64-rel-rts) ([definition](https://cs.chromium.org/search?q=+file:/try.star$+""android-pie-arm64-rel-rts"")) ([matching builders](https://cs.chromium.org/search?q=+file:trybots.py+""android-pie-arm64-rel-rts""))
   * Experiment percentage: 5.0
 
+* [fuchsia-binary-size](https://ci.chromium.org/p/chromium/builders/try/fuchsia-binary-size) ([definition](https://cs.chromium.org/search?q=+file:/try.star$+""fuchsia-binary-size"")) ([matching builders](https://cs.chromium.org/search?q=+file:trybots.py+""fuchsia-binary-size""))
+  * Experiment percentage: 5.0
+
 * [linux-1mbu-compile-fyi-rel](https://ci.chromium.org/p/chromium/builders/try/linux-1mbu-compile-fyi-rel) ([definition](https://cs.chromium.org/search?q=+file:/try.star$+""linux-1mbu-compile-fyi-rel"")) ([matching builders](https://cs.chromium.org/search?q=+file:trybots.py+""linux-1mbu-compile-fyi-rel""))
   * Experiment percentage: 5.0
 
@@ -478,10 +492,4 @@ as required builders.
 
 * [linux_chromium_tsan_rel_ng_rts](https://ci.chromium.org/p/chromium/builders/try/linux_chromium_tsan_rel_ng_rts) ([definition](https://cs.chromium.org/search?q=+file:/try.star$+""linux_chromium_tsan_rel_ng_rts"")) ([matching builders](https://cs.chromium.org/search?q=+file:trybots.py+""linux_chromium_tsan_rel_ng_rts""))
   * Experiment percentage: 5.0
-
-* [reclient-config-deployment-verifier](https://ci.chromium.org/p/chromium/builders/try/reclient-config-deployment-verifier) ([definition](https://cs.chromium.org/search?q=+file:/try.star$+""reclient-config-deployment-verifier"")) ([matching builders](https://cs.chromium.org/search?q=+file:trybots.py+""reclient-config-deployment-verifier""))
-  * Experiment percentage: 100.0
-
-  Path regular expressions:
-  * [`//tools/clang/scripts/update.py`](https://cs.chromium.org/search?q=+file:tools/clang/scripts/update.py)
 

@@ -9,7 +9,6 @@
 #include <memory>
 
 #include "base/callback_forward.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/views/payments/view_stack.h"
 #include "components/payments/content/initialization_task.h"
@@ -193,6 +192,7 @@ class PaymentRequestDialogView : public views::DialogDelegateView,
   int GetActualDialogWidth() const;
 
   ViewStack* view_stack_for_testing() { return view_stack_; }
+  ControllerMap* controller_map_for_testing() { return &controller_map_; }
   views::View* throbber_overlay_for_testing() { return throbber_overlay_; }
 
  private:

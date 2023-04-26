@@ -78,7 +78,7 @@
 #include "third_party/blink/renderer/core/inspector/console_message.h"
 #include "third_party/blink/renderer/core/inspector/inspector_audits_issue.h"
 #include "third_party/blink/renderer/core/inspector/inspector_trace_events.h"
-#include "third_party/blink/renderer/core/loader/back_forward_cache_loader_helper_for_frame.h"
+#include "third_party/blink/renderer/core/loader/back_forward_cache_loader_helper_impl.h"
 #include "third_party/blink/renderer/core/loader/document_loader.h"
 #include "third_party/blink/renderer/core/loader/frame_loader.h"
 #include "third_party/blink/renderer/core/loader/frame_resource_fetcher_properties.h"
@@ -187,7 +187,6 @@ mojom::FetchCacheMode DetermineFrameCacheMode(Frame* frame) {
 
 struct FrameFetchContext::FrozenState final : GarbageCollected<FrozenState> {
   FrozenState(const KURL& url,
-              scoped_refptr<const SecurityOrigin> parent_security_origin,
               ContentSecurityPolicy* content_security_policy,
               net::SiteForCookies site_for_cookies,
               scoped_refptr<const SecurityOrigin> top_frame_origin,
@@ -198,7 +197,6 @@ struct FrameFetchContext::FrozenState final : GarbageCollected<FrozenState> {
               bool is_svg_image_chrome_client,
               bool is_prerendering)
       : url(url),
-        parent_security_origin(std::move(parent_security_origin)),
         content_security_policy(content_security_policy),
         site_for_cookies(std::move(site_for_cookies)),
         top_frame_origin(std::move(top_frame_origin)),
@@ -241,7 +239,7 @@ ResourceFetcher* FrameFetchContext::CreateFetcherForCommittedDocument(
       frame->GetTaskRunner(TaskType::kNetworkingUnfreezable),
       MakeGarbageCollected<LoaderFactoryForFrame>(loader, *frame->DomWindow()),
       frame->DomWindow(),
-      MakeGarbageCollected<BackForwardCacheLoaderHelperForFrame>(*frame));
+      MakeGarbageCollected<BackForwardCacheLoaderHelperImpl>(*frame));
   init.use_counter =
       MakeGarbageCollected<DetachableUseCounter>(frame->DomWindow());
   init.console_logger = MakeGarbageCollected<DetachableConsoleLogger>(
@@ -324,8 +322,7 @@ void FrameFetchContext::AddAdditionalRequestHeaders(ResourceRequest& request) {
   if (save_data_enabled_)
     request.SetHttpHeaderField(http_names::kSaveData, "on");
 
-  AddBackForwardCacheExperimentHTTPHeaderIfNeeded(
-      document_->GetExecutionContext(), request);
+  AddBackForwardCacheExperimentHTTPHeaderIfNeeded(request);
 }
 
 // TODO(toyoshim, arthursonzogni): PlzNavigate doesn't use this function to set
@@ -686,15 +683,6 @@ const KURL& FrameFetchContext::Url() const {
   return document_->Url();
 }
 
-const SecurityOrigin* FrameFetchContext::GetParentSecurityOrigin() const {
-  if (GetResourceFetcherProperties().IsDetached())
-    return frozen_state_->parent_security_origin.get();
-  Frame* parent = GetFrame()->Tree().Parent();
-  if (!parent)
-    return nullptr;
-  return parent->GetSecurityContext()->GetSecurityOrigin();
-}
-
 ContentSecurityPolicy* FrameFetchContext::GetContentSecurityPolicy() const {
   if (GetResourceFetcherProperties().IsDetached())
     return frozen_state_->content_security_policy;
@@ -777,10 +765,10 @@ FetchContext* FrameFetchContext::Detach() {
                           : GetUserAgent();
 
   frozen_state_ = MakeGarbageCollected<FrozenState>(
-      Url(), GetParentSecurityOrigin(), GetContentSecurityPolicy(),
-      GetSiteForCookies(), GetTopFrameOrigin(), client_hints_prefs,
-      GetDevicePixelRatio(), user_agent, GetUserAgentMetadata(),
-      IsSVGImageChromeClient(), IsPrerendering());
+      Url(), GetContentSecurityPolicy(), GetSiteForCookies(),
+      GetTopFrameOrigin(), client_hints_prefs, GetDevicePixelRatio(),
+      user_agent, GetUserAgentMetadata(), IsSVGImageChromeClient(),
+      IsPrerendering());
   document_loader_ = nullptr;
   document_ = nullptr;
   return this;
@@ -990,6 +978,10 @@ mojom::blink::ContentSecurityNotifier&
 FrameFetchContext::GetContentSecurityNotifier() const {
   DCHECK(!GetResourceFetcherProperties().IsDetached());
   return document_loader_->GetContentSecurityNotifier();
+}
+
+ExecutionContext* FrameFetchContext::GetExecutionContext() const {
+  return document_->GetExecutionContext();
 }
 
 absl::optional<ResourceRequestBlockedReason> FrameFetchContext::CanRequest(

@@ -746,6 +746,10 @@ void DesktopSessionWin::OnAssociatedInterfaceRequest(
     mojo::PendingAssociatedReceiver<mojom::DesktopSessionRequestHandler>
         pending_receiver(std::move(handle));
     desktop_session_request_handler_.Bind(std::move(pending_receiver));
+
+    // Reset the receiver on disconnect so |desktop_session_request_handler_|
+    // can be re-bound if |launcher_| spawns a new desktop process.
+    desktop_session_request_handler_.reset_on_disconnect();
   } else {
     LOG(ERROR) << "Unknown associated interface requested: " << interface_name
                << ", crashing the desktop process";

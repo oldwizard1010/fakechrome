@@ -10,7 +10,6 @@
 #include <set>
 #include <vector>
 
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/download/download_danger_prompt.h"
 #include "chrome/browser/ui/webui/downloads/downloads.mojom-forward.h"
@@ -48,7 +47,8 @@ class DownloadsDOMHandler : public content::WebContentsObserver,
   ~DownloadsDOMHandler() override;
 
   // WebContentsObserver implementation.
-  void RenderProcessGone(base::TerminationStatus status) override;
+  void PrimaryMainFrameRenderProcessGone(
+      base::TerminationStatus status) override;
 
   // downloads::mojom::PageHandler:
   void GetDownloads(const std::vector<std::string>& search_terms) override;

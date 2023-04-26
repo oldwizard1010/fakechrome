@@ -80,7 +80,7 @@ const base::Feature kReadLaterNewBadgePromo{"ReadLaterNewBadgePromo",
                                             base::FEATURE_DISABLED_BY_DEFAULT};
 
 const base::Feature kReadLaterAddFromDialog{"ReadLaterAddFromDialog",
-                                            base::FEATURE_DISABLED_BY_DEFAULT};
+                                            base::FEATURE_ENABLED_BY_DEFAULT};
 
 #if BUILDFLAG(ENABLE_SIDE_SEARCH)
 // Enables the side search feature for Google Search. Presents recent Google
@@ -99,7 +99,7 @@ const base::Feature kSideSearchStatePerTab{"SideSearchStatePerTab",
 #endif  // BUILDFLAG(ENABLE_SIDE_SEARCH)
 
 const base::Feature kSidePanelBorder{"SidePanelBorder",
-                                     base::FEATURE_DISABLED_BY_DEFAULT};
+                                     base::FEATURE_ENABLED_BY_DEFAULT};
 
 const base::Feature kSidePanelDragAndDrop{"SidePanelDragAndDrop",
                                           base::FEATURE_DISABLED_BY_DEFAULT};
@@ -174,34 +174,27 @@ const char kTabHoverCardAlternateFormat[] = "alternate_format";
 const base::Feature kTabOutlinesInLowContrastThemes{
     "TabOutlinesInLowContrastThemes", base::FEATURE_DISABLED_BY_DEFAULT};
 
-// Enables submenus under each tab group or window within the app menu history.
-const base::Feature kTabRestoreSubMenus{"TabRestoreSubMenus",
-                                        base::FEATURE_DISABLED_BY_DEFAULT};
-
 const base::Feature kTabSearchChevronIcon{"TabSearchChevronIcon",
-                                          base::FEATURE_DISABLED_BY_DEFAULT};
-
-// Controls whether or not feature parameters should be used for Tab Search's
-// fuzzy search or if default values should be used.
-const base::Feature kTabSearchFuzzySearch{"kTabSearchFuzzySearch",
                                           base::FEATURE_DISABLED_BY_DEFAULT};
 
 // Enables the tab search submit feedback button.
 const base::Feature kTabSearchFeedback{"TabSearchFeedback",
                                        base::FEATURE_DISABLED_BY_DEFAULT};
 
-// Controls feature parameters for Tab Search's `Recently Closed` entries.
-const base::Feature kTabSearchRecentlyClosed{"TabSearchRecentlyClosed",
-                                             base::FEATURE_ENABLED_BY_DEFAULT};
+// Controls whether or not to use fuzzy search for tab search.
+const base::Feature kTabSearchFuzzySearch{"TabSearchFuzzySearch",
+                                          base::FEATURE_DISABLED_BY_DEFAULT};
+
+const char kTabSearchSearchThresholdName[] = "TabSearchSearchThreshold";
 
 const base::FeatureParam<bool> kTabSearchSearchIgnoreLocation{
-    &kTabSearchFuzzySearch, "TabSearchSearchIgnoreLocation", true};
+    &kTabSearchFuzzySearch, "TabSearchSearchIgnoreLocation", false};
 
 const base::FeatureParam<int> kTabSearchSearchDistance{
     &kTabSearchFuzzySearch, "TabSearchSearchDistance", 200};
 
 const base::FeatureParam<double> kTabSearchSearchThreshold{
-    &kTabSearchFuzzySearch, "TabSearchSearchThreshold", 0.0};
+    &kTabSearchFuzzySearch, kTabSearchSearchThresholdName, 0.6};
 
 const base::FeatureParam<double> kTabSearchTitleWeight{
     &kTabSearchFuzzySearch, "TabSearchTitleWeight", 2.0};
@@ -214,6 +207,10 @@ const base::FeatureParam<double> kTabSearchGroupTitleWeight{
 
 const base::FeatureParam<bool> kTabSearchMoveActiveTabToBottom{
     &kTabSearchFuzzySearch, "TabSearchMoveActiveTabToBottom", true};
+
+// Controls feature parameters for Tab Search's `Recently Closed` entries.
+const base::Feature kTabSearchRecentlyClosed{"TabSearchRecentlyClosed",
+                                             base::FEATURE_ENABLED_BY_DEFAULT};
 
 const base::FeatureParam<int> kTabSearchRecentlyClosedDefaultItemDisplayCount{
     &kTabSearchRecentlyClosed, "TabSearchRecentlyClosedDefaultItemDisplayCount",

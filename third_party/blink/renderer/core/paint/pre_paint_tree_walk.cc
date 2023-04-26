@@ -508,6 +508,10 @@ FragmentData* PrePaintTreeWalk::GetOrCreateFragmentData(
         fragment_data->ClearNextFragment();
       }
     } else {
+      // We don't need any additional fragments for culled inlines.
+      if (!object.IsBox() && !object.HasInlineFragments())
+        return nullptr;
+
       DCHECK(allow_update);
       fragment_data = &last_fragment->EnsureNextFragment();
     }
@@ -544,7 +548,8 @@ void PrePaintTreeWalk::WalkInternal(const LayoutObject& object,
     // might set paint properties on a culled inline.
     pre_paint_info->fragment_data =
         GetOrCreateFragmentData(object, context, *pre_paint_info);
-    DCHECK(pre_paint_info->fragment_data);
+    if (!pre_paint_info->fragment_data)
+      return;
   }
 
   // This must happen before updatePropertiesForSelf, because the latter reads
@@ -755,6 +760,8 @@ void PrePaintTreeWalk::WalkFragmentationContextRootChildren(
   const auto outer_fragmentainer = context.current_fragmentainer;
   absl::optional<wtf_size_t> inner_fragmentainer_idx;
 
+  context.current_fragmentainer.fragmentation_nesting_level++;
+
   for (NGLink child : fragment.Children()) {
     const auto* box_fragment = To<NGPhysicalBoxFragment>(child.fragment);
     if (UNLIKELY(box_fragment->IsLayoutObjectDestroyedOrMoved()))
@@ -844,6 +851,8 @@ void PrePaintTreeWalk::WalkFragmentationContextRootChildren(
       }
     }
     fragmentainer_fragment_data->SetPaintOffset(paint_offset);
+    fragmentainer_fragment_data->SetFragmentID(
+        context.current_fragmentainer.fragmentainer_idx);
 
     WalkChildren(actual_parent, box_fragment, context);
 
@@ -1019,20 +1028,20 @@ void PrePaintTreeWalk::WalkLayoutObjectChildren(
       // be the right place to search.
       const NGPhysicalBoxFragment* search_fragment = parent_fragment;
       if (child_box->IsOutOfFlowPositioned()) {
-        if (child_box->IsFixedPositioned()) {
-          search_fragment = context.fixed_positioned_container.fragment;
-          fragmentainer_idx =
-              context.fixed_positioned_container.fragmentainer_idx;
-        } else {
-          search_fragment = context.absolute_positioned_container.fragment;
-          fragmentainer_idx =
-              context.absolute_positioned_container.fragmentainer_idx;
-        }
-        if (!search_fragment) {
-          // Only walk unfragmented legacy-contained OOFs once.
+        const ContainingFragment& containing_fragment_info =
+            child_box->IsFixedPositioned()
+                ? context.fixed_positioned_container
+                : context.absolute_positioned_container;
+        if (context.current_fragmentainer.fragmentation_nesting_level !=
+            containing_fragment_info.fragmentation_nesting_level) {
+          // Only walk OOFs once if they aren't contained within the current
+          // fragmentation context.
           if (!parent_fragment->IsFirstForNode())
             continue;
         }
+
+        search_fragment = containing_fragment_info.fragment;
+        fragmentainer_idx = containing_fragment_info.fragmentainer_idx;
       }
 
       if (search_fragment) {
@@ -1132,14 +1141,14 @@ void PrePaintTreeWalk::WalkChildren(const LayoutObject& object,
     }
     // The OOF containing block structure is special under block fragmentation:
     // A fragmentable OOF is always a direct child of a fragmentainer.
-    const auto* container_fragment = context.current_fragmentainer.fragment;
-    if (!container_fragment)
-      container_fragment = context.oof_container_candidate_fragment;
-    context.absolute_positioned_container = {
-        container_fragment, context.current_fragmentainer.fragmentainer_idx};
+    context.absolute_positioned_container = context.current_fragmentainer;
+    if (!context.absolute_positioned_container.fragment) {
+      context.absolute_positioned_container.fragment =
+          context.oof_container_candidate_fragment;
+    }
     if (object.CanContainFixedPositionObjects()) {
-      context.fixed_positioned_container = {
-          container_fragment, context.current_fragmentainer.fragmentainer_idx};
+      context.fixed_positioned_container =
+          context.absolute_positioned_container;
     }
   }
 
@@ -1235,7 +1244,7 @@ void PrePaintTreeWalk::Walk(const LayoutObject& object,
               layout_embedded_content->GetEmbeddedContentView()) {
         if (context.tree_builder_context) {
           auto& current = context.tree_builder_context->fragments[0].current;
-          current.paint_offset = PhysicalOffset(RoundedIntPoint(
+          current.paint_offset = PhysicalOffset(ToRoundedPoint(
               current.paint_offset +
               layout_embedded_content->ReplacedContentRect().offset -
               PhysicalOffset(embedded_view->FrameRect().origin())));

@@ -8,7 +8,6 @@
 #include <memory>
 #include <string>
 
-#include "base/macros.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/views/views_export.h"
 #include "ui/views/widget/desktop_aura/desktop_window_tree_host.h"
@@ -166,6 +165,7 @@ class VIEWS_EXPORT DesktopWindowTreeHostWin
   void HideImpl() override;
   gfx::Rect GetBoundsInPixels() const override;
   void SetBoundsInPixels(const gfx::Rect& bounds) override;
+  gfx::Rect GetBoundsInAcceleratedWidgetPixelCoordinates() override;
   gfx::Point GetLocationOnScreenInPixels() const override;
   void SetCapture() override;
   void ReleaseCapture() override;

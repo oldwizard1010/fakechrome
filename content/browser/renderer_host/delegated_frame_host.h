@@ -83,6 +83,10 @@ class CONTENT_EXPORT DelegatedFrameHost
   DelegatedFrameHost(const viz::FrameSinkId& frame_sink_id,
                      DelegatedFrameHostClient* client,
                      bool should_register_frame_sink_id);
+
+  DelegatedFrameHost(const DelegatedFrameHost&) = delete;
+  DelegatedFrameHost& operator=(const DelegatedFrameHost&) = delete;
+
   ~DelegatedFrameHost() override;
 
   void AddObserverForTesting(Observer* observer);
@@ -112,6 +116,14 @@ class CONTENT_EXPORT DelegatedFrameHost
                 const gfx::Size& dip_size,
                 blink::mojom::RecordContentToVisibleTimeRequestPtr
                     record_tab_switch_time_request);
+
+  // Called to request the presentation time for the next frame or cancel any
+  // requests when the RenderWidget's visibility state is not changing. If the
+  // visibility state is changing call WasHidden or WasShown instead.
+  void RequestPresentationTimeForNextFrame(
+      blink::mojom::RecordContentToVisibleTimeRequestPtr visible_time_request);
+  void CancelPresentationTimeRequest();
+
   void EmbedSurface(const viz::LocalSurfaceId& local_surface_id,
                     const gfx::Size& dip_size,
                     cc::DeadlinePolicy deadline_policy);
@@ -243,8 +255,6 @@ class CONTENT_EXPORT DelegatedFrameHost
   base::ObserverList<Observer>::Unchecked observers_;
 
   base::WeakPtrFactory<DelegatedFrameHost> weak_factory_{this};
-
-  DISALLOW_COPY_AND_ASSIGN(DelegatedFrameHost);
 };
 
 }  // namespace content

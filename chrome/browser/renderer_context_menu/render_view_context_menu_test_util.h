@@ -10,7 +10,6 @@
 #include <memory>
 
 #include "base/files/file_path.h"
-#include "base/macros.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/renderer_context_menu/render_view_context_menu.h"
 #include "extensions/buildflags/buildflags.h"
@@ -34,7 +33,7 @@ class DlpRulesManager;
 
 class TestRenderViewContextMenu : public RenderViewContextMenu {
  public:
-  TestRenderViewContextMenu(content::RenderFrameHost* render_frame_host,
+  TestRenderViewContextMenu(content::RenderFrameHost& render_frame_host,
                             content::ContextMenuParams params);
 
   TestRenderViewContextMenu(const TestRenderViewContextMenu&) = delete;

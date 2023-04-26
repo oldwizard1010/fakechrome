@@ -6,14 +6,19 @@ import SwiftUI
 
 /// A SwiftUI view for the overflow menu displaying a subsection of the actions list.
 struct OverflowMenuActionSection: View {
-  var actionGroup: OverflowMenuActionGroup
+  @ObservedObject var actionGroup: OverflowMenuActionGroup
 
   var body: some View {
-    Section {
+    let footer: OverflowMenuFooterRow?
+    if let actionFooter = actionGroup.footer {
+      footer = OverflowMenuFooterRow(footer: actionFooter)
+    } else {
+      footer = nil
+    }
+    return Section(footer: footer) {
       ForEach(actionGroup.actions) { action in
         OverflowMenuActionRow(action: action)
       }
     }
-    .background(Color.white)
   }
 }

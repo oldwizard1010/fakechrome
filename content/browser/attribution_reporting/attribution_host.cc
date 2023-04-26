@@ -238,7 +238,8 @@ bool AttributionHost::VerifyAndStoreImpression(
   attribution_host_utils::VerifyResult result =
       attribution_host_utils::VerifyAndStoreImpression(
           source_type, impression_origin, impression,
-          web_contents()->GetBrowserContext(), attribution_manager);
+          web_contents()->GetBrowserContext(), attribution_manager,
+          base::Time::Now());
   RecordRegisterImpressionAllowed(result.allowed);
   return result.stored;
 }
@@ -289,7 +290,7 @@ void AttributionHost::RegisterConversion(
 
   net::SchemefulSite conversion_destination(main_frame_origin);
 
-  if (!attribution_manager->GetAttributionPolicy().IsConversionDataInRange(
+  if (!attribution_manager->GetAttributionPolicy().IsTriggerDataInRange(
           conversion->conversion_data,
           StorableSource::SourceType::kNavigation)) {
     devtools_instrumentation::ReportAttributionReportingIssue(
@@ -300,7 +301,7 @@ void AttributionHost::RegisterConversion(
         base::NumberToString(conversion->conversion_data));
   }
 
-  if (!attribution_manager->GetAttributionPolicy().IsConversionDataInRange(
+  if (!attribution_manager->GetAttributionPolicy().IsTriggerDataInRange(
           conversion->event_source_trigger_data,
           StorableSource::SourceType::kEvent)) {
     devtools_instrumentation::ReportAttributionReportingIssue(
@@ -312,10 +313,10 @@ void AttributionHost::RegisterConversion(
   }
 
   StorableTrigger storable_conversion(
-      attribution_manager->GetAttributionPolicy().GetSanitizedConversionData(
+      attribution_manager->GetAttributionPolicy().SanitizeTriggerData(
           conversion->conversion_data, StorableSource::SourceType::kNavigation),
       conversion_destination, conversion->reporting_origin,
-      attribution_manager->GetAttributionPolicy().GetSanitizedConversionData(
+      attribution_manager->GetAttributionPolicy().SanitizeTriggerData(
           conversion->event_source_trigger_data,
           StorableSource::SourceType::kEvent),
       conversion->priority,
@@ -325,7 +326,7 @@ void AttributionHost::RegisterConversion(
 
   if (conversion_page_metrics_)
     conversion_page_metrics_->OnConversion(conversion->reporting_origin);
-  attribution_manager->HandleConversion(std::move(storable_conversion));
+  attribution_manager->HandleTrigger(std::move(storable_conversion));
 }
 
 void AttributionHost::NotifyImpressionInitiatedByPage(

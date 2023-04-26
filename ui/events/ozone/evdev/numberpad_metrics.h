@@ -6,7 +6,7 @@
 #define UI_EVENTS_OZONE_EVDEV_NUMBERPAD_METRICS_H_
 
 #include "base/component_export.h"
-#include "base/macros.h"
+#include "base/no_destructor.h"
 #include "chromeos/components/feature_usage/feature_usage_metrics.h"
 #include "ui/events/devices/input_device.h"
 
@@ -70,6 +70,7 @@ class COMPONENT_EXPORT(EVDEV) NumberpadMetricsRecorder {
 
  private:
   friend class ::ui::NumberpadMetricsTest;
+  friend base::NoDestructor<NumberpadMetricsRecorder>;
 
   NumberpadMetricsRecorder();
   NumberpadMetricsRecorder(const NumberpadMetricsRecorder&) = delete;
@@ -112,8 +113,6 @@ class COMPONENT_EXPORT(EVDEV) NumberpadMetricsRecorder {
       kFeatureExternalEnterKeystrokes};
   NumberpadMetricsDelegate external_non_enter_keystrokes_metrics_delegate_{
       kFeatureExternalNonEnterKeystrokes};
-
-  static NumberpadMetricsRecorder* instance_;
 };
 
 }  // namespace ui

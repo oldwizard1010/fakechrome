@@ -73,7 +73,7 @@ class BASE_EXPORT WorkQueue {
     TaskPusher(TaskPusher&& other);
     ~TaskPusher();
 
-    void Push(Task* task);
+    void Push(Task task);
 
    private:
     friend class WorkQueue;
@@ -123,11 +123,6 @@ class BASE_EXPORT WorkQueue {
   void set_heap_handle(HeapHandle handle) { heap_handle_ = handle; }
 
   QueueType queue_type() const { return queue_type_; }
-
-  // Returns true if the front task in this queue has an older enqueue order
-  // than the front task of |other_queue|. Both queue are assumed to be
-  // non-empty. This method ignores any fences.
-  bool ShouldRunBefore(const WorkQueue* other_queue) const;
 
   // Submit a fence. When TakeTaskFromWorkQueue encounters a task whose
   // enqueue_order is >= |fence| then the WorkQueue will start pretending to be.

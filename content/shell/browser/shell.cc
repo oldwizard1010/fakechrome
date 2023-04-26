@@ -13,7 +13,6 @@
 
 #include "base/command_line.h"
 #include "base/location.h"
-#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
@@ -65,6 +64,10 @@ class Shell::DevToolsWebContentsObserver : public WebContentsObserver {
   DevToolsWebContentsObserver(Shell* shell, WebContents* web_contents)
       : WebContentsObserver(web_contents), shell_(shell) {}
 
+  DevToolsWebContentsObserver(const DevToolsWebContentsObserver&) = delete;
+  DevToolsWebContentsObserver& operator=(const DevToolsWebContentsObserver&) =
+      delete;
+
   // WebContentsObserver
   void WebContentsDestroyed() override {
     shell_->OnDevToolsWebContentsDestroyed();
@@ -72,8 +75,6 @@ class Shell::DevToolsWebContentsObserver : public WebContentsObserver {
 
  private:
   Shell* shell_;
-
-  DISALLOW_COPY_AND_ASSIGN(DevToolsWebContentsObserver);
 };
 
 Shell::Shell(std::unique_ptr<WebContents> web_contents,

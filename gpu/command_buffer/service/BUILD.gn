@@ -326,9 +326,7 @@ target(link_target_type, "gles2_sources") {
     "//gpu/vulkan:buildflags",
     "//skia:buildflags",
     "//third_party/angle:angle_image_util",
-
-    # TODO(jmadill): Isolate ANGLE version header. http://anglebug.com/2551
-    "//third_party/angle:angle_version",
+    "//third_party/angle:angle_version_info",
     "//third_party/libyuv",
     "//third_party/protobuf:protobuf_lite",
     "//third_party/re2",
@@ -402,9 +400,6 @@ target(link_target_type, "gles2_sources") {
         "shared_image_representation_dawn_ozone.cc",
         "shared_image_representation_dawn_ozone.h",
       ]
-    }
-    if (use_x11) {
-      deps += [ "//ui/base:features" ]
     }
   }
 
@@ -508,6 +503,8 @@ target(link_target_type, "gles2_sources") {
 
   if (is_win) {
     sources += [
+      "dxgi_shared_handle_manager.cc",
+      "dxgi_shared_handle_manager.h",
       "shared_image_backing_d3d.cc",
       "shared_image_backing_d3d.h",
       "shared_image_backing_factory_d3d.cc",

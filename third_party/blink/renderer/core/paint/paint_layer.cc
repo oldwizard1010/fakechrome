@@ -1901,7 +1901,9 @@ PaintLayer::HitTestRecursionData::HitTestRecursionData(
 bool PaintLayer::HitTest(const HitTestLocation& hit_test_location,
                          HitTestResult& result,
                          const PhysicalRect& hit_test_area) {
-  DCHECK(IsSelfPaintingLayer() || HasSelfPaintingLayerDescendant());
+  // The root PaintLayer of HitTest must contain all descendants.
+  DCHECK(GetLayoutObject().CanContainFixedPositionObjects());
+  DCHECK(GetLayoutObject().CanContainAbsolutePositionObjects());
 
   // LayoutView should make sure to update layout before entering hit testing
   DCHECK(!GetLayoutObject().GetFrame()->View()->LayoutPending());
@@ -1973,7 +1975,7 @@ bool PaintLayer::IsInTopLayer() const {
 // points.
 static double ComputeZOffset(const HitTestingTransformState& transform_state) {
   // We got an affine transform, so no z-offset
-  if (transform_state.accumulated_transform_.IsAffine())
+  if (transform_state.AccumulatedTransform().IsAffine())
     return 0;
 
   // Flatten the point into the target plane
@@ -1981,7 +1983,7 @@ static double ComputeZOffset(const HitTestingTransformState& transform_state) {
 
   // Now map the point back through the transform, which computes Z.
   FloatPoint3D backmapped_point =
-      transform_state.accumulated_transform_.MapPoint(
+      transform_state.AccumulatedTransform().MapPoint(
           FloatPoint3D(target_point));
   return backmapped_point.z();
 }
@@ -2027,11 +2029,9 @@ HitTestingTransformState PaintLayer::CreateLocalTransformState(
     TransformationMatrix container_transform;
     GetLayoutObject().GetTransformFromContainer(container_layout_object, offset,
                                                 container_transform);
-    transform_state.ApplyTransform(
-        container_transform, HitTestingTransformState::kAccumulateTransform);
+    transform_state.ApplyTransform(container_transform);
   } else {
-    transform_state.Translate(offset.left.ToInt(), offset.top.ToInt(),
-                              HitTestingTransformState::kAccumulateTransform);
+    transform_state.Translate(offset.left.ToInt(), offset.top.ToInt());
   }
 
   return transform_state;
@@ -2074,18 +2074,18 @@ static bool IsHitCandidateForStopNode(const LayoutObject& candidate,
          !candidate.IsDescendantOf(stop_node);
 }
 
-// hitTestLocation and hitTestRect are relative to rootLayer.
+// recursion_data.location and rect are relative to root_layer.
 // A 'flattening' layer is one preserves3D() == false.
-// transformState.m_accumulatedTransform holds the transform from the containing
-// flattening layer.
-// transformState.m_lastPlanarPoint is the hitTestLocation in the plane of the
+// transform_state.AccumulatedTransform() holds the transform from the
 // containing flattening layer.
-// transformState.m_lastPlanarQuad is the hitTestRect as a quad in the plane of
+// transform_state.last_planar_point_ is the hit test location in the plane of
 // the containing flattening layer.
+// transform_state.last_planar_quad_ is the hit test rect as a quad in the
+// plane of the containing flattening layer.
 //
-// If zOffset is non-null (which indicates that the caller wants z offset
-// information), *zOffset on return is the z offset of the hit point relative to
-// the containing flattening layer.
+// If z_offset is non-null (which indicates that the caller wants z offset
+// information), *z_offset on return is the z offset of the hit point relative
+// to the containing flattening layer.
 PaintLayer* PaintLayer::HitTestLayer(PaintLayer* root_layer,
                                      PaintLayer* container_layer,
                                      HitTestResult& result,
@@ -2127,8 +2127,8 @@ PaintLayer* PaintLayer::HitTestLayer(PaintLayer* root_layer,
     DCHECK(!Preserves3D());
     DCHECK(!layout_object.HasClipPath());
     if (scrollable_area_) {
-      IntPoint point = scrollable_area_->ConvertFromRootFrameToVisualViewport(
-          RoundedIntPoint(recursion_data.location.Point()));
+      gfx::Point point = scrollable_area_->ConvertFromRootFrameToVisualViewport(
+          ToRoundedPoint(recursion_data.location.Point()));
 
       DCHECK(GetLayoutBox());
       if (GetLayoutBox()->HitTestOverflowControl(result, HitTestLocation(point),
@@ -2204,7 +2204,7 @@ PaintLayer* PaintLayer::HitTestLayer(PaintLayer* root_layer,
   if (local_transform_state && layout_object.StyleRef().BackfaceVisibility() ==
                                    EBackfaceVisibility::kHidden) {
     STACK_UNINITIALIZED TransformationMatrix inverted_matrix =
-        local_transform_state->accumulated_transform_.Inverse();
+        local_transform_state->AccumulatedTransform().Inverse();
     // If the z-vector of the matrix is negative, the back is facing towards the
     // viewer.
     if (inverted_matrix.M33() < 0)
@@ -2490,7 +2490,7 @@ PaintLayer* PaintLayer::HitTestLayerByApplyingTransform(
                                 transform_state, translation_offset);
 
   // If the transform can't be inverted, then don't hit test this layer at all.
-  if (!new_transform_state.accumulated_transform_.IsInvertible())
+  if (!new_transform_state.AccumulatedTransform().IsInvertible())
     return nullptr;
 
   // Compute the point and the hit test rect in the coords of this layer by
@@ -2708,8 +2708,8 @@ bool PaintLayer::HitTestClippedOutByClipPath(
     ConvertToLayerCoords(root_layer, origin);
 
   FloatPoint point(hit_test_location.Point() - origin.offset);
-  FloatRect reference_box(
-      ClipPathClipper::LocalReferenceBox(GetLayoutObject()));
+  gfx::RectF reference_box =
+      ClipPathClipper::LocalReferenceBox(GetLayoutObject());
 
   ClipPathOperation* clip_path_operation =
       GetLayoutObject().StyleRef().ClipPath();
@@ -2718,9 +2718,9 @@ bool PaintLayer::HitTestClippedOutByClipPath(
     ShapeClipPathOperation* clip_path =
         To<ShapeClipPathOperation>(clip_path_operation);
     return !clip_path
-                ->GetPath(reference_box,
+                ->GetPath(FloatRect(reference_box),
                           GetLayoutObject().StyleRef().EffectiveZoom())
-                .Contains(point);
+                .Contains(ToGfxPointF(point));
   }
   DCHECK_EQ(clip_path_operation->GetType(), ClipPathOperation::REFERENCE);
   LayoutSVGResourceClipper* clipper =
@@ -2731,7 +2731,7 @@ bool PaintLayer::HitTestClippedOutByClipPath(
   // the coordinate system is the top-left of the reference box, so adjust
   // the point accordingly.
   if (clipper->ClipPathUnits() == SVGUnitTypes::kSvgUnitTypeUserspaceonuse)
-    point.MoveBy(-reference_box.origin());
+    point.MoveBy(-FloatPoint(reference_box.origin()));
   // Unzoom the point and the reference box, since the <clipPath> geometry is
   // not zoomed.
   float inverse_zoom = 1 / GetLayoutObject().StyleRef().EffectiveZoom();
@@ -3004,7 +3004,7 @@ PhysicalRect PaintLayer::BoundingBoxForCompositingInternal(
     // and the document's layout overflow rect.
     IntRect result = IntRect();
     if (LocalFrameView* frame_view = GetLayoutObject().GetFrameView())
-      result = IntRect(IntPoint(), frame_view->Size());
+      result = IntRect(gfx::Point(), frame_view->Size());
     return PhysicalRect(result);
   }
 
@@ -3189,15 +3189,22 @@ bool PaintLayer::SupportsSubsequenceCaching() const {
   if (EnclosingPaginationLayer())
     return false;
 
-  // SVG root and SVG foreign object paint atomically.
-  if (GetLayoutObject().IsSVGRoot() || GetLayoutObject().IsSVGForeignObject())
-    return true;
+  if (const LayoutBox* box = GetLayoutBox()) {
+    // TODO(crbug.com/1253797): Revisit this when implementing correct paint
+    // order of fragmented stacking contexts.
+    if (box->PhysicalFragmentCount() > 1)
+      return false;
 
-  // Don't create subsequence for the document element because the subsequence
-  // for LayoutView serves the same purpose. This can avoid unnecessary paint
-  // chunks that would otherwise be forced by the subsequence.
-  if (GetLayoutObject().IsDocumentElement())
-    return false;
+    // SVG root and SVG foreign object paint atomically.
+    if (box->IsSVGRoot() || box->IsSVGForeignObject())
+      return true;
+
+    // Don't create subsequence for the document element because the subsequence
+    // for LayoutView serves the same purpose. This can avoid unnecessary paint
+    // chunks that would otherwise be forced by the subsequence.
+    if (box->IsDocumentElement())
+      return false;
+  }
 
   // Create subsequence for only stacked objects whose paintings are atomic.
   return GetLayoutObject().IsStacked();
@@ -3573,10 +3580,10 @@ void PaintLayer::StyleDidChange(StyleDifference diff,
   }
 }
 
-IntPoint PaintLayer::PixelSnappedScrolledContentOffset() const {
+gfx::Vector2d PaintLayer::PixelSnappedScrolledContentOffset() const {
   if (GetLayoutObject().IsScrollContainer())
     return GetLayoutBox()->PixelSnappedScrolledContentOffset();
-  return IntPoint();
+  return gfx::Vector2d();
 }
 
 PaintLayerClipper PaintLayer::Clipper(

@@ -28,6 +28,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_shortcut_manager.h"
 #include "chrome/browser/signin/account_consistency_mode_manager.h"
+#include "chrome/browser/signin/signin_features.h"
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/ui/passwords/manage_passwords_view_utils.h"
 #include "chrome/browser/ui/ui_features.h"
@@ -93,6 +94,7 @@
 
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
 #include "chrome/browser/lacros/account_manager/account_manager_util.h"
+#include "chromeos/lacros/lacros_service.h"
 #endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -201,6 +203,9 @@ void AddCommonStrings(content::WebUIDataSource* html_source, Profile* profile) {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
       user_manager::UserManager::Get()->IsLoggedInAsGuest() ||
           user_manager::UserManager::Get()->IsLoggedInAsPublicAccount());
+#elif BUILDFLAG(IS_CHROMEOS_LACROS)
+      chromeos::LacrosService::Get()->init_params()->session_type ==
+          crosapi::mojom::SessionType::kPublicSession);
 #else
                           profile->IsGuestSession());
 #endif
@@ -705,7 +710,7 @@ void AddResetStrings(content::WebUIDataSource* html_source, Profile* profile) {
                          chrome::kAutomaticSettingsResetLearnMoreURL);
 }
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS_ASH) && !BUILDFLAG(IS_CHROMEOS_LACROS)
 void AddImportDataStrings(content::WebUIDataSource* html_source) {
   static constexpr webui::LocalizedString kLocalizedStrings[] = {
       {"importTitle", IDS_SETTINGS_IMPORT_SETTINGS_TITLE},
@@ -938,6 +943,7 @@ void AddAutofillStrings(content::WebUIDataSource* html_source,
       {"addressPhone", IDS_SETTINGS_AUTOFILL_ADDRESSES_PHONE},
       {"addressEmail", IDS_SETTINGS_AUTOFILL_ADDRESSES_EMAIL},
       {"honorificLabel", IDS_SETTINGS_AUTOFILL_ADDRESS_HONORIFIC_LABEL},
+      {"moreActionsForAddress", IDS_SETTINGS_AUTOFILL_MORE_ACTIONS_FOR_ADDRESS},
       {"removeAddress", IDS_SETTINGS_ADDRESS_REMOVE},
       {"removeAddressConfirmationTitle",
        IDS_SETTINGS_ADDRESS_REMOVE_CONFIRMATION_TITLE},
@@ -1002,6 +1008,7 @@ void AddAutofillStrings(content::WebUIDataSource* html_source,
       {"addPasswordStorePickerA11yDescription",
        IDS_PASSWORD_MANAGER_DESTINATION_DROPDOWN_ACCESSIBLE_NAME},
       {"usernameAlreadyUsed", IDS_SETTINGS_PASSWORD_USERNAME_ALREADY_USED},
+      {"missingTLD", IDS_SETTINGS_PASSWORD_MISSING_TLD},
       {"copyPassword", IDS_SETTINGS_PASSWORD_COPY},
       {"passwordStoredOnDevice", IDS_SETTINGS_PASSWORD_STORED_ON_DEVICE},
       {"passwordStoredInAccount", IDS_SETTINGS_PASSWORD_STORED_IN_ACCOUNT},
@@ -1086,7 +1093,9 @@ void AddAutofillStrings(content::WebUIDataSource* html_source,
        IDS_SETTINGS_TRUSTED_VAULT_OPT_IN_SUB_LABEL},
       {"noSearchResults", IDS_SEARCH_NO_RESULTS},
       {"searchResultsPlural", IDS_SEARCH_RESULTS_PLURAL},
-      {"searchResultsSingular", IDS_SEARCH_RESULTS_SINGULAR}};
+      {"searchResultsSingular", IDS_SEARCH_RESULTS_SINGULAR},
+      {"showPasswordLabel", IDS_SETTINGS_PASSWORD_SHOW_PASSWORD_A11Y},
+      {"hidePasswordLabel", IDS_SETTINGS_PASSWORD_HIDE_PASSWORD_A11Y}};
 
   GURL google_password_manager_url = GetGooglePasswordManagerURL(
       password_manager::ManagePasswordsReferrer::kChromeSettings);
@@ -1334,13 +1343,18 @@ void AddPeopleStrings(content::WebUIDataSource* html_source, Profile* profile) {
 #elif BUILDFLAG(IS_CHROMEOS_LACROS)
   html_source->AddBoolean("isAccountManagerEnabled",
                           IsAccountManagerAvailable(profile));
-  html_source->AddBoolean("isMainProfile", profile->IsMainProfile());
+  // On Lacros, signout is only supported for secondary profiles without account
+  // consistency.
+  html_source->AddBoolean(
+      "isSignoutSupported",
+      !base::FeatureList::IsEnabled(kMultiProfileAccountConsistency) &&
+          !profile->IsMainProfile());
 #endif
 
   AddSignOutDialogStrings(html_source, profile);
   AddSyncControlsStrings(html_source);
   AddSyncAccountControlStrings(html_source);
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
   AddPasswordPromptDialogStrings(html_source);
 #endif
   AddSyncPageStrings(html_source);
@@ -1391,8 +1405,6 @@ void AddPrivacyStrings(content::WebUIDataSource* html_source,
     {"clearBrowsingData", IDS_SETTINGS_CLEAR_BROWSING_DATA},
     {"clearBrowsingDataDescription", IDS_SETTINGS_CLEAR_DATA_DESCRIPTION},
     {"titleAndCount", IDS_SETTINGS_TITLE_AND_COUNT},
-    {"safeBrowsingEnableExtendedReporting",
-     IDS_SETTINGS_SAFEBROWSING_ENABLE_REPORTING},
     {"safeBrowsingEnableExtendedReportingDesc",
      IDS_SETTINGS_SAFEBROWSING_ENABLE_REPORTING_DESC},
     {"safeBrowsingEnhanced", IDS_SETTINGS_SAFEBROWSING_ENHANCED},
@@ -1621,8 +1633,18 @@ void AddPrivacyReviewStrings(content::WebUIDataSource* html_source) {
        IDS_SETTINGS_PRIVACY_REVIEW_WELCOME_CARD_DONT_SHOW_AGAIN_CHECKBOX},
       {"privacyReviewCompletionCardHeader",
        IDS_SETTINGS_PRIVACY_REVIEW_COMPLETION_CARD_HEADER},
+      {"privacyReviewCompletionCardSubHeader",
+       IDS_SETTINGS_PRIVACY_REVIEW_COMPLETION_CARD_SUB_HEADER},
       {"privacyReviewCompletionCardLeaveButton",
        IDS_SETTINGS_PRIVACY_REVIEW_COMPLETION_CARD_LEAVE_BUTTON},
+      {"privacyReviewCompletionCardPrivacySandboxLabel",
+       IDS_SETTINGS_PRIVACY_REVIEW_COMPLETION_CARD_PRIVACY_SANDBOX_LABEL},
+      {"privacyReviewCompletionCardPrivacySandboxSubLabel",
+       IDS_SETTINGS_PRIVACY_REVIEW_COMPLETION_CARD_PRIVACY_SANDBOX_SUB_LABEL},
+      {"privacyReviewCompletionCardWaaLabel",
+       IDS_SETTINGS_PRIVACY_REVIEW_COMPLETION_CARD_WAA_LABEL},
+      {"privacyReviewCompletionCardWaaSubLabel",
+       IDS_SETTINGS_PRIVACY_REVIEW_COMPLETION_CARD_WAA_SUB_LABEL},
       {"privacyReviewMsbbCardHeader",
        IDS_SETTINGS_PRIVACY_REVIEW_MSBB_CARD_HEADER},
       {"privacyReviewMsbbFeatureDescription1",
@@ -1669,6 +1691,20 @@ void AddPrivacyReviewStrings(content::WebUIDataSource* html_source) {
        IDS_SETTINGS_PRIVACY_REVIEW_COOKIES_CARD_BLOCK_TPC_FEATURE_DESCRIPTION2},
       {"privacyReviewCookiesCardBlockTpcPrivacyDescription1",
        IDS_SETTINGS_PRIVACY_REVIEW_COOKIES_CARD_BLOCK_TPC_PRIVACY_DESCRIPTION1},
+      {"privacyReviewSafeBrowsingCardHeader",
+       IDS_SETTINGS_PRIVACY_REVIEW_SAFE_BROWSING_CARD_HEADER},
+      {"privacyReviewSafeBrowsingCardEnhancedProtectionPrivacyDescription1",
+       IDS_SETTINGS_PRIVACY_REVIEW_SAFE_BROWSING_CARD_ENHANCED_PROTECTION_PRIVACY_DESCRIPTION1},
+      {"privacyReviewSafeBrowsingCardEnhancedProtectionPrivacyDescription2",
+       IDS_SETTINGS_PRIVACY_REVIEW_SAFE_BROWSING_CARD_ENHANCED_PROTECTION_PRIVACY_DESCRIPTION2},
+      {"privacyReviewSafeBrowsingCardEnhancedProtectionPrivacyDescription3",
+       IDS_SETTINGS_PRIVACY_REVIEW_SAFE_BROWSING_CARD_ENHANCED_PROTECTION_PRIVACY_DESCRIPTION3},
+      {"privacyReviewSafeBrowsingCardStandardProtectionFeatureDescription1",
+       IDS_SETTINGS_PRIVACY_REVIEW_SAFE_BROWSING_CARD_STANDARD_PROTECTION_FEATURE_DESCRIPTION1},
+      {"privacyReviewSafeBrowsingCardStandardProtectionFeatureDescription2",
+       IDS_SETTINGS_PRIVACY_REVIEW_SAFE_BROWSING_CARD_STANDARD_PROTECTION_FEATURE_DESCRIPTION2},
+      {"privacyReviewSafeBrowsingCardStandardProtectionPrivacyDescription1",
+       IDS_SETTINGS_PRIVACY_REVIEW_SAFE_BROWSING_CARD_STANDARD_PROTECTION_PRIVACY_DESCRIPTION1},
   };
   html_source->AddLocalizedStrings(kLocalizedStrings);
 }
@@ -2831,6 +2867,11 @@ void AddSecurityKeysStrings(content::WebUIDataSource* html_source) {
                           !win_native_api_available);
 }
 
+void AddIPHStrings(content::WebUIDataSource* html_source) {
+  html_source->AddBoolean("iphDemoEnabled", base::FeatureList::IsEnabled(
+                                                features::kIPHInWebUIDemo));
+}
+
 }  // namespace
 
 void AddLocalizedStrings(content::WebUIDataSource* html_source,
@@ -2849,6 +2890,8 @@ void AddLocalizedStrings(content::WebUIDataSource* html_source,
   AddClearBrowsingDataStrings(html_source, profile);
   AddCommonStrings(html_source, profile);
   AddDownloadsStrings(html_source);
+  AddExtensionsStrings(html_source);
+  AddIPHStrings(html_source);
   AddLanguagesStrings(html_source, profile);
   AddOnStartupStrings(html_source);
   AddPeopleStrings(html_source, profile);
@@ -2867,12 +2910,8 @@ void AddLocalizedStrings(content::WebUIDataSource* html_source,
 #else
   AddDefaultBrowserStrings(html_source);
   AddSystemStrings(html_source);
-#endif
-
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
   AddImportDataStrings(html_source);
 #endif
-  AddExtensionsStrings(html_source);
 
 #if defined(USE_NSS_CERTS)
   certificate_manager::AddLocalizedStrings(html_source);

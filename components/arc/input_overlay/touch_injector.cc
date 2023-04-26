@@ -4,8 +4,12 @@
 
 #include "components/arc/input_overlay/touch_injector.h"
 
+#include "base/bind.h"
+#include "base/task/thread_pool.h"
 #include "components/arc/input_overlay/actions/action.h"
 #include "components/arc/input_overlay/resources/input_overlay_resources_util.h"
+#include "ui/views/widget/widget.h"
+#include "ui/views/window/non_client_view.h"
 
 namespace arc {
 
@@ -52,7 +56,15 @@ void TouchInjector::DispatchTouchCancelEvent() {
       VLOG(0) << "Undispatched event due to destroyed dispatcher for canceling "
                  "touch event.";
     }
-    action->OnTouchCancelled();
+  }
+}
+
+void TouchInjector::SendTouchMoveEvent(
+    const ui::EventRewriter::Continuation continuation,
+    const ui::TouchEvent& event) {
+  if (SendEventFinally(continuation, &event).dispatcher_destroyed) {
+    VLOG(0) << "Undispatched event due to destroyed dispatcher for "
+               "touch move event.";
   }
 }
 
@@ -64,16 +76,36 @@ ui::EventDispatchDetails TouchInjector::RewriteEvent(
   continuation_ = continuation;
   if (text_input_active_)
     return SendEvent(continuation, &event);
+
+  auto* widget = views::Widget::GetWidgetForNativeView(target_window_);
+  DCHECK(widget->non_client_view());
+  auto* frame_view = widget->non_client_view()->frame_view();
+  DCHECK(frame_view);
+  int height = frame_view->GetWindowBoundsForClientBounds(gfx::Rect()).y();
+  auto bounds = gfx::RectF(target_window_->bounds());
+  bounds.Offset(0, -height);
+
   std::list<ui::TouchEvent> touch_events;
   for (auto& action : actions_) {
-    bool rewritten = action->RewriteEvent(event, touch_events);
+    bool rewritten = action->RewriteEvent(event, touch_events, bounds);
     if (!rewritten)
       continue;
     if (touch_events.empty())
       return DiscardEvent(continuation);
     if (touch_events.size() == 1)
       return SendEventFinally(continuation, &touch_events.front());
-    // TODO (cuicuiruan): Add handling for touch_events more than 1.
+    if (touch_events.size() == 2) {
+      // Some apps can't process correctly on the touch move event which follows
+      // touch press event immediately, so send the touch move event delayed
+      // here.
+      base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+          FROM_HERE,
+          base::BindOnce(&TouchInjector::SendTouchMoveEvent,
+                         weak_ptr_factory_.GetWeakPtr(), continuation,
+                         touch_events.back()),
+          input_overlay::kSendTouchMoveDelay);
+      return SendEventFinally(continuation, &touch_events.front());
+    }
   }
   return SendEvent(continuation, &event);
 }

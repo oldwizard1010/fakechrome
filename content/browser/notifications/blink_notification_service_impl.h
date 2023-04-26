@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "content/browser/service_worker/service_worker_context_wrapper.h"
 #include "content/common/content_export.h"
@@ -97,6 +96,9 @@ class CONTENT_EXPORT BlinkNotificationServiceImpl
       GetNotificationsCallback callback,
       bool success,
       const std::vector<NotificationDatabaseData>& notifications);
+
+  bool ValidateServiceWorkerRegistrationID(
+      int64_t service_worker_registration_id);
 
   // The notification context that owns this service instance.
   PlatformNotificationContextImpl* notification_context_;

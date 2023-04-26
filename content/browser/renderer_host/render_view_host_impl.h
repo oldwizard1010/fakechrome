@@ -16,7 +16,6 @@
 #include "base/callback.h"
 #include "base/compiler_specific.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/process/kill.h"
 #include "base/time/time.h"
@@ -56,6 +55,7 @@ namespace content {
 
 class AgentSchedulingGroupHost;
 class RenderProcessHost;
+class SiteInfo;
 class TimeoutMonitor;
 
 // A callback which will be called immediately before EnterBackForwardCache
@@ -123,6 +123,9 @@ class CONTENT_EXPORT RenderViewHostImpl
                      int32_t main_frame_routing_id,
                      bool swapped_out,
                      bool has_initialized_audio_host);
+
+  RenderViewHostImpl(const RenderViewHostImpl&) = delete;
+  RenderViewHostImpl& operator=(const RenderViewHostImpl&) = delete;
 
   // RenderViewHost implementation.
   RenderWidgetHostImpl* GetWidget() override;
@@ -240,8 +243,11 @@ class CONTENT_EXPORT RenderViewHostImpl
   // length) and the timestamp corresponding to the start of the back-forward
   // cached navigation, which would be communicated to the page to allow it to
   // record the latency of this navigation.
+  // TODO(https://crbug.com/1234634): Remove
+  // restoring_main_frame_from_back_forward_cache.
   void LeaveBackForwardCache(
-      blink::mojom::PageRestoreParamsPtr page_restore_params);
+      blink::mojom::PageRestoreParamsPtr page_restore_params,
+      bool restoring_main_frame_from_back_forward_cache);
 
   bool is_in_back_forward_cache() const { return is_in_back_forward_cache_; }
 
@@ -431,8 +437,6 @@ class CONTENT_EXPORT RenderViewHostImpl
   FrameTree* frame_tree_;
 
   base::WeakPtrFactory<RenderViewHostImpl> weak_factory_{this};
-
-  DISALLOW_COPY_AND_ASSIGN(RenderViewHostImpl);
 };
 
 }  // namespace content

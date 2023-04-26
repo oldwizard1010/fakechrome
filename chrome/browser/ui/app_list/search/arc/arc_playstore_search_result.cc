@@ -17,9 +17,9 @@
 #include "chrome/browser/ui/app_list/app_list_controller_delegate.h"
 #include "chrome/browser/ui/app_list/arc/arc_playstore_app_context_menu.h"
 #include "chrome/browser/ui/app_list/search/search_tags_util.h"
-#include "components/arc/arc_service_manager.h"
 #include "components/arc/mojom/app.mojom.h"
 #include "components/arc/session/arc_bridge_service.h"
+#include "components/arc/session/arc_service_manager.h"
 #include "components/crx_file/id_util.h"
 #include "ui/base/models/image_model.h"
 #include "ui/gfx/canvas.h"
@@ -115,6 +115,7 @@ ArcPlayStoreSearchResult::ArcPlayStoreSearchResult(
   SetTitleTags(CalculateTags(query, title));
   set_id(kPlayAppPrefix +
          crx_file::id_util::GenerateId(install_intent_uri().value()));
+  SetCategory(Category::kPlayStore);
   SetDisplayType(ash::SearchResultDisplayType::kTile);
   // TODO: The badge icon should be updated to pass through a vector icon and
   // color id rather than hardcoding the colors here.

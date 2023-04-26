@@ -5,7 +5,6 @@
 #include "chrome/browser/ash/system/input_device_settings.h"
 
 #include "base/bind.h"
-#include "base/macros.h"
 #include "chrome/browser/ash/system/fake_input_device_settings.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part_chromeos.h"
@@ -39,6 +38,7 @@ class InputDeviceSettingsImplOzone : public InputDeviceSettings {
   void SetTouchpadSensitivity(int value) override;
   void SetTouchpadScrollSensitivity(int value) override;
   void SetTouchpadHapticFeedback(bool enabled) override;
+  void SetTouchpadHapticClickSensitivity(int value) override;
   void SetTapToClick(bool enabled) override;
   void SetThreeFingerClick(bool enabled) override;
   void SetTapDragging(bool enabled) override;
@@ -107,6 +107,12 @@ void InputDeviceSettingsImplOzone::SetTouchpadScrollSensitivity(int value) {
 void InputDeviceSettingsImplOzone::SetTouchpadHapticFeedback(bool enabled) {
   current_touchpad_settings_.SetHapticFeedback(enabled);
   input_controller()->SetTouchpadHapticFeedback(enabled);
+}
+
+void InputDeviceSettingsImplOzone::SetTouchpadHapticClickSensitivity(
+    int value) {
+  current_touchpad_settings_.SetHapticClickSensitivity(value);
+  input_controller()->SetTouchpadHapticClickSensitivity(value);
 }
 
 void InputDeviceSettingsImplOzone::SetNaturalScroll(bool enabled) {

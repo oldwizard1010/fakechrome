@@ -7,7 +7,6 @@
 #include "base/bind.h"
 #include "components/password_manager/core/browser/built_in_backend_to_android_backend_migrator.h"
 #include "components/password_manager/core/browser/field_info_table.h"
-#include "components/password_manager/core/browser/password_store_impl.h"
 #include "components/password_manager/core/browser/password_store_proxy_backend.h"
 #include "components/password_manager/core/common/password_manager_features.h"
 #include "components/prefs/pref_service.h"
@@ -26,10 +25,12 @@ constexpr int kMigrationToAndroidBackendDelay = 30;
 PasswordStoreBackendMigrationDecorator::PasswordStoreBackendMigrationDecorator(
     std::unique_ptr<PasswordStoreBackend> built_in_backend,
     std::unique_ptr<PasswordStoreBackend> android_backend,
-    PrefService* prefs)
+    PrefService* prefs,
+    base::RepeatingCallback<bool()> is_syncing_passwords_callback)
     : built_in_backend_(std::move(built_in_backend)),
       android_backend_(std::move(android_backend)),
-      prefs_(prefs) {
+      prefs_(prefs),
+      is_syncing_passwords_callback_(std::move(is_syncing_passwords_callback)) {
   DCHECK(built_in_backend_);
   DCHECK(android_backend_);
   active_backend_ = std::make_unique<PasswordStoreProxyBackend>(
@@ -38,6 +39,11 @@ PasswordStoreBackendMigrationDecorator::PasswordStoreBackendMigrationDecorator(
 
 PasswordStoreBackendMigrationDecorator::
     ~PasswordStoreBackendMigrationDecorator() = default;
+
+base::WeakPtr<PasswordStoreBackend>
+PasswordStoreBackendMigrationDecorator::GetWeakPtr() {
+  return weak_ptr_factory_.GetWeakPtr();
+}
 
 void PasswordStoreBackendMigrationDecorator::InitBackend(
     RemoteChangesReceived remote_form_changes_received,
@@ -153,8 +159,14 @@ PasswordStoreBackendMigrationDecorator::CreateSyncControllerDelegate() {
   return active_backend_->CreateSyncControllerDelegate();
 }
 
+void PasswordStoreBackendMigrationDecorator::GetSyncStatus(
+    base::OnceCallback<void(bool)> callback) {
+  return active_backend_->GetSyncStatus(std::move(callback));
+}
+
 void PasswordStoreBackendMigrationDecorator::StartMigration() {
-  migrator_ = std::make_unique<BuiltInBackendToAndroidBackendMigrator>(prefs_);
+  migrator_ = std::make_unique<BuiltInBackendToAndroidBackendMigrator>(
+      prefs_, is_syncing_passwords_callback_);
   migrator_->StartMigrationIfNecessary();
 }
 

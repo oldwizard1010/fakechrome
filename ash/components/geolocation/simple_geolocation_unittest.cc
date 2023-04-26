@@ -9,7 +9,6 @@
 #include "ash/components/geolocation/simple_geolocation_provider.h"
 #include "ash/components/geolocation/simple_geolocation_request_test_monitor.h"
 #include "base/bind.h"
-#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
@@ -89,6 +88,11 @@ class TestGeolocationAPILoaderFactory : public network::TestURLLoaderFactory {
     AddResponseWithCode(net::HTTP_INTERNAL_SERVER_ERROR);
   }
 
+  TestGeolocationAPILoaderFactory(const TestGeolocationAPILoaderFactory&) =
+      delete;
+  TestGeolocationAPILoaderFactory& operator=(
+      const TestGeolocationAPILoaderFactory&) = delete;
+
   void Intercept(const network::ResourceRequest& request) {
     EXPECT_EQ(url_, request.url);
 
@@ -130,8 +134,6 @@ class TestGeolocationAPILoaderFactory : public network::TestURLLoaderFactory {
   const size_t require_retries_;
   size_t attempts_ = 0;
   SimpleGeolocationProvider* provider_;
-
-  DISALLOW_COPY_AND_ASSIGN(TestGeolocationAPILoaderFactory);
 };
 
 class GeolocationReceiver {
@@ -168,6 +170,9 @@ class WirelessTestMonitor : public SimpleGeolocationRequestTestMonitor {
  public:
   WirelessTestMonitor() = default;
 
+  WirelessTestMonitor(const WirelessTestMonitor&) = delete;
+  WirelessTestMonitor& operator=(const WirelessTestMonitor&) = delete;
+
   void OnRequestCreated(SimpleGeolocationRequest* request) override {}
   void OnStart(SimpleGeolocationRequest* request) override {
     last_request_body_ = request->FormatRequestBodyForTesting();
@@ -177,8 +182,6 @@ class WirelessTestMonitor : public SimpleGeolocationRequestTestMonitor {
 
  private:
   std::string last_request_body_;
-
-  DISALLOW_COPY_AND_ASSIGN(WirelessTestMonitor);
 };
 
 class SimpleGeolocationTest : public testing::Test {

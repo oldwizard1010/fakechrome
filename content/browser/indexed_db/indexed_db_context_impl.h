@@ -17,7 +17,6 @@
 #include "base/compiler_specific.h"
 #include "base/files/file_path.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "components/services/storage/public/mojom/blob_storage_context.mojom.h"
@@ -80,6 +79,9 @@ class CONTENT_EXPORT IndexedDBContextImpl
           file_system_access_context,
       scoped_refptr<base::SequencedTaskRunner> io_task_runner,
       scoped_refptr<base::SequencedTaskRunner> custom_task_runner);
+
+  IndexedDBContextImpl(const IndexedDBContextImpl&) = delete;
+  IndexedDBContextImpl& operator=(const IndexedDBContextImpl&) = delete;
 
   void Bind(mojo::PendingReceiver<storage::mojom::IndexedDBControl> control);
 
@@ -280,8 +282,6 @@ class CONTENT_EXPORT IndexedDBContextImpl
   const std::unique_ptr<storage::FilesystemProxy> filesystem_proxy_;
 
   base::WeakPtrFactory<IndexedDBContextImpl> weak_factory_{this};
-
-  DISALLOW_COPY_AND_ASSIGN(IndexedDBContextImpl);
 };
 
 }  // namespace content

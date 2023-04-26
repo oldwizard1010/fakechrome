@@ -20,7 +20,6 @@
 
 #include <vector>
 
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "build/build_config.h"
 #include "content/public/browser/browser_plugin_guest_delegate.h"
@@ -92,7 +91,8 @@ class CONTENT_EXPORT BrowserPluginGuest : public GuestHost,
   void DidStartNavigation(NavigationHandle* navigation_handle) override;
   void DidFinishNavigation(NavigationHandle* navigation_handle) override;
 
-  void RenderProcessGone(base::TerminationStatus status) override;
+  void PrimaryMainFrameRenderProcessGone(
+      base::TerminationStatus status) override;
 #if defined(OS_MAC)
   // On MacOS X popups are painted by the browser process. We handle them here
   // so that they are positioned correctly.

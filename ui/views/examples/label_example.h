@@ -5,7 +5,6 @@
 #ifndef UI_VIEWS_EXAMPLES_LABEL_EXAMPLE_H_
 #define UI_VIEWS_EXAMPLES_LABEL_EXAMPLE_H_
 
-#include "base/macros.h"
 #include "ui/views/controls/textfield/textfield_controller.h"
 #include "ui/views/examples/example_base.h"
 
@@ -13,8 +12,8 @@ namespace views {
 
 class Checkbox;
 class Combobox;
-class GridLayout;
 class Label;
+class View;
 
 namespace examples {
 
@@ -44,8 +43,8 @@ class VIEWS_EXAMPLES_EXPORT LabelExample : public ExampleBase,
   void AddCustomLabel(View* container);
 
   // Creates and adds a combobox to the layout.
-  Combobox* AddCombobox(GridLayout* layout,
-                        const char* name,
+  Combobox* AddCombobox(View* parent,
+                        std::u16string name,
                         const char** strings,
                         int count,
                         void (LabelExample::*function)());

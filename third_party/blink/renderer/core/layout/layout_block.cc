@@ -41,6 +41,7 @@
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/frame/settings.h"
 #include "third_party/blink/renderer/core/html/html_marquee_element.h"
+#include "third_party/blink/renderer/core/html/shadow/shadow_element_names.h"
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/layout/api/line_layout_box.h"
 #include "third_party/blink/renderer/core/layout/api/line_layout_item.h"
@@ -593,8 +594,10 @@ void LayoutBlock::AddVisualOverflowFromBlockChildren() {
     // the outline which may enclose continuations.
     auto* child_block_flow = DynamicTo<LayoutBlockFlow>(child);
     if (child_block_flow &&
-        child_block_flow->ContainsInlineWithOutlineAndContinuation())
+        child_block_flow->ContainsInlineWithOutlineAndContinuation() &&
+        !child_block_flow->ChildPrePaintBlockedByDisplayLock()) {
       child_block_flow->AddVisualOverflowFromInlineChildren();
+    }
     AddVisualOverflowFromChild(*child);
   }
 }
@@ -614,8 +617,10 @@ void LayoutBlock::AddLayoutOverflowFromBlockChildren() {
     // the outline which may enclose continuations.
     auto* child_block_flow = DynamicTo<LayoutBlockFlow>(child);
     if (child_block_flow &&
-        child_block_flow->ContainsInlineWithOutlineAndContinuation())
+        child_block_flow->ContainsInlineWithOutlineAndContinuation() &&
+        !child_block_flow->ChildPrePaintBlockedByDisplayLock()) {
       child_block_flow->AddLayoutOverflowFromInlineChildren();
+    }
 
     AddLayoutOverflowFromChild(*child);
   }
@@ -1105,6 +1110,33 @@ void LayoutBlock::ImageChanged(WrappedImagePtr image,
   }
 }
 
+static void ProcessPositionedObjectRemoval(
+    ContainingBlockState containing_block_state,
+    LayoutObject* positioned_object) {
+  if (containing_block_state == kNewContainingBlock) {
+    positioned_object->SetChildNeedsLayout(kMarkOnlyThis);
+
+    // The positioned object changing containing block may change paint
+    // invalidation container.
+    // Invalidate it (including non-compositing descendants) on its original
+    // paint invalidation container.
+    if (!RuntimeEnabledFeatures::CompositeAfterPaintEnabled()) {
+      // This valid because we need to invalidate based on the current
+      // status.
+      DisableCompositingQueryAsserts compositing_disabler;
+      if (!positioned_object->IsPaintInvalidationContainer()) {
+        ObjectPaintInvalidator(*positioned_object)
+            .InvalidatePaintIncludingNonCompositingDescendants();
+      }
+    }
+  }
+
+  // It is parent blocks job to add positioned child to positioned objects
+  // list of its containing block.
+  // Parent layout needs to be invalidated to ensure this happens.
+  positioned_object->MarkParentForOutOfFlowPositionedChange();
+}
+
 void LayoutBlock::RemovePositionedObjects(
     LayoutObject* o,
     ContainingBlockState containing_block_state) {
@@ -1117,28 +1149,7 @@ void LayoutBlock::RemovePositionedObjects(
   for (LayoutBox* positioned_object : *positioned_descendants) {
     if (!o ||
         (positioned_object->IsDescendantOf(o) && o != positioned_object)) {
-      if (containing_block_state == kNewContainingBlock) {
-        positioned_object->SetChildNeedsLayout(kMarkOnlyThis);
-
-        // The positioned object changing containing block may change paint
-        // invalidation container.
-        // Invalidate it (including non-compositing descendants) on its original
-        // paint invalidation container.
-        if (!RuntimeEnabledFeatures::CompositeAfterPaintEnabled()) {
-          // This valid because we need to invalidate based on the current
-          // status.
-          DisableCompositingQueryAsserts compositing_disabler;
-          if (!positioned_object->IsPaintInvalidationContainer())
-            ObjectPaintInvalidator(*positioned_object)
-                .InvalidatePaintIncludingNonCompositingDescendants();
-        }
-      }
-
-      // It is parent blocks job to add positioned child to positioned objects
-      // list of its containing block.
-      // Parent layout needs to be invalidated to ensure this happens.
-      positioned_object->MarkParentForOutOfFlowPositionedChange();
-
+      ProcessPositionedObjectRemoval(containing_block_state, positioned_object);
       dead_objects.push_back(positioned_object);
     }
   }
@@ -1261,7 +1272,7 @@ bool LayoutBlock::IsPointInOverflowControl(
     return false;
 
   return Layer()->GetScrollableArea()->HitTestOverflowControls(
-      result, RoundedIntPoint(hit_test_location - accumulated_offset));
+      result, ToRoundedPoint(hit_test_location - accumulated_offset));
 }
 
 bool LayoutBlock::HitTestOverflowControl(
@@ -2031,6 +2042,13 @@ LayoutUnit LayoutBlock::InlineBlockBaseline(
 
 const LayoutBlock* LayoutBlock::EnclosingFirstLineStyleBlock() const {
   NOT_DESTROYED();
+  auto* element = DynamicTo<Element>(GetNode());
+  if (element && element->ShadowPseudoId() ==
+                     shadow_element_names::kPseudoInternalInputSuggested) {
+    // Disable ::first-line style for autofill previews. See
+    // crbug.com/1227170.
+    return nullptr;
+  }
   const LayoutBlock* first_line_block = this;
   bool has_pseudo = false;
   while (true) {

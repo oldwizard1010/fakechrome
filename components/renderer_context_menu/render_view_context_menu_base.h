@@ -13,7 +13,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/macros.h"
 #include "base/observer_list.h"
 #include "components/renderer_context_menu/context_menu_content_type.h"
 #include "components/renderer_context_menu/render_view_context_menu_observer.h"
@@ -65,7 +64,7 @@ class RenderViewContextMenuBase : public ui::SimpleMenuModel::Delegate,
   // True if the given id is the one generated for content context menu.
   static bool IsContentCustomCommandId(int id);
 
-  RenderViewContextMenuBase(content::RenderFrameHost* render_frame_host,
+  RenderViewContextMenuBase(content::RenderFrameHost& render_frame_host,
                             const content::ContextMenuParams& params);
 
   RenderViewContextMenuBase(const RenderViewContextMenuBase&) = delete;

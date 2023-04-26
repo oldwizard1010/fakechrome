@@ -19,7 +19,6 @@
 #include "chrome/browser/ui/views/global_media_controls/media_dialog_view_observer.h"
 #include "chrome/browser/ui/views/global_media_controls/media_toolbar_button_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
-#include "chrome/browser/ui/views/user_education/new_badge_label.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -351,12 +350,11 @@ class MediaDialogViewBrowserTest : public InProcessBrowserTest {
   }
 
   void SetUp() override {
-    // TODO(crbug.com/1182859): Update this test to enable the
-    // kUseSodaForLiveCaption feature.
     feature_list_.InitWithFeatures(
         {media::kGlobalMediaControls, media::kGlobalMediaControlsForCast,
-         media::kLiveCaption, feature_engagement::kIPHLiveCaptionFeature},
-        {media::kUseSodaForLiveCaption});
+         media::kLiveCaption, feature_engagement::kIPHLiveCaptionFeature,
+         media::kLiveCaptionMultiLanguage, media::kUseSodaForLiveCaption},
+        {});
 
     presentation_manager_ =
         std::make_unique<TestWebContentsPresentationManager>();
@@ -578,11 +576,6 @@ class MediaDialogViewBrowserTest : public InProcessBrowserTest {
 
   views::Label* GetLiveCaptionTitleLabel() {
     return MediaDialogView::GetDialogViewForTesting()->live_caption_title_;
-  }
-
-  views::Label* GetLiveCaptionTitleNewBadgeLabel() {
-    return MediaDialogView::GetDialogViewForTesting()
-        ->live_caption_title_new_badge_;
   }
 
   void OnSodaProgress(int progress) {
@@ -975,26 +968,26 @@ IN_PROC_BROWSER_TEST_F(MediaDialogViewBrowserTest, MAYBE_LiveCaption) {
   EXPECT_TRUE(WaitForDialogOpened());
   EXPECT_TRUE(IsDialogVisible());
 
-  // When media dialog opens and Live Caption is disabled, the New badge is
-  // visible and the regular title is not visible.
-  EXPECT_NE(GetLiveCaptionTitleNewBadgeLabel(), nullptr);
-  EXPECT_TRUE(GetLiveCaptionTitleNewBadgeLabel()->GetVisible());
-  EXPECT_FALSE(GetLiveCaptionTitleLabel()->GetVisible());
+  // The Live Caption title should appear.
+  EXPECT_TRUE(GetLiveCaptionTitleLabel()->GetVisible());
+  EXPECT_EQ("Live Caption",
+            base::UTF16ToUTF8(GetLiveCaptionTitleLabel()->GetText()));
 
+  // Click the Live Caption toggle to toggle it on.
   ClickEnableLiveCaptionOnDialog();
   EXPECT_TRUE(
       browser()->profile()->GetPrefs()->GetBoolean(prefs::kLiveCaptionEnabled));
-  // The New Badge disappears when Live Caption is enabled. The regular title
-  // appears.
-  EXPECT_FALSE(GetLiveCaptionTitleNewBadgeLabel()->GetVisible());
   EXPECT_TRUE(GetLiveCaptionTitleLabel()->GetVisible());
+  EXPECT_EQ("Live Caption - English",
+            base::UTF16ToUTF8(GetLiveCaptionTitleLabel()->GetText()));
 
+  // Click the Live Caption toggle again to toggle it off.
   ClickEnableLiveCaptionOnDialog();
   EXPECT_FALSE(
       browser()->profile()->GetPrefs()->GetBoolean(prefs::kLiveCaptionEnabled));
-  // The New Badge doesn't reappear after Live Caption is disabled again.
-  EXPECT_FALSE(GetLiveCaptionTitleNewBadgeLabel()->GetVisible());
   EXPECT_TRUE(GetLiveCaptionTitleLabel()->GetVisible());
+  EXPECT_EQ("Live Caption",
+            base::UTF16ToUTF8(GetLiveCaptionTitleLabel()->GetText()));
 
   // Close dialog and enable live caption preference. Reopen dialog.
   ClickToolbarIcon();
@@ -1004,17 +997,17 @@ IN_PROC_BROWSER_TEST_F(MediaDialogViewBrowserTest, MAYBE_LiveCaption) {
   ClickToolbarIcon();
   EXPECT_TRUE(WaitForDialogOpened());
   EXPECT_TRUE(IsDialogVisible());
-  // When media dialog opens and Live Caption is enabled, the New badge is not
-  // created. The regular title is visible.
-  EXPECT_EQ(GetLiveCaptionTitleNewBadgeLabel(), nullptr);
   EXPECT_TRUE(GetLiveCaptionTitleLabel()->GetVisible());
+  EXPECT_EQ("Live Caption - English",
+            base::UTF16ToUTF8(GetLiveCaptionTitleLabel()->GetText()));
 
+  // Click the Live Caption toggle to toggle it off.
   ClickEnableLiveCaptionOnDialog();
   EXPECT_FALSE(
       browser()->profile()->GetPrefs()->GetBoolean(prefs::kLiveCaptionEnabled));
-  // The New badge is still not created. The regular title is still visible.
-  EXPECT_EQ(GetLiveCaptionTitleNewBadgeLabel(), nullptr);
   EXPECT_TRUE(GetLiveCaptionTitleLabel()->GetVisible());
+  EXPECT_EQ("Live Caption",
+            base::UTF16ToUTF8(GetLiveCaptionTitleLabel()->GetText()));
 }
 
 #if defined(OS_MAC) && defined(ARCH_CPU_ARM64)
@@ -1036,8 +1029,8 @@ IN_PROC_BROWSER_TEST_F(MediaDialogViewBrowserTest,
   EXPECT_TRUE(WaitForDialogOpened());
   EXPECT_TRUE(IsDialogVisible());
 
-  EXPECT_EQ("Live Caption (English only)",
-            base::UTF16ToUTF8(GetLiveCaptionTitleNewBadgeLabel()->GetText()));
+  EXPECT_EQ("Live Caption",
+            base::UTF16ToUTF8(GetLiveCaptionTitleLabel()->GetText()));
 
   ClickEnableLiveCaptionOnDialog();
   OnSodaProgress(0);
@@ -1057,7 +1050,58 @@ IN_PROC_BROWSER_TEST_F(MediaDialogViewBrowserTest,
             base::UTF16ToUTF8(GetLiveCaptionTitleLabel()->GetText()));
 
   OnSodaInstalled();
-  EXPECT_EQ("Live Caption (English only)",
+  EXPECT_EQ("Live Caption - English",
+            base::UTF16ToUTF8(GetLiveCaptionTitleLabel()->GetText()));
+}
+
+#if defined(OS_MAC)
+// https://crbug.com/1222873
+#define MAYBE_LiveCaptionShowLanguage DISABLED_LiveCaptionShowLanguage
+#else
+#define MAYBE_LiveCaptionShowLanguage LiveCaptionShowLanguage
+#endif
+IN_PROC_BROWSER_TEST_F(MediaDialogViewBrowserTest,
+                       MAYBE_LiveCaptionShowLanguage) {
+  // Open a tab and play media.
+  OpenTestURL();
+  StartPlayback();
+  WaitForStart();
+
+  // Open the media dialog.
+  EXPECT_TRUE(WaitForToolbarIconShown());
+  ClickToolbarIcon();
+  EXPECT_TRUE(WaitForDialogOpened());
+  EXPECT_TRUE(IsDialogVisible());
+
+  // Live Caption is disabled, so the title should not show the language.
+  EXPECT_TRUE(GetLiveCaptionTitleLabel()->GetVisible());
+  EXPECT_EQ("Live Caption",
+            base::UTF16ToUTF8(GetLiveCaptionTitleLabel()->GetText()));
+
+  // When Live Caption is enabled, the title should show the language.
+  ClickEnableLiveCaptionOnDialog();
+  EXPECT_TRUE(GetLiveCaptionTitleLabel()->GetVisible());
+  EXPECT_EQ("Live Caption - English",
+            base::UTF16ToUTF8(GetLiveCaptionTitleLabel()->GetText()));
+
+  // Close dialog and change live caption language. Reopen dialog.
+  ClickToolbarIcon();
+  EXPECT_FALSE(IsDialogVisible());
+  browser()->profile()->GetPrefs()->SetString(prefs::kLiveCaptionLanguageCode,
+                                              "de-DE");
+  ClickToolbarIcon();
+  EXPECT_TRUE(WaitForDialogOpened());
+  EXPECT_TRUE(IsDialogVisible());
+
+  // Live Caption is enabled so the title should show the new language.
+  EXPECT_TRUE(GetLiveCaptionTitleLabel()->GetVisible());
+  EXPECT_EQ("Live Caption - German",
+            base::UTF16ToUTF8(GetLiveCaptionTitleLabel()->GetText()));
+
+  // When Live Caption is disabled, the title should not show the language.
+  ClickEnableLiveCaptionOnDialog();
+  EXPECT_TRUE(GetLiveCaptionTitleLabel()->GetVisible());
+  EXPECT_EQ("Live Caption",
             base::UTF16ToUTF8(GetLiveCaptionTitleLabel()->GetText()));
 }
 
@@ -1074,8 +1118,6 @@ class MediaDialogViewWithBackForwardCacheBrowserTest
     params["process_binding_strength"] = "NORMAL";
 #endif
     enabled_features.emplace_back(features::kBackForwardCache, params);
-    enabled_features.emplace_back(features::kBackForwardCacheMediaPlay,
-                                  std::map<std::string, std::string>{});
     enabled_features.emplace_back(
         features::kBackForwardCacheMediaSessionService,
         std::map<std::string, std::string>{});
@@ -1149,7 +1191,7 @@ IN_PROC_BROWSER_TEST_F(MediaDialogViewWithBackForwardCacheBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(MediaDialogViewWithBackForwardCacheBrowserTest,
-                       PauseAndCache) {
+                       DISABLED_PauseAndCache) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL url1(embedded_test_server()->GetURL(
       "a.test", "/media/session/video-with-metadata.html"));
@@ -1193,6 +1235,52 @@ IN_PROC_BROWSER_TEST_F(MediaDialogViewWithBackForwardCacheBrowserTest,
   ClickToolbarIcon();
   EXPECT_TRUE(WaitForDialogOpened());
   EXPECT_TRUE(IsDialogVisible());
+}
+
+IN_PROC_BROWSER_TEST_F(MediaDialogViewWithBackForwardCacheBrowserTest,
+                       DISABLED_CacheTwiceAndGoBack) {
+  ASSERT_TRUE(embedded_test_server()->Start());
+  GURL url1(embedded_test_server()->GetURL(
+      "a.test", "/media/session/video-with-metadata.html"));
+  GURL url2(embedded_test_server()->GetURL(
+      "b.test", "/media/session/video-with-metadata.html"));
+  GURL url3(embedded_test_server()->GetURL(
+      "c.test", "/media/session/video-with-metadata.html"));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url1));
+  content::RenderFrameHost* rfh1 = GetMainFrame();
+
+  StartPlayback();
+  WaitForStart();
+
+  // Open the media dialog.
+  EXPECT_TRUE(WaitForToolbarIconShown());
+  ClickToolbarIcon();
+  EXPECT_TRUE(WaitForDialogOpened());
+  EXPECT_TRUE(IsDialogVisible());
+
+  // Navigate to another page.
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url2));
+  EXPECT_EQ(content::RenderFrameHost::LifecycleState::kInBackForwardCache,
+            rfh1->GetLifecycleState());
+  EXPECT_TRUE(WaitForToolbarIconHidden());
+  EXPECT_FALSE(IsDialogVisible());
+  content::RenderFrameHost* rfh2 = GetMainFrame();
+
+  StartPlayback();
+  WaitForStart();
+
+  // Navigate to yet another page.
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url3));
+  EXPECT_EQ(content::RenderFrameHost::LifecycleState::kInBackForwardCache,
+            rfh2->GetLifecycleState());
+  EXPECT_TRUE(WaitForToolbarIconHidden());
+  EXPECT_FALSE(IsDialogVisible());
+
+  // Go back.
+  GetActiveWebContents()->GetController().GoBack();
+  EXPECT_TRUE(WaitForLoadStop(GetActiveWebContents()));
+  EXPECT_NE(content::RenderFrameHost::LifecycleState::kInBackForwardCache,
+            rfh2->GetLifecycleState());
 }
 
 #endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)

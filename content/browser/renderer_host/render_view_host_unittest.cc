@@ -5,7 +5,6 @@
 #include <stdint.h>
 
 #include "base/bind.h"
-#include "base/macros.h"
 #include "base/path_service.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
@@ -229,7 +228,7 @@ TEST_F(RenderViewHostTest, NavigationWithBadHistoryItemFiles) {
 
 TEST_F(RenderViewHostTest, RoutingIdSane) {
   RenderFrameHostImpl* root_rfh =
-      contents()->GetFrameTree()->root()->current_frame_host();
+      contents()->GetPrimaryFrameTree().root()->current_frame_host();
   EXPECT_EQ(contents()->GetMainFrame(), root_rfh);
   EXPECT_EQ(test_rvh()->GetProcess(), root_rfh->GetProcess());
   EXPECT_NE(test_rvh()->GetRoutingID(), root_rfh->routing_id());

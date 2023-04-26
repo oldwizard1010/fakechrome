@@ -5,6 +5,7 @@
 #include "chrome/browser/renderer_context_menu/render_view_context_menu.h"
 
 #include <algorithm>
+#include <map>
 #include <memory>
 #include <string>
 #include <utility>
@@ -13,7 +14,6 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/command_line.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
@@ -57,6 +57,7 @@
 #include "components/data_reduction_proxy/core/common/data_reduction_proxy_switches.h"
 #include "components/guest_view/browser/guest_view_manager_delegate.h"
 #include "components/guest_view/browser/test_guest_view_manager.h"
+#include "components/lens/lens_features.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/search_engines/template_url_data.h"
@@ -200,7 +201,7 @@ class ContextMenuBrowserTest : public InProcessBrowserTest {
     params.writing_direction_right_to_left = 0;
 #endif
     auto menu = std::make_unique<TestRenderViewContextMenu>(
-        web_contents->GetMainFrame(), params);
+        *web_contents->GetMainFrame(), params);
     menu->Init();
     return menu;
   }
@@ -362,7 +363,7 @@ class PdfPluginContextMenuBrowserTest : public InProcessBrowserTest {
     params.media_type = blink::mojom::ContextMenuDataMediaType::kPlugin;
     params.media_flags |= blink::ContextMenuData::kMediaCanRotate;
     auto menu =
-        std::make_unique<TestRenderViewContextMenu>(extension_frame_, params);
+        std::make_unique<TestRenderViewContextMenu>(*extension_frame_, params);
     menu->Init();
     return menu;
   }
@@ -402,7 +403,7 @@ class PdfPluginContextMenuBrowserTest : public InProcessBrowserTest {
     params.page_url = page_url;
     params.frame_url = frame->GetLastCommittedURL();
     params.media_type = blink::mojom::ContextMenuDataMediaType::kPlugin;
-    TestRenderViewContextMenu menu(frame, params);
+    TestRenderViewContextMenu menu(*frame, params);
     menu.Init();
 
     // The full page related items such as 'reload' should not be displayed.
@@ -551,15 +552,15 @@ IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest,
-                       OpenInAppPresentForURLsInScopeOfNonWindowedWebApp) {
-  InstallTestWebApp(GURL(kAppUrl1), false);
+                       OpenInAppAbsentForURLsInScopeOfNonWindowedWebApp) {
+  InstallTestWebApp(GURL(kAppUrl1), /*open_as_window=*/false);
 
   std::unique_ptr<TestRenderViewContextMenu> menu =
       CreateContextMenuMediaTypeNone(GURL(kAppUrl1), GURL(kAppUrl1));
 
   ASSERT_TRUE(menu->IsItemPresent(IDC_CONTENT_CONTEXT_OPENLINKNEWTAB));
   ASSERT_TRUE(menu->IsItemPresent(IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW));
-  ASSERT_TRUE(menu->IsItemPresent(IDC_CONTENT_CONTEXT_OPENLINKBOOKMARKAPP));
+  ASSERT_FALSE(menu->IsItemPresent(IDC_CONTENT_CONTEXT_OPENLINKBOOKMARKAPP));
   ASSERT_TRUE(menu->IsItemPresent(IDC_CONTENT_CONTEXT_COPYLINKLOCATION));
   ASSERT_FALSE(menu->IsItemPresent(IDC_CONTENT_CONTEXT_OPENLINKINPROFILE));
   ASSERT_FALSE(menu->IsItemInRangePresent(IDC_OPEN_LINK_IN_PROFILE_FIRST,
@@ -709,7 +710,7 @@ IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest, ContextMenuForCanvas) {
   params.media_type = blink::mojom::ContextMenuDataMediaType::kCanvas;
 
   TestRenderViewContextMenu menu(
-      browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
+      *browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
       params);
   menu.Init();
 
@@ -723,7 +724,7 @@ IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest,
   params.is_editable = true;
 
   TestRenderViewContextMenu menu(
-      browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
+      *browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
       params);
   menu.Init();
 
@@ -737,7 +738,7 @@ IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest,
   params.is_editable = false;
 
   TestRenderViewContextMenu menu(
-      browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
+      *browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
       params);
   menu.Init();
 
@@ -753,7 +754,7 @@ IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest,
   std::unique_ptr<content::WebContents> detached_web_contents =
       content::WebContents::Create(
           content::WebContents::CreateParams(browser()->profile()));
-  TestRenderViewContextMenu menu(detached_web_contents->GetMainFrame(), {});
+  TestRenderViewContextMenu menu(*detached_web_contents->GetMainFrame(), {});
   menu.Init();
   menu.ExecuteCommand(IDC_CONTENT_CONTEXT_EMOJI, 0);
 }
@@ -764,7 +765,7 @@ IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest,
   std::unique_ptr<content::WebContents> detached_web_contents =
       content::WebContents::Create(
           content::WebContents::CreateParams(browser()->profile()));
-  TestRenderViewContextMenu menu(detached_web_contents->GetMainFrame(), {});
+  TestRenderViewContextMenu menu(*detached_web_contents->GetMainFrame(), {});
   menu.Init();
   menu.ExecuteCommand(IDC_CONTENT_CONTEXT_EMOJI, 0);
 }
@@ -781,7 +782,7 @@ IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest,
   params.is_editable = true;
 
   TestRenderViewContextMenu menu(
-      browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
+      *browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
       params);
   menu.Init();
 
@@ -876,7 +877,7 @@ IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest, OpenAboutBlankInNewTab) {
 
   // Select "Open Link in New Tab" and wait for the new tab to be added.
   TestRenderViewContextMenu menu(
-      browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
+      *browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
       context_menu_params);
   menu.Init();
   menu.ExecuteCommand(IDC_CONTENT_CONTEXT_OPENLINKNEWTAB, 0);
@@ -905,7 +906,7 @@ IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest, OpenDataURLInNewTab) {
 
   // Select "Open Link in New Tab" and wait for the new tab to be added.
   TestRenderViewContextMenu menu(
-      browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
+      *browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
       context_menu_params);
   menu.Init();
   menu.ExecuteCommand(IDC_CONTENT_CONTEXT_OPENLINKNEWTAB, 0);
@@ -939,7 +940,7 @@ IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest, OpenInNewTabReferrer) {
 
   // Select "Open Link in New Tab" and wait for the new tab to be added.
   TestRenderViewContextMenu menu(
-      browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
+      *browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
       context_menu_params);
   menu.Init();
   menu.ExecuteCommand(IDC_CONTENT_CONTEXT_OPENLINKNEWTAB, 0);
@@ -988,7 +989,7 @@ IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest, OpenIncognitoNoneReferrer) {
 
   // Select "Open Link in Incognito Window" and wait for window to be added.
   TestRenderViewContextMenu menu(
-      browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
+      *browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
       context_menu_params);
   menu.Init();
   menu.ExecuteCommand(IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD, 0);
@@ -1038,7 +1039,7 @@ IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest, MAYBE_OpenLinkInWebApp) {
   content::ContextMenuParams params;
   params.page_url = GURL("https://www.example.com/");
   params.link_url = start_url;
-  TestRenderViewContextMenu menu(initial_tab->GetMainFrame(), params);
+  TestRenderViewContextMenu menu(*initial_tab->GetMainFrame(), params);
   menu.Init();
   menu.ExecuteCommand(IDC_CONTENT_CONTEXT_OPENLINKBOOKMARKAPP,
                       0 /* event_flags */);
@@ -1476,6 +1477,143 @@ IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest, MAYBE_OpenLinkInProfile) {
 }
 #endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+// Maintains region search test state. In particular, note that |menu_observer_|
+// must live until the right-click completes asynchronously.
+class SearchByRegionBrowserTest : public InProcessBrowserTest {
+ protected:
+  void SetUp() override {
+    base::test::ScopedFeatureList feature_list;
+    feature_list.InitAndEnableFeatureWithParameters(
+        lens::features::kLensRegionSearch,
+        std::map<std::string, std::string>{
+            {lens::features::kEnableSidePanelForLensRegionSearch.name,
+             "false"}});
+
+    InProcessBrowserTest::SetUp();
+  }
+
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    // Tests in this suite make use of documents with no significant
+    // rendered content, and such documents do not accept input for 500ms
+    // unless we allow it.
+    command_line->AppendSwitch(blink::switches::kAllowPreCommitInput);
+  }
+
+  void SetupAndLoadPage(const std::string& page_path) {
+    // The test server must start first, so that we know the port that the test
+    // server is using.
+    ASSERT_TRUE(embedded_test_server()->Start());
+    // Load a simple initial page.
+    ASSERT_TRUE(ui_test_utils::NavigateToURL(
+        browser(), GURL(embedded_test_server()->GetURL(page_path))));
+  }
+
+  void AttemptLensRegionSearch() {
+    // |menu_observer_| will cause the search lens for image menu item to be
+    // clicked.
+    menu_observer_ = std::make_unique<ContextMenuNotificationObserver>(
+        IDC_CONTENT_CONTEXT_LENS_REGION_SEARCH);
+    RightClickToOpenContextMenu();
+  }
+
+  // This attempts region search on the menu item designated for non-Google
+  // DSEs.
+  void AttemptNonGoogleRegionSearch() {
+    // |menu_observer_| will cause the search lens for image menu item to be
+    // clicked.
+    menu_observer_ = std::make_unique<ContextMenuNotificationObserver>(
+        IDC_CONTENT_CONTEXT_WEB_REGION_SEARCH);
+    RightClickToOpenContextMenu();
+  }
+
+  GURL GetNonGoogleRegionSearchURL() {
+    static const char kImageSearchURL[] = "/imagesearch";
+    return embedded_test_server()->GetURL(kImageSearchURL);
+  }
+
+  GURL GetLensRegionSearchURL() {
+    static const std::string kLensRegionSearchURL =
+        lens::features::GetHomepageURLForRegionSearch() + "upload?ep=crs";
+    return GURL(kLensRegionSearchURL);
+  }
+
+  void RightClickToOpenContextMenu() {
+    content::WebContents* tab =
+        browser()->tab_strip_model()->GetActiveWebContents();
+    content::SimulateMouseClick(tab, 0, blink::WebMouseEvent::Button::kRight);
+  }
+
+  // Sets up a custom test default search engine in order to test region search
+  // for non-Google DSEs.
+  void SetupNonGoogleRegionSearchEngine() {
+    static const char16_t kShortName[] = u"test";
+    static const char kRegionSearchPostParams[] =
+        "thumb={google:imageThumbnail}";
+
+    TemplateURLService* model =
+        TemplateURLServiceFactory::GetForProfile(browser()->profile());
+    ASSERT_TRUE(model);
+    search_test_utils::WaitForTemplateURLServiceToLoad(model);
+    ASSERT_TRUE(model->loaded());
+
+    TemplateURLData data;
+    data.SetShortName(kShortName);
+    data.SetKeyword(data.short_name());
+    data.SetURL(GetNonGoogleRegionSearchURL().spec());
+    data.image_url = GetNonGoogleRegionSearchURL().spec();
+    data.image_url_post_params = kRegionSearchPostParams;
+
+    TemplateURL* template_url = model->Add(std::make_unique<TemplateURL>(data));
+    ASSERT_TRUE(template_url);
+    model->SetUserSelectedDefaultSearchProvider(template_url);
+  }
+
+ private:
+  void TearDownInProcessBrowserTestFixture() override {
+    menu_observer_.reset();
+  }
+
+  std::unique_ptr<ContextMenuNotificationObserver> menu_observer_;
+};
+
+IN_PROC_BROWSER_TEST_F(SearchByRegionBrowserTest,
+                       LensRegionSearchWithValidRegionNewTab) {
+  SetupAndLoadPage("/empty.html");
+  ui_test_utils::AllBrowserTabAddedWaiter add_tab;
+
+  // The browser should open a new tab for a region search.
+  AttemptLensRegionSearch();
+  content::WebContents* new_tab = add_tab.Wait();
+  content::WaitForLoadStop(new_tab);
+
+  std::string expected_content = GetLensRegionSearchURL().GetContent();
+  std::string new_tab_content = new_tab->GetURL().GetContent();
+  // Match strings up to the query.
+  std::size_t query_start_pos = new_tab_content.find("?");
+  // Match the query parameters, without the value of start_time.
+  EXPECT_THAT(new_tab_content, testing::MatchesRegex(
+                                   expected_content.substr(0, query_start_pos) +
+                                   ".*ep=crs&s=&st=\\d+"));
+}
+
+IN_PROC_BROWSER_TEST_F(SearchByRegionBrowserTest,
+                       NonGoogleRegionSearchWithValidRegionNewTab) {
+  SetupAndLoadPage("/empty.html");
+  SetupNonGoogleRegionSearchEngine();
+  ui_test_utils::AllBrowserTabAddedWaiter add_tab;
+
+  // The browser should open a new tab for a region search.
+  AttemptNonGoogleRegionSearch();
+  content::WebContents* new_tab = add_tab.Wait();
+  content::WaitForLoadStop(new_tab);
+
+  std::string expected_content = GetNonGoogleRegionSearchURL().GetContent();
+  std::string new_tab_content = new_tab->GetURL().GetContent();
+  EXPECT_EQ(expected_content, new_tab_content);
+}
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+
 // Maintains image search test state. In particular, note that |menu_observer_|
 // must live until the right-click completes asynchronously.
 class SearchByImageBrowserTest : public InProcessBrowserTest {
@@ -1634,7 +1772,7 @@ IN_PROC_BROWSER_TEST_F(SearchByImageBrowserTest,
   EXPECT_EQ(expected_content.substr(0, query_start_pos),
             new_tab_content.substr(0, query_start_pos));
   // Match the query parameters, without the value of start_time.
-  EXPECT_THAT(new_tab_content, testing::MatchesRegex(".*ep=ccm&st=\\d+"));
+  EXPECT_THAT(new_tab_content, testing::MatchesRegex(".*ep=ccm&s=&st=\\d+"));
 }
 
 IN_PROC_BROWSER_TEST_P(PdfPluginContextMenuBrowserTestWithUnseasonedOverride,
@@ -1843,7 +1981,7 @@ IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest,
   params.media_flags |= blink::ContextMenuData::kMediaCanPictureInPicture;
 
   TestRenderViewContextMenu menu(
-      browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
+      *browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
       params);
   menu.Init();
 
@@ -1859,7 +1997,7 @@ IN_PROC_BROWSER_TEST_F(ContextMenuBrowserTest,
   params.media_flags |= blink::ContextMenuData::kMediaPictureInPicture;
 
   TestRenderViewContextMenu menu(
-      browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
+      *browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
       params);
   menu.Init();
 

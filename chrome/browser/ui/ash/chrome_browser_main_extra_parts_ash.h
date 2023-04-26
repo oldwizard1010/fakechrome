@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/macros.h"
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
 #include "chrome/common/buildflags.h"
 
@@ -27,6 +26,7 @@ class AccessibilityControllerClient;
 class AmbientClientImpl;
 class AppListClientImpl;
 class AshShellInit;
+class AshWebViewFactoryImpl;
 class CastConfigControllerMediaRouter;
 class DesksClient;
 class ImeControllerClientImpl;
@@ -45,7 +45,6 @@ class TabClusterUIClient;
 class TabletModePageBehavior;
 class VpnListForwarder;
 class WallpaperControllerClientImpl;
-class MediaNotificationProviderImpl;
 class ProjectorAppClientImpl;
 class ProjectorClientImpl;
 
@@ -86,7 +85,6 @@ class ChromeBrowserMainExtraPartsAsh : public ChromeBrowserMainExtraParts {
   std::unique_ptr<NetworkConnectDelegateChromeOS> network_connect_delegate_;
   std::unique_ptr<CastConfigControllerMediaRouter>
       cast_config_controller_media_router_;
-  std::unique_ptr<MediaNotificationProviderImpl> media_notification_provider_;
 
   // Initialized in PreProfileInit if ash config != MASH:
   std::unique_ptr<AshShellInit> ash_shell_init_;
@@ -127,6 +125,7 @@ class ChromeBrowserMainExtraPartsAsh : public ChromeBrowserMainExtraParts {
   std::unique_ptr<MicrophoneMuteNotificationDelegateImpl>
       microphone_mute_notification_delegate_;
   std::unique_ptr<policy::DisplaySettingsHandler> display_settings_handler_;
+  std::unique_ptr<AshWebViewFactoryImpl> ash_web_view_factory_;
 
   // Initialized in PostBrowserStart in all configs:
   std::unique_ptr<MobileDataNotifications> mobile_data_notifications_;

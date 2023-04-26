@@ -225,6 +225,7 @@ extern const char kPointingStickAcceleration[];
 extern const char kTouchpadAcceleration[];
 extern const char kTouchpadScrollAcceleration[];
 extern const char kTouchpadHapticFeedback[];
+extern const char kTouchpadHapticClickSensitivity[];
 extern const char kMouseSensitivity[];
 extern const char kMouseScrollSensitivity[];
 extern const char kTouchpadSensitivity[];
@@ -814,8 +815,6 @@ extern const char kChromeOsReleaseChannel[];
 
 extern const char kPerformanceTracingEnabled[];
 
-extern const char kTabStripStackedLayout[];
-
 extern const char kRegisteredBackgroundContents[];
 
 extern const char kTotalMemoryLimitMb[];
@@ -909,6 +908,10 @@ extern const char kRelaunchHeadsUpPeriod[];
 extern const char kMacRestoreLocationPermissionsExperimentCount[];
 #endif  // defined(OS_MAC)
 
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+extern const char kEnrollmentIdUploadedOnChromad[];
+#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+
 #if !defined(OS_ANDROID)
 extern const char kAttemptedToEnableAutoupdate[];
 
@@ -932,6 +935,7 @@ extern const char kShortcutMigrationVersion[];
 extern const char kRLZBrand[];
 extern const char kRLZDisabled[];
 extern const char kAppListLocalState[];
+extern const char kAppListPreferredOrder[];
 #endif
 
 extern const char kAppShortcutsVersion[];
@@ -1099,7 +1103,7 @@ extern const char kAllowSyncXHRInPageDismissal[];
 extern const char kUsageStatsEnabled[];
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 extern const char kClientCertificateManagementAllowed[];
 extern const char kCACertificateManagementAllowed[];
 #endif
@@ -1137,8 +1141,6 @@ extern const char kPromptOnMultipleMatchingCertificates[];
 extern const char kMediaFeedsBackgroundFetching[];
 extern const char kMediaFeedsSafeSearchEnabled[];
 extern const char kMediaFeedsAutoSelectEnabled[];
-
-extern const char kAppCacheForceEnabled[];
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 extern const char kAdbSideloadingDisallowedNotificationShown[];
@@ -1204,6 +1206,8 @@ extern const char kLensRegionSearchEnabled[];
 #endif
 
 extern const char kPrivacyReviewShowWelcomeCard[];
+
+extern const char kCorsNonWildcardRequestHeadersSupport[];
 
 }  // namespace prefs
 

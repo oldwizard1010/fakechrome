@@ -174,11 +174,19 @@
 #endif  // !defined(OS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
+#include "ash/services/network_health/public/mojom/network_diagnostics.mojom.h"  // nogncheck
+#include "ash/services/network_health/public/mojom/network_health.mojom.h"  // nogncheck
+#include "ash/webui/camera_app_ui/camera_app_helper.mojom.h"
+#include "ash/webui/camera_app_ui/camera_app_ui.h"
+#include "ash/webui/common/mojom/accessibility_features.mojom.h"
+#include "ash/webui/connectivity_diagnostics/connectivity_diagnostics_ui.h"
 #include "ash/webui/diagnostics_ui/diagnostics_ui.h"
 #include "ash/webui/diagnostics_ui/mojom/input_data_provider.mojom.h"
 #include "ash/webui/diagnostics_ui/mojom/network_health_provider.mojom.h"
 #include "ash/webui/diagnostics_ui/mojom/system_data_provider.mojom.h"
 #include "ash/webui/diagnostics_ui/mojom/system_routine_controller.mojom.h"
+#include "ash/webui/eche_app_ui/eche_app_ui.h"
+#include "ash/webui/eche_app_ui/mojom/eche_app.mojom.h"
 #include "ash/webui/file_manager/file_manager_ui.h"
 #include "ash/webui/file_manager/mojom/file_manager.mojom.h"
 #include "ash/webui/help_app_ui/help_app_ui.h"
@@ -186,6 +194,8 @@
 #include "ash/webui/help_app_ui/search/search.mojom.h"
 #include "ash/webui/media_app_ui/media_app_ui.h"
 #include "ash/webui/media_app_ui/media_app_ui.mojom.h"
+#include "ash/webui/personalization_app/mojom/personalization_app.mojom.h"
+#include "ash/webui/personalization_app/personalization_app_ui.h"
 #include "ash/webui/print_management/mojom/printing_manager.mojom.h"
 #include "ash/webui/print_management/print_management_ui.h"
 #include "ash/webui/scanning/mojom/scanning.mojom.h"
@@ -225,23 +235,14 @@
 #include "chrome/browser/ui/webui/settings/chromeos/os_settings_ui.h"
 #include "chrome/browser/ui/webui/settings/chromeos/search/search.mojom.h"
 #include "chrome/browser/ui/webui/settings/chromeos/search/user_action_recorder.mojom.h"
-#include "chromeos/components/camera_app_ui/camera_app_helper.mojom.h"
-#include "chromeos/components/camera_app_ui/camera_app_ui.h"
-#include "chromeos/components/connectivity_diagnostics/connectivity_diagnostics_ui.h"
-#include "chromeos/components/eche_app_ui/eche_app_ui.h"
-#include "chromeos/components/eche_app_ui/mojom/eche_app.mojom.h"
 #include "chromeos/components/local_search_service/public/mojom/index.mojom.h"
 #include "chromeos/components/multidevice/debug_webui/proximity_auth_ui.h"
-#include "chromeos/components/personalization_app/mojom/personalization_app.mojom.h"
-#include "chromeos/components/personalization_app/personalization_app_ui.h"
 #include "chromeos/services/bluetooth_config/public/mojom/cros_bluetooth_config.mojom.h"
 #include "chromeos/services/cellular_setup/public/mojom/cellular_setup.mojom.h"
 #include "chromeos/services/cellular_setup/public/mojom/esim_manager.mojom.h"
 #include "chromeos/services/multidevice_setup/multidevice_setup_service.h"
 #include "chromeos/services/multidevice_setup/public/mojom/multidevice_setup.mojom.h"
 #include "chromeos/services/network_config/public/mojom/cros_network_config.mojom.h"  // nogncheck
-#include "chromeos/services/network_health/public/mojom/network_diagnostics.mojom.h"  // nogncheck
-#include "chromeos/services/network_health/public/mojom/network_health.mojom.h"  // nogncheck
 #include "media/capture/video/chromeos/mojom/camera_app.mojom.h"
 #include "third_party/blink/public/mojom/digital_goods/digital_goods.mojom.h"
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
@@ -259,6 +260,7 @@
 #include "ash/webui/demo_mode_app_ui/mojom/demo_mode_app_ui.mojom.h"
 #include "ash/webui/sample_system_web_app_ui/mojom/sample_system_web_app_ui.mojom.h"
 #include "ash/webui/sample_system_web_app_ui/sample_system_web_app_ui.h"
+#include "ash/webui/sample_system_web_app_ui/untrusted_sample_system_web_app_ui.h"
 #include "ash/webui/telemetry_extension_ui/mojom/diagnostics_service.mojom.h"  // nogncheck crbug.com/1125897
 #include "ash/webui/telemetry_extension_ui/mojom/probe_service.mojom.h"  // nogncheck crbug.com/1125897
 #include "ash/webui/telemetry_extension_ui/mojom/system_events_service.mojom.h"  // nogncheck crbug.com/1125897
@@ -648,7 +650,8 @@ void PopulateChromeFrameBinders(
       base::BindRepeating(&BindSpeechRecognitionRecognizerClientHandler));
 #endif
 
-#if defined(OS_WIN) || defined(OS_MAC) || defined(OS_LINUX)
+#if defined(OS_WIN) || defined(OS_MAC) || defined(OS_LINUX) || \
+    defined(OS_CHROMEOS)
   if (!render_frame_host->GetParent()) {
     map->Add<chrome::mojom::DraggableRegions>(
         base::BindRepeating(&DraggableRegionsHostImpl::CreateIfAllowed));
@@ -787,8 +790,7 @@ void PopulateChromeWebUIFrameBinders(
       AppServiceInternalsUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<
-      enterprise_casting::mojom::PageHandlerFactory,
-      EnterpriseCastingUI>(map);
+      enterprise_casting::mojom::PageHandlerFactory, EnterpriseCastingUI>(map);
 #endif  // defined(OS_ANDROID)
 
 #if BUILDFLAG(ENABLE_WEBUI_TAB_STRIP)
@@ -865,10 +867,10 @@ void PopulateChromeWebUIFrameBinders(
       ash::printing::printing_manager::PrintManagementUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<cros::mojom::CameraAppDeviceProvider,
-                                         chromeos::CameraAppUI>(map);
+                                         ash::CameraAppUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<
-      chromeos_camera::mojom::CameraAppHelper, chromeos::CameraAppUI>(map);
+      ash::camera_app::mojom::CameraAppHelper, ash::CameraAppUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<
       ash::help_app::mojom::PageHandlerFactory, ash::HelpAppUI>(map);
@@ -880,31 +882,29 @@ void PopulateChromeWebUIFrameBinders(
                                          ash::HelpAppUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<
-      chromeos::eche_app::mojom::SignalingMessageExchanger,
-      chromeos::eche_app::EcheAppUI>(map);
+      ash::eche_app::mojom::SignalingMessageExchanger,
+      ash::eche_app::EcheAppUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<
-      chromeos::eche_app::mojom::SystemInfoProvider,
-      chromeos::eche_app::EcheAppUI>(map);
+      ash::eche_app::mojom::SystemInfoProvider, ash::eche_app::EcheAppUI>(map);
+
+  RegisterWebUIControllerInterfaceBinder<ash::eche_app::mojom::UidGenerator,
+                                         ash::eche_app::EcheAppUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<
-      chromeos::eche_app::mojom::UidGenerator, chromeos::eche_app::EcheAppUI>(
+      ash::eche_app::mojom::NotificationGenerator, ash::eche_app::EcheAppUI>(
       map);
-
-  RegisterWebUIControllerInterfaceBinder<
-      chromeos::eche_app::mojom::NotificationGenerator,
-      chromeos::eche_app::EcheAppUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<
       ash::media_app_ui::mojom::PageHandlerFactory, ash::MediaAppUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<
-      chromeos::network_health::mojom::NetworkHealthService,
-      chromeos::NetworkUI, chromeos::ConnectivityDiagnosticsUI>(map);
+      ash::network_health::mojom::NetworkHealthService, chromeos::NetworkUI,
+      ash::ConnectivityDiagnosticsUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<
-      chromeos::network_diagnostics::mojom::NetworkDiagnosticsRoutines,
-      chromeos::NetworkUI, chromeos::ConnectivityDiagnosticsUI>(map);
+      ash::network_diagnostics::mojom::NetworkDiagnosticsRoutines,
+      chromeos::NetworkUI, ash::ConnectivityDiagnosticsUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<
       ash::diagnostics::mojom::InputDataProvider, ash::DiagnosticsDialogUI>(
@@ -930,6 +930,9 @@ void PopulateChromeWebUIFrameBinders(
   RegisterWebUIControllerInterfaceBinder<ash::scanning::mojom::ScanService,
                                          ash::ScanningUI>(map);
 
+  RegisterWebUIControllerInterfaceBinder<
+      ash::common::mojom::AccessibilityFeatures, ash::ScanningUI>(map);
+
   // TODO(crbug.com/1218492): When boot RMA state is available disable this when
   // not in RMA.
   if (ash::features::IsShimlessRMAFlowEnabled()) {
@@ -945,8 +948,8 @@ void PopulateChromeWebUIFrameBinders(
 
   if (chromeos::features::IsWallpaperWebUIEnabled()) {
     RegisterWebUIControllerInterfaceBinder<
-        chromeos::personalization_app::mojom::WallpaperProvider,
-        chromeos::PersonalizationAppUI>(map);
+        ash::personalization_app::mojom::WallpaperProvider,
+        ash::PersonalizationAppUI>(map);
   }
 
   RegisterWebUIControllerInterfaceBinder<
@@ -1032,9 +1035,20 @@ void PopulateChromeWebUIFrameBinders(
 
 void PopulateChromeWebUIFrameInterfaceBrokers(
     content::WebUIBrowserInterfaceBrokerRegistry& registry) {
+  // This function is broken up into sections based on WebUI types.
+
+  // --- Section 1: chrome:// WebUIs:
+
 #if BUILDFLAG(IS_CHROMEOS_ASH) && !defined(OFFICIAL_BUILD)
   registry.ForWebUI<ash::SampleSystemWebAppUI>()
       .Add<ash::mojom::sample_swa::PageHandlerFactory>();
+#endif  // BUILDFLAG(IS_CHROMEOS_ASH) && !defined(OFFICIAL_BUILD)
+
+  // --- Section 2: chrome-untrusted:// WebUIs:
+
+#if BUILDFLAG(IS_CHROMEOS_ASH) && !defined(OFFICIAL_BUILD)
+  registry.ForWebUI<ash::UntrustedSampleSystemWebAppUI>()
+      .Add<ash::mojom::sample_swa::UntrustedPageInterfacesFactory>();
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH) && !defined(OFFICIAL_BUILD)
 }
 

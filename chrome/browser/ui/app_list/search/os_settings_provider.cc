@@ -11,7 +11,6 @@
 #include "ash/public/cpp/app_list/app_list_config.h"
 #include "ash/public/cpp/app_list/app_list_features.h"
 #include "base/containers/flat_set.h"
-#include "base/macros.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/string_util.h"
@@ -120,6 +119,7 @@ OsSettingsResult::OsSettingsResult(
     const std::u16string& query)
     : profile_(profile), url_path_(result->url_path_with_parameters) {
   set_id(kOsSettingsResultPrefix + url_path_);
+  SetCategory(Category::kSettings);
   set_relevance(relevance_score);
   SetTitle(result->canonical_result_text);
   SetTitleTags(CalculateTags(query, result->canonical_result_text));

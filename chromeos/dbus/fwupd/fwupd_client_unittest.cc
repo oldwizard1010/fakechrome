@@ -8,6 +8,7 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
+#include "dbus/message.h"
 #include "dbus/mock_bus.h"
 #include "dbus/mock_object_proxy.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -21,6 +22,9 @@ const char kFwupdServiceName[] = "org.freedesktop.fwupd";
 const char kFwupdServicePath[] = "/";
 const char kFwupdDeviceAddedSignalName[] = "DeviceAdded";
 const char kFakeDeviceIdForTesting[] = "0123";
+const char kFakeDeviceNameForTesting[] = "Fake Device";
+const char kNameKey[] = "Name";
+const char kIdKey[] = "DeviceId";
 
 void RunResponseOrErrorCallback(
     dbus::ObjectProxy::ResponseOrErrorCallback callback,
@@ -67,12 +71,8 @@ class FwupdClientTest : public testing::Test {
     return fwupd_client_->device_signal_call_count_for_testing_;
   }
 
-  int GetGetUpgradesCallbackCallCount() {
-    return fwupd_client_->get_upgrades_callback_call_count_for_testing_;
-  }
-
-  int GetGetDevicesCallbackCallCount() {
-    return fwupd_client_->get_devices_callback_call_count_for_testing_;
+  int GetRequestUpgradesCallbackCallCount() {
+    return fwupd_client_->request_upgrades_callback_call_count_for_testing_;
   }
 
   void OnMethodCalled(dbus::MethodCall* method_call,
@@ -86,6 +86,11 @@ class FwupdClientTest : public testing::Test {
         FROM_HERE,
         base::BindOnce(&RunResponseOrErrorCallback, std::move(*callback),
                        std::move(result.first), std::move(result.second)));
+  }
+
+  void CheckDevices(FwupdDeviceList* devices) {
+    CHECK_EQ(kFakeDeviceNameForTesting, (*devices)[0].device_name);
+    CHECK_EQ(kFakeDeviceIdForTesting, (*devices)[0].id);
   }
 
   void AddDbusMethodCallResultSimulation(
@@ -141,6 +146,14 @@ class FwupdClientTest : public testing::Test {
   std::deque<MethodCallResult> dbus_method_call_simulated_results_;
 };
 
+class MockObserver : public FwupdClient::Observer {
+ public:
+  MOCK_METHOD(void,
+              OnDeviceListResponse,
+              (chromeos::FwupdDeviceList * devices),
+              ());
+};
+
 // TODO (swifton): Rewrite this test with an observer when it's available.
 TEST_F(FwupdClientTest, AddOneDevice) {
   EmitSignal(kFwupdDeviceAddedSignalName);
@@ -155,26 +168,56 @@ TEST_F(FwupdClientTest, RequestUpgrades) {
   std::unique_ptr<dbus::Response> response(dbus::Response::CreateEmpty());
   AddDbusMethodCallResultSimulation(std::move(response), nullptr);
 
-  fwupd_client_->GetUpgrades(kFakeDeviceIdForTesting);
+  fwupd_client_->RequestUpgrades(kFakeDeviceIdForTesting);
 
   base::RunLoop().RunUntilIdle();
 
-  EXPECT_EQ(1, GetGetUpgradesCallbackCallCount());
+  EXPECT_EQ(1, GetRequestUpgradesCallbackCallCount());
 }
 
-// TODO (swifton): Rewrite this test with an observer when it's available.
 TEST_F(FwupdClientTest, RequestDevices) {
+  // The observer will check that the device description is parsed and passed
+  // correctly.
+  MockObserver observer;
+  EXPECT_CALL(observer, OnDeviceListResponse(_))
+      .Times(1)
+      .WillRepeatedly(Invoke(this, &FwupdClientTest::CheckDevices));
+  fwupd_client_->AddObserver(&observer);
+
   EXPECT_CALL(*proxy_, DoCallMethodWithErrorResponse(_, _, _))
       .WillRepeatedly(Invoke(this, &FwupdClientTest::OnMethodCalled));
 
+  // Create a response simulation that contains one device description.
   std::unique_ptr<dbus::Response> response(dbus::Response::CreateEmpty());
+
+  dbus::MessageWriter response_writer(response.get());
+  dbus::MessageWriter response_array_writer(nullptr);
+  dbus::MessageWriter device_array_writer(nullptr);
+  dbus::MessageWriter dict_writer(nullptr);
+
+  // The response is an array of arrays of dictionaries. Each dictionary is one
+  // device description.
+  response_writer.OpenArray("a{sv}", &response_array_writer);
+  response_array_writer.OpenArray("{sv}", &device_array_writer);
+
+  device_array_writer.OpenDictEntry(&dict_writer);
+  dict_writer.AppendString(kNameKey);
+  dict_writer.AppendVariantOfString(kFakeDeviceNameForTesting);
+  device_array_writer.CloseContainer(&dict_writer);
+
+  device_array_writer.OpenDictEntry(&dict_writer);
+  dict_writer.AppendString(kIdKey);
+  dict_writer.AppendVariantOfString(kFakeDeviceIdForTesting);
+  device_array_writer.CloseContainer(&dict_writer);
+
+  response_array_writer.CloseContainer(&device_array_writer);
+  response_writer.CloseContainer(&response_array_writer);
+
   AddDbusMethodCallResultSimulation(std::move(response), nullptr);
 
-  fwupd_client_->GetDevices();
+  fwupd_client_->RequestDevices();
 
   base::RunLoop().RunUntilIdle();
-
-  EXPECT_EQ(1, GetGetDevicesCallbackCallCount());
 }
 
 }  // namespace chromeos

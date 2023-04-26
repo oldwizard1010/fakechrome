@@ -14,8 +14,8 @@
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/inspector/identifiers_factory.h"
-#include "third_party/blink/renderer/core/inspector/protocol/Audits.h"
-#include "third_party/blink/renderer/core/inspector/protocol/Network.h"
+#include "third_party/blink/renderer/core/inspector/protocol/audits.h"
+#include "third_party/blink/renderer/core/inspector/protocol/network.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/platform/bindings/v8_binding.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_error.h"
@@ -437,6 +437,34 @@ void AuditsIssue::ReportSharedArrayBufferIssue(
   execution_context->AddInspectorIssue(AuditsIssue(std::move(issue)));
 }
 
+// static
+void AuditsIssue::ReportDeprecationIssue(ExecutionContext* execution_context,
+                                         const String& message) {
+  auto source_location = SourceLocation::Capture(execution_context);
+  auto deprecation_issue_details =
+      protocol::Audits::DeprecationIssueDetails::create()
+          .setSourceCodeLocation(CreateProtocolLocation(*source_location))
+          .setMessage(message)
+          .build();
+  if (auto* window = DynamicTo<LocalDOMWindow>(execution_context)) {
+    auto affected_frame =
+        protocol::Audits::AffectedFrame::create()
+            .setFrameId(IdentifiersFactory::FrameId(window->GetFrame()))
+            .build();
+    deprecation_issue_details->setAffectedFrame(std::move(affected_frame));
+  }
+  auto issue_details =
+      protocol::Audits::InspectorIssueDetails::create()
+          .setDeprecationIssueDetails(std::move(deprecation_issue_details))
+          .build();
+  auto issue =
+      protocol::Audits::InspectorIssue::create()
+          .setCode(protocol::Audits::InspectorIssueCodeEnum::DeprecationIssue)
+          .setDetails(std::move(issue_details))
+          .build();
+  execution_context->AddInspectorIssue(AuditsIssue(std::move(issue)));
+}
+
 AuditsIssue AuditsIssue::CreateBlockedByResponseIssue(
     network::mojom::BlockedByResponseReason reason,
     uint64_t identifier,
@@ -585,4 +613,5 @@ AuditsIssue AuditsIssue::CreateContentSecurityPolicyIssue(
 
   return AuditsIssue(std::move(issue));
 }
+
 }  // namespace blink

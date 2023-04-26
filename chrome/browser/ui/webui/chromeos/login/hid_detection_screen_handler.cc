@@ -9,7 +9,6 @@
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
-#include "base/macros.h"
 #include "chrome/browser/ash/login/oobe_screen.h"
 #include "chrome/browser/ash/login/screens/hid_detection_screen.h"
 #include "chrome/browser/browser_process.h"
@@ -145,19 +144,26 @@ void HIDDetectionScreenHandler::DeclareJSCallbacks() {
 }
 
 void HIDDetectionScreenHandler::HandleEmulateDevicesConnectedForTesting() {
+  auto touchscreen = device::mojom::InputDeviceInfo::New();
+  touchscreen->id = "fake_touchscreen";
+  touchscreen->subsystem = device::mojom::InputDeviceSubsystem::SUBSYSTEM_INPUT;
+  touchscreen->type = device::mojom::InputDeviceType::TYPE_UNKNOWN;
+  touchscreen->is_touchscreen = true;
+  screen_->InputDeviceAddedForTesting(std::move(touchscreen));  // IN-TEST
+
   auto mouse = device::mojom::InputDeviceInfo::New();
   mouse->id = "fake_mouse";
   mouse->subsystem = device::mojom::InputDeviceSubsystem::SUBSYSTEM_INPUT;
   mouse->type = device::mojom::InputDeviceType::TYPE_USB;
   mouse->is_mouse = true;
-  screen_->InputDeviceAddedForTesting(std::move(mouse));
+  screen_->InputDeviceAddedForTesting(std::move(mouse));  // IN-TEST
 
   auto keyboard = device::mojom::InputDeviceInfo::New();
   keyboard->id = "fake_keyboard";
   keyboard->subsystem = device::mojom::InputDeviceSubsystem::SUBSYSTEM_INPUT;
   keyboard->type = device::mojom::InputDeviceType::TYPE_USB;
   keyboard->is_keyboard = true;
-  screen_->InputDeviceAddedForTesting(std::move(keyboard));
+  screen_->InputDeviceAddedForTesting(std::move(keyboard));  // IN-TEST
 }
 
 void HIDDetectionScreenHandler::Initialize() {

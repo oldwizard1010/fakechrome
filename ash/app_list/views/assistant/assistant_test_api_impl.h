@@ -9,7 +9,6 @@
 #include <string>
 
 #include "ash/public/cpp/test/assistant_test_api.h"
-#include "base/macros.h"
 #include "ui/events/keycodes/keyboard_codes_posix.h"
 
 namespace ui {
@@ -61,8 +60,6 @@ class AssistantTestApiImpl : public AssistantTestApi {
   aura::Window* root_window() override;
 
  private:
-  void EnableAnimations();
-
   bool AppListViewsHaveBeenCreated() const;
   ContentsView* contents_view();
   ContentsView* contents_view_or_null() const;

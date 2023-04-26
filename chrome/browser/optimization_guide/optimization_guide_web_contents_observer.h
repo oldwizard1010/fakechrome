@@ -8,7 +8,6 @@
 #include <vector>
 
 #include "base/containers/flat_map.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/optimization_guide/core/insertion_ordered_set.h"
 #include "components/optimization_guide/core/optimization_guide_navigation_data.h"
@@ -73,7 +72,7 @@ class OptimizationGuideWebContentsObserver
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override;
 
-  void PostFetchHintsUsingManager(content::RenderFrameHost* render_frame_host);
+  void PostFetchHintsUsingManager();
 
   // Ask |hints_manager| to fetch hints for navigations that were predicted for
   // the current page load.

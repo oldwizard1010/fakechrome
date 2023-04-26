@@ -21,6 +21,70 @@ TEST(RectFTest, FromRect) {
   EXPECT_EQ(b, c);
 }
 
+TEST(RectFTest, ContainsPointF) {
+  EXPECT_FALSE(RectF().Contains(PointF()));
+  RectF r(10, 20, 30, 40);
+  EXPECT_FALSE(r.Contains(PointF(0, 0)));
+  EXPECT_FALSE(r.Contains(PointF(9.9999f, 20)));
+  EXPECT_FALSE(r.Contains(PointF(10, 19.9999f)));
+  EXPECT_TRUE(r.Contains(PointF(10, 20)));
+  EXPECT_TRUE(r.Contains(PointF(39.9999f, 20)));
+  EXPECT_FALSE(r.Contains(PointF(40, 20)));
+  EXPECT_TRUE(r.Contains(PointF(10, 59.9999f)));
+  EXPECT_FALSE(r.Contains(PointF(10, 60)));
+  EXPECT_TRUE(r.Contains(PointF(39.9999f, 59.9999f)));
+  EXPECT_FALSE(r.Contains(PointF(40, 60)));
+  EXPECT_FALSE(r.Contains(PointF(100, 100)));
+}
+
+TEST(RectFTest, ContainsXY) {
+  EXPECT_FALSE(RectF().Contains(0, 0));
+  RectF r(10, 20, 30, 40);
+  EXPECT_FALSE(r.Contains(0, 0));
+  EXPECT_FALSE(r.Contains(9.9999f, 20));
+  EXPECT_FALSE(r.Contains(10, 19.9999f));
+  EXPECT_TRUE(r.Contains(10, 20));
+  EXPECT_TRUE(r.Contains(39.9999f, 20));
+  EXPECT_FALSE(r.Contains(40, 20));
+  EXPECT_TRUE(r.Contains(10, 59.9999f));
+  EXPECT_FALSE(r.Contains(10, 60));
+  EXPECT_TRUE(r.Contains(39.9999f, 59.9999f));
+  EXPECT_FALSE(r.Contains(40, 60));
+  EXPECT_FALSE(r.Contains(100, 100));
+}
+
+TEST(RectFTest, InclusiveContainsPointF) {
+  EXPECT_TRUE(RectF().InclusiveContains(PointF()));
+  EXPECT_FALSE(RectF().InclusiveContains(PointF(0.0001f, 0)));
+  RectF r(10, 20, 30, 40);
+  EXPECT_FALSE(r.InclusiveContains(PointF(0, 0)));
+  EXPECT_FALSE(r.InclusiveContains(PointF(9.9999f, 20)));
+  EXPECT_FALSE(r.InclusiveContains(PointF(10, 19.9999f)));
+  EXPECT_TRUE(r.InclusiveContains(PointF(10, 20)));
+  EXPECT_TRUE(r.InclusiveContains(PointF(40, 20)));
+  EXPECT_FALSE(r.InclusiveContains(PointF(40.0001f, 20)));
+  EXPECT_TRUE(r.InclusiveContains(PointF(10, 60)));
+  EXPECT_FALSE(r.InclusiveContains(PointF(10, 60.0001f)));
+  EXPECT_TRUE(r.InclusiveContains(PointF(40, 60)));
+  EXPECT_FALSE(r.InclusiveContains(PointF(100, 100)));
+}
+
+TEST(RectFTest, InclusiveContainsXY) {
+  EXPECT_TRUE(RectF().InclusiveContains(0, 0));
+  EXPECT_FALSE(RectF().InclusiveContains(0.0001f, 0));
+  RectF r(10, 20, 30, 40);
+  EXPECT_FALSE(r.InclusiveContains(0, 0));
+  EXPECT_FALSE(r.InclusiveContains(9.9999f, 20));
+  EXPECT_FALSE(r.InclusiveContains(10, 19.9999f));
+  EXPECT_TRUE(r.InclusiveContains(10, 20));
+  EXPECT_TRUE(r.InclusiveContains(40, 20));
+  EXPECT_FALSE(r.InclusiveContains(40.0001f, 20));
+  EXPECT_TRUE(r.InclusiveContains(10, 60));
+  EXPECT_FALSE(r.InclusiveContains(10, 60.0001f));
+  EXPECT_TRUE(r.InclusiveContains(40, 60));
+  EXPECT_FALSE(r.InclusiveContains(100, 100));
+}
+
 TEST(RectFTest, BoundingRect) {
   // If point B dominates A, then A should be the origin.
   EXPECT_RECTF_EQ(RectF(4.2f, 6.8f, 0, 0),
@@ -47,6 +111,52 @@ TEST(RectFTest, BoundingRect) {
                   BoundingRect(PointF(-4.2f, -6.8f), PointF(-6.8f, -4.2f)));
   EXPECT_RECTF_EQ(RectF(-4.2f, -4.2f, 11.0f, 11.0f),
                   BoundingRect(PointF(-4.2f, 6.8f), PointF(6.8f, -4.2f)));
+}
+
+TEST(RectFTest, Union) {
+  EXPECT_RECTF_EQ(RectF(), UnionRects(RectF(), RectF()));
+  EXPECT_RECTF_EQ(
+      RectF(1.1f, 2.2f, 3.3f, 4.4f),
+      UnionRects(RectF(1.1f, 2.2f, 3.3f, 4.4f), RectF(1.1f, 2.2f, 3.3f, 4.4f)));
+  EXPECT_RECTF_EQ(
+      RectF(0, 0, 8.8f, 11.0f),
+      UnionRects(RectF(0, 0, 3.3f, 4.4f), RectF(3.3f, 4.4f, 5.5f, 6.6f)));
+  EXPECT_RECTF_EQ(
+      RectF(0, 0, 8.8f, 11.0f),
+      UnionRects(RectF(3.3f, 4.4f, 5.5f, 6.6f), RectF(0, 0, 3.3f, 4.4f)));
+  EXPECT_RECTF_EQ(
+      RectF(0, 1.1f, 3.3f, 8.8f),
+      UnionRects(RectF(0, 1.1f, 3.3f, 4.4f), RectF(0, 5.5f, 3.3f, 4.4f)));
+  EXPECT_RECTF_EQ(
+      RectF(0, 1.1f, 11.0f, 12.1f),
+      UnionRects(RectF(0, 1.1f, 3.3f, 4.4f), RectF(4.4f, 5.5f, 6.6f, 7.7f)));
+  EXPECT_RECTF_EQ(
+      RectF(0, 1.1f, 11.0f, 12.1f),
+      UnionRects(RectF(4.4f, 5.5f, 6.6f, 7.7f), RectF(0, 1.1f, 3.3f, 4.4f)));
+  EXPECT_RECTF_EQ(
+      RectF(2.2f, 3.3f, 4.4f, 5.5f),
+      UnionRects(RectF(8.8f, 9.9f, 0, 2.2f), RectF(2.2f, 3.3f, 4.4f, 5.5f)));
+  EXPECT_RECTF_EQ(
+      RectF(2.2f, 3.3f, 4.4f, 5.5f),
+      UnionRects(RectF(2.2f, 3.3f, 4.4f, 5.5f), RectF(8.8f, 9.9f, 2.2f, 0)));
+}
+
+TEST(RectFTest, UnionEvenIfEmpty) {
+  EXPECT_RECTF_EQ(RectF(), UnionRectsEvenIfEmpty(RectF(), RectF()));
+  EXPECT_RECTF_EQ(RectF(0, 0, 3.3f, 4.4f),
+                  UnionRectsEvenIfEmpty(RectF(), RectF(3.3f, 4.4f, 0, 0)));
+  EXPECT_RECTF_EQ(RectF(0, 0, 8.8f, 11.0f),
+                  UnionRectsEvenIfEmpty(RectF(0, 0, 3.3f, 4.4f),
+                                        RectF(3.3f, 4.4f, 5.5f, 6.6f)));
+  EXPECT_RECTF_EQ(RectF(0, 0, 8.8f, 11.0f),
+                  UnionRectsEvenIfEmpty(RectF(3.3f, 4.4f, 5.5f, 6.6f),
+                                        RectF(0, 0, 3.3f, 4.4f)));
+  EXPECT_RECTF_EQ(RectF(2.2f, 3.3f, 6.6f, 8.8f),
+                  UnionRectsEvenIfEmpty(RectF(8.8f, 9.9f, 0, 2.2f),
+                                        RectF(2.2f, 3.3f, 4.4f, 5.5f)));
+  EXPECT_RECTF_EQ(RectF(2.2f, 3.3f, 8.8f, 6.6f),
+                  UnionRectsEvenIfEmpty(RectF(2.2f, 3.3f, 4.4f, 5.5f),
+                                        RectF(8.8f, 9.9f, 2.2f, 0)));
 }
 
 TEST(RectFTest, CenterPoint) {
@@ -329,6 +439,44 @@ TEST(RectFTest, MaximumCoveredRect) {
             MaximumCoveredRect(RectF(10, 20, 40, 50), RectF(20, 30, 30, 40)));
   EXPECT_EQ(RectF(10, 20, 40, 50),
             MaximumCoveredRect(RectF(10, 20, 40, 50), RectF(20, 30, 40, 50)));
+}
+
+TEST(RectFTest, ClosestPoint) {
+  //         r.x()=50   r.right()=350
+  //            |          |
+  //        1   |    2     |  3
+  //      ------+----------+--------r.y()=100
+  //        4   |    5(in) |  6
+  //      ------+----------+--------r.bottom()=250
+  //        7   |    8     |  9
+
+  RectF r(50, 100, 300, 150);
+  // 1
+  EXPECT_EQ(PointF(50, 100), r.ClosestPoint(PointF(10, 20)));
+  // 2
+  EXPECT_EQ(PointF(110, 100), r.ClosestPoint(PointF(110, 80)));
+  // 3
+  EXPECT_EQ(PointF(350, 100), r.ClosestPoint(PointF(400, 80)));
+  // 4
+  EXPECT_EQ(PointF(50, 110), r.ClosestPoint(PointF(10, 110)));
+  // 5
+  EXPECT_EQ(PointF(50, 100), r.ClosestPoint(PointF(50, 100)));
+  EXPECT_EQ(PointF(150, 100), r.ClosestPoint(PointF(150, 100)));
+  EXPECT_EQ(PointF(350, 100), r.ClosestPoint(PointF(350, 100)));
+  EXPECT_EQ(PointF(350, 150), r.ClosestPoint(PointF(350, 150)));
+  EXPECT_EQ(PointF(350, 250), r.ClosestPoint(PointF(350, 250)));
+  EXPECT_EQ(PointF(150, 250), r.ClosestPoint(PointF(150, 250)));
+  EXPECT_EQ(PointF(50, 250), r.ClosestPoint(PointF(50, 250)));
+  EXPECT_EQ(PointF(50, 150), r.ClosestPoint(PointF(50, 150)));
+  EXPECT_EQ(PointF(150, 150), r.ClosestPoint(PointF(150, 150)));
+  // 6
+  EXPECT_EQ(PointF(350, 150), r.ClosestPoint(PointF(380, 150)));
+  // 7
+  EXPECT_EQ(PointF(50, 250), r.ClosestPoint(PointF(10, 280)));
+  // 8
+  EXPECT_EQ(PointF(180, 250), r.ClosestPoint(PointF(180, 300)));
+  // 9
+  EXPECT_EQ(PointF(350, 250), r.ClosestPoint(PointF(450, 450)));
 }
 
 }  // namespace gfx

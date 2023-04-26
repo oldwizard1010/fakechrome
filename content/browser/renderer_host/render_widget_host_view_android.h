@@ -19,7 +19,6 @@
 #include "base/containers/queue.h"
 #include "base/gtest_prod_util.h"
 #include "base/i18n/rtl.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/process/process.h"
 #include "base/time/time.h"
@@ -81,6 +80,10 @@ class CONTENT_EXPORT RenderWidgetHostViewAndroid
   RenderWidgetHostViewAndroid(RenderWidgetHostImpl* widget,
                               gfx::NativeView parent_native_view);
 
+  RenderWidgetHostViewAndroid(const RenderWidgetHostViewAndroid&) = delete;
+  RenderWidgetHostViewAndroid& operator=(const RenderWidgetHostViewAndroid&) =
+      delete;
+
   // Interface used to observe the destruction of a RenderWidgetHostViewAndroid.
   class DestructionObserver {
    public:
@@ -120,7 +123,6 @@ class CONTENT_EXPORT RenderWidgetHostViewAndroid
   gfx::NativeViewAccessible GetNativeViewAccessible() override;
   void Focus() override;
   bool HasFocus() override;
-  void Show() override;
   void Hide() override;
   bool IsShowing() override;
   gfx::Rect GetViewBounds() override;
@@ -140,6 +142,7 @@ class CONTENT_EXPORT RenderWidgetHostViewAndroid
   void FocusedNodeChanged(bool is_editable_node,
                           const gfx::Rect& node_bounds_in_screen) override;
   void RenderProcessGone() override;
+  void ShowWithVisibility(PageVisibilityState page_visibility) final;
   void Destroy() override;
   void UpdateTooltipUnderCursor(const std::u16string& tooltip_text) override;
   void UpdateTooltipFromKeyboard(const std::u16string& tooltip_text,
@@ -192,7 +195,7 @@ class CONTENT_EXPORT RenderWidgetHostViewAndroid
   WebContentsAccessibility* GetWebContentsAccessibility() override;
   viz::ScopedSurfaceIdAllocator DidUpdateVisualProperties(
       const cc::RenderFrameMetadata& metadata) override;
-  void GetScreenInfo(display::ScreenInfo* screen_info) override;
+  display::ScreenInfo GetScreenInfo() const override;
   std::vector<std::unique_ptr<ui::TouchEvent>> ExtractAndCancelActiveTouches()
       override;
   void TransferTouches(
@@ -390,20 +393,25 @@ class CONTENT_EXPORT RenderWidgetHostViewAndroid
   void SetNeedsBeginFrameForFlingProgress();
 
  protected:
+  ~RenderWidgetHostViewAndroid() override;
+
   // RenderWidgetHostViewBase:
   void UpdateBackgroundColor() override;
   bool HasFallbackSurface() const override;
   absl::optional<DisplayFeature> GetDisplayFeature() override;
   void SetDisplayFeatureForTesting(
       const DisplayFeature* display_feature) override;
+  void NotifyHostAndDelegateOnWasShown(
+      blink::mojom::RecordContentToVisibleTimeRequestPtr) final;
+  void RequestPresentationTimeFromHostOrDelegate(
+      blink::mojom::RecordContentToVisibleTimeRequestPtr) final;
+  void CancelPresentationTimeRequestForHostAndDelegate() final;
 
  private:
   friend class RenderWidgetHostViewAndroidTest;
   friend class RenderWidgetHostViewAndroidRotationTest;
   FRIEND_TEST_ALL_PREFIXES(SitePerProcessBrowserTest,
                            GestureManagerListensToChildFrames);
-
-  ~RenderWidgetHostViewAndroid() override;
 
   bool ShouldReportAllRootScrolls();
 
@@ -622,8 +630,6 @@ class CONTENT_EXPORT RenderWidgetHostViewAndroid
   bool is_surface_sync_throttling_ = false;
 
   base::WeakPtrFactory<RenderWidgetHostViewAndroid> weak_ptr_factory_{this};
-
-  DISALLOW_COPY_AND_ASSIGN(RenderWidgetHostViewAndroid);
 };
 
 }  // namespace content

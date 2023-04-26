@@ -19,7 +19,6 @@
 #include "base/mac/foundation_util.h"
 #include "base/mac/mac_util.h"
 #include "base/mac/scoped_objc_class_swizzler.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/run_loop.h"
 #include "base/scoped_multi_source_observation.h"
@@ -974,7 +973,11 @@ static base::mac::ScopedObjCClassSwizzler* g_swizzle_imk_input_session;
     _localPrefRegistrar.Add(
         prefs::kAllowFileSelectionDialogs,
         base::BindRepeating(
-            &chrome::BrowserCommandController::UpdateOpenFileState,
+            [](CommandUpdater* commandUpdater) {
+              bool enabled = g_browser_process->local_state()->GetBoolean(
+                  prefs::kAllowFileSelectionDialogs);
+              commandUpdater->UpdateCommandEnabled(IDC_OPEN_FILE, enabled);
+            },
             _menuState.get()));
   }
 

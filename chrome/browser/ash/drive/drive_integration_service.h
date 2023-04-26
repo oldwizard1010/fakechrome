@@ -12,7 +12,6 @@
 #include "ash/components/drivefs/drivefs_host.h"
 #include "base/callback.h"
 #include "base/feature_list.h"
-#include "base/macros.h"
 #include "base/memory/singleton.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
@@ -78,6 +77,9 @@ class DriveIntegrationServiceObserver : public base::CheckedObserver {
   // Triggered when mounting the filesystem has failed in a fashion that will
   // not be automatically retried.
   virtual void OnFileSystemMountFailed() {}
+
+  // Triggered when the `DriveIntegrationService` is being destroyed.
+  virtual void OnDriveIntegrationServiceDestroyed() {}
 };
 
 // DriveIntegrationService is used to integrate Drive to Chrome. This class
@@ -183,6 +185,9 @@ class DriveIntegrationService : public KeyedService,
   void LocateFilesByItemIds(
       const std::vector<std::string>& item_ids,
       drivefs::mojom::DriveFs::LocateFilesByItemIdsCallback callback);
+
+  // Returns the total and free space available in the user's Drive.
+  void GetQuotaUsage(drivefs::mojom::DriveFs::GetQuotaUsageCallback callback);
 
   void RestartDrive();
 

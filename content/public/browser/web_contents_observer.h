@@ -7,7 +7,6 @@
 
 #include <stdint.h>
 
-#include "base/macros.h"
 #include "base/process/kill.h"
 #include "base/process/process_handle.h"
 #include "base/threading/thread_restrictions.h"
@@ -95,6 +94,9 @@ struct Referrer;
 // from the WebContentsObserver API. http://crbug.com/173325
 class CONTENT_EXPORT WebContentsObserver {
  public:
+  WebContentsObserver(const WebContentsObserver&) = delete;
+  WebContentsObserver& operator=(const WebContentsObserver&) = delete;
+
   // Frames and Views ----------------------------------------------------------
 
   // Called when a RenderFrame for |render_frame_host| is created in the
@@ -225,7 +227,8 @@ class CONTENT_EXPORT WebContentsObserver {
   // RenderProcessHostObserver::RenderProcessExited(); for code that doesn't
   // otherwise need to be a WebContentsObserver, that API is probably a better
   // choice.
-  virtual void RenderProcessGone(base::TerminationStatus status) {}
+  virtual void PrimaryMainFrameRenderProcessGone(
+      base::TerminationStatus status) {}
 
   // This method is invoked when a WebContents swaps its visible RenderViewHost
   // with another one, possibly changing processes. The RenderViewHost that has
@@ -577,7 +580,7 @@ class CONTENT_EXPORT WebContentsObserver {
   // the renderer process. If the instance is created after the page is loaded,
   // it is recommended to call WebContents::GetFaviconURLs() to get the current
   // list as this callback will not be executed unless there is an update.
-  // |render_frame_host| is the main render frame host.
+  // `render_frame_host` is the main render frame host for the primary page.
   virtual void DidUpdateFaviconURL(
       RenderFrameHost* render_frame_host,
       const std::vector<blink::mojom::FaviconURLPtr>& candidates) {}
@@ -776,8 +779,6 @@ class CONTENT_EXPORT WebContentsObserver {
   void ResetWebContents();
 
   WebContents* web_contents_ = nullptr;
-
-  DISALLOW_COPY_AND_ASSIGN(WebContentsObserver);
 };
 
 }  // namespace content

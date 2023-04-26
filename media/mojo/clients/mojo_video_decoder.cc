@@ -12,7 +12,6 @@
 #include "base/feature_list.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/task/sequenced_task_runner.h"
@@ -372,11 +371,6 @@ int MojoVideoDecoder::GetMaxDecodeRequests() const {
   DVLOG(3) << __func__;
   DCHECK(initialized_);
   return max_decode_requests_;
-}
-
-bool MojoVideoDecoder::IsOptimizedForRTC() const {
-  DVLOG(3) << __func__;
-  return true;
 }
 
 void MojoVideoDecoder::InitAndBindRemoteDecoder(base::OnceClosure complete_cb) {

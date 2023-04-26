@@ -12,7 +12,6 @@
 
 #include "base/gtest_prod_util.h"
 #include "base/json/json_reader.h"
-#include "base/macros.h"
 #include "base/memory/singleton.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
@@ -45,6 +44,9 @@ class CONTENT_EXPORT TtsControllerImpl
  public:
   // Get the single instance of this class.
   static TtsControllerImpl* GetInstance();
+
+  TtsControllerImpl(const TtsControllerImpl&) = delete;
+  TtsControllerImpl& operator=(const TtsControllerImpl&) = delete;
 
   static void SkipAddNetworkChangeObserverForTests(bool enabled);
 
@@ -206,8 +208,6 @@ class CONTENT_EXPORT TtsControllerImpl
   // Skip |AddNetworkChangeObserver| call during the creation of tts_controller
   // for unittests as network change notifier wouldn't have been created.
   static bool skip_add_network_change_observer_for_tests_;
-
-  DISALLOW_COPY_AND_ASSIGN(TtsControllerImpl);
 };
 
 }  // namespace content

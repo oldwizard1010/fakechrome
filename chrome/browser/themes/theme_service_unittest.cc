@@ -4,15 +4,15 @@
 
 #include "chrome/browser/themes/theme_service.h"
 
+#include "base/containers/fixed_flat_map.h"
 #include "base/files/file_util.h"
-#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
+#include "base/strings/string_util.h"
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_features.h"
-#include "chrome/browser/chrome_color_mixers.h"
 #include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
@@ -23,6 +23,7 @@
 #include "chrome/browser/themes/theme_properties.h"
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
+#include "chrome/browser/ui/color/chrome_color_mixers.h"
 #include "chrome/common/buildflags.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_paths.h"
@@ -41,6 +42,7 @@
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/native_theme/test_native_theme.h"
+#include "ui/views/views_features.h"
 
 #if BUILDFLAG(ENABLE_SUPERVISED_USERS)
 #include "chrome/browser/supervised_user/supervised_user_service.h"
@@ -48,32 +50,6 @@
 #endif
 
 namespace {
-
-// Clang format mangles lists like the below badly.
-// clang-format off
-#define TESTED_COLOR_IDS \
-  OP(COLOR_OMNIBOX_BACKGROUND),                               \
-  OP(COLOR_OMNIBOX_BACKGROUND_HOVERED),                       \
-  OP(COLOR_OMNIBOX_BUBBLE_OUTLINE),                           \
-  OP(COLOR_OMNIBOX_BUBBLE_OUTLINE_EXPERIMENTAL_KEYWORD_MODE), \
-  OP(COLOR_OMNIBOX_SELECTED_KEYWORD),                         \
-  OP(COLOR_OMNIBOX_RESULTS_BG),                               \
-  OP(COLOR_OMNIBOX_RESULTS_BG_HOVERED),                       \
-  OP(COLOR_OMNIBOX_RESULTS_BG_SELECTED),                      \
-  OP(COLOR_OMNIBOX_RESULTS_ICON),                             \
-  OP(COLOR_OMNIBOX_RESULTS_ICON_SELECTED),                    \
-  OP(COLOR_OMNIBOX_RESULTS_TEXT_DIMMED),                      \
-  OP(COLOR_OMNIBOX_RESULTS_TEXT_DIMMED_SELECTED),             \
-  OP(COLOR_OMNIBOX_RESULTS_TEXT_SELECTED),                    \
-  OP(COLOR_OMNIBOX_RESULTS_URL),                              \
-  OP(COLOR_OMNIBOX_RESULTS_URL_SELECTED),                     \
-  OP(COLOR_OMNIBOX_SECURITY_CHIP_DANGEROUS),                  \
-  OP(COLOR_OMNIBOX_SECURITY_CHIP_DEFAULT),                    \
-  OP(COLOR_OMNIBOX_SECURITY_CHIP_SECURE),                     \
-  OP(COLOR_OMNIBOX_TEXT),                                     \
-  OP(COLOR_OMNIBOX_TEXT_DIMMED),                              \
-  OP(COLOR_TOOLBAR)
-// clang-format on
 
 enum class ContrastMode { kNonHighContrast, kHighContrast };
 
@@ -98,13 +74,19 @@ std::ostream& operator<<(std::ostream& os, PrintableSkColor printable_color) {
 }
 
 std::string ColorIdToString(int id) {
-#define OP(enum_name) \
-  { ThemeProperties::enum_name, #enum_name }
-  static constexpr const auto kMap =
-      base::MakeFixedFlatMap<int, const char*>({TESTED_COLOR_IDS});
-#undef OP
+#define E(color_id, theme_property_id, ...) \
+  {theme_property_id, #theme_property_id},
 
-  return kMap.find(id)->second;
+  static constexpr const auto kMap =
+      base::MakeFixedFlatMap<int, const char*>({CHROME_COLOR_IDS});
+
+#undef E
+  constexpr char kPrefix[] = "ThemeProperties::";
+
+  std::string id_str = kMap.find(id)->second;
+  if (base::StartsWith(id_str, kPrefix))
+    return id_str.substr(strlen(kPrefix));
+  return id_str;
 }
 
 std::pair<PrintableSkColor, PrintableSkColor> GetOriginalAndRedirected(
@@ -290,8 +272,16 @@ class IncognitoThemeServiceTest : public ThemeServiceTest,
   IncognitoThemeServiceTest() {
     bool flag_enabled = GetParam();
     if (flag_enabled) {
-      feature_list_.InitAndEnableFeature(
-          features::kIncognitoBrandConsistencyForDesktop);
+      feature_list_.InitWithFeatures(
+          /*enabled_features=*/{features::kIncognitoBrandConsistencyForDesktop,
+                                views::features::
+                                    kInheritNativeThemeFromParentWidget},
+          /*disabled_features=*/{});
+    } else {
+      feature_list_.InitWithFeatures(
+          /*enabled_features=*/{}, /*disabled_features=*/{
+              features::kIncognitoBrandConsistencyForDesktop,
+              views::features::kInheritNativeThemeFromParentWidget});
     }
   }
 };
@@ -359,7 +349,10 @@ class ThemeProviderRedirectedEquivalenceTest
   }
 };
 
-#define OP(enum_name) ThemeProperties::enum_name
+#define E(color_id, theme_property_id, ...) theme_property_id,
+static constexpr int kTestIdValues[] = {CHROME_COLOR_IDS};
+#undef E
+
 INSTANTIATE_TEST_SUITE_P(
     ,
     ThemeProviderRedirectedEquivalenceTest,
@@ -367,9 +360,8 @@ INSTANTIATE_TEST_SUITE_P(
                                          ui::NativeTheme::ColorScheme::kDark),
                        ::testing::Values(ContrastMode::kNonHighContrast,
                                          ContrastMode::kHighContrast),
-                       ::testing::Values(TESTED_COLOR_IDS)),
+                       ::testing::ValuesIn(kTestIdValues)),
     ThemeProviderRedirectedEquivalenceTest::ParamInfoToString);
-#undef OP
 
 // Installs then uninstalls a theme and makes sure that the ThemeService
 // reverts to the default theme after the uninstall.
@@ -936,8 +928,13 @@ TEST_F(ThemeServiceTest, PolicyThemeColorSet) {
   EXPECT_TRUE(registry_->GetInstalledExtension(scoper.extension_id()));
 }
 
-// TODO(crbug.com/1056953): Fix and enable.
-TEST_P(ThemeProviderRedirectedEquivalenceTest, DISABLED_GetColor) {
+// TODO(crbug.com/1056953): Enable on Mac.
+#if defined(OS_MAC)
+#define MAYBE_GetColor DISABLED_GetColor
+#else
+#define MAYBE_GetColor GetColor
+#endif
+TEST_P(ThemeProviderRedirectedEquivalenceTest, MAYBE_GetColor) {
   const ui::ThemeProvider& theme_provider =
       ThemeService::GetThemeProviderForProfile(profile());
   auto param_tuple = GetParam();

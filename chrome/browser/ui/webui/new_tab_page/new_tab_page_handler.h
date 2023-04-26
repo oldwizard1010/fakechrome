@@ -8,7 +8,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/time/time.h"
@@ -89,6 +88,8 @@ class NewTabPageHandler : public new_tab_page::mojom::PageHandler,
                           const GURL& image_url) override;
   void SetDailyRefreshCollectionId(const std::string& collection_id) override;
   void SetNoBackgroundImage() override;
+  void RevertBackgroundChanges() override;
+  void ConfirmBackgroundChanges() override;
   void GetBackgroundCollections(
       GetBackgroundCollectionsCallback callback) override;
   void GetBackgroundImages(const std::string& collection_id,

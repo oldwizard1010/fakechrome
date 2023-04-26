@@ -15,7 +15,6 @@
 #include "base/callback.h"
 #include "base/containers/flat_map.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/observer_list_types.h"
 #include "chrome/browser/ui/app_list/search/mixer.h"
 #include "chrome/browser/ui/app_list/search/ranking/launch_data.h"
@@ -84,7 +83,7 @@ class SearchController {
 
   virtual void OpenResult(ChromeSearchResult* result, int event_flags) = 0;
   virtual void InvokeResultAction(ChromeSearchResult* result,
-                                  int action_index) = 0;
+                                  ash::SearchResultActionType action) = 0;
 
   // Adds a new mixer group. See Mixer::AddGroup.
   virtual size_t AddGroup(size_t max_results) = 0;

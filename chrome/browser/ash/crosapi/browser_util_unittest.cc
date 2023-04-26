@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ash/crosapi/browser_util.h"
 
+#include "ash/components/settings/cros_settings_names.h"
 #include "ash/constants/ash_features.h"
 #include "base/containers/fixed_flat_map.h"
 #include "base/files/file_util.h"
@@ -24,7 +25,6 @@
 #include "chrome/test/base/testing_profile.h"
 #include "chromeos/crosapi/mojom/crosapi.mojom.h"
 #include "chromeos/crosapi/mojom/keystore_service.mojom.h"
-#include "chromeos/settings/cros_settings_names.h"
 #include "components/account_id/account_id.h"
 #include "components/policy/policy_constants.h"
 #include "components/user_manager/scoped_user_manager.h"
@@ -78,7 +78,7 @@ class ScopedLacrosLaunchSwitchCache {
 
 class BrowserUtilTest : public testing::Test {
  public:
-  BrowserUtilTest() : local_state_(TestingBrowserProcess::GetGlobal()) {}
+  BrowserUtilTest() = default;
   ~BrowserUtilTest() override = default;
 
   void SetUp() override {
@@ -105,8 +105,6 @@ class BrowserUtilTest : public testing::Test {
   ash::FakeChromeUserManager* fake_user_manager_ = nullptr;
   std::unique_ptr<user_manager::ScopedUserManager> scoped_user_manager_;
   TestingPrefServiceSimple pref_service_;
-
-  ScopedTestingLocalState local_state_;
 };
 
 class LacrosSupportBrowserUtilTest : public BrowserUtilTest {
@@ -131,6 +129,34 @@ TEST_F(LacrosSupportBrowserUtilTest, LacrosEnabledByFlag) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitAndEnableFeature(chromeos::features::kLacrosSupport);
   EXPECT_TRUE(browser_util::IsLacrosEnabled());
+}
+
+TEST_F(BrowserUtilTest, LacrosDisabledWithoutMigration) {
+  // This sets `g_browser_process->local_state()` which activates the check
+  // `IsProfileMigrationCompletedForUser()` inside `IsLacrosEnabled()`.
+  TestingBrowserProcess::GetGlobal()->SetLocalState(&pref_service_);
+  // Note that disabling lacros is only enabled for Googlers at the moment.
+  // TODO(crbug.com/1266669): Once profile migration is enabled for
+  // non-googlers, add a @test.com account instead.
+  AddRegularUser("user@google.com");
+  const user_manager::User* const user =
+      chromeos::ProfileHelper::Get()->GetUserByProfile(&testing_profile_);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(chromeos::features::kLacrosSupport);
+
+  // Lacros is now enabled for profile migration to happen.
+  EXPECT_TRUE(browser_util::IsLacrosEnabledForMigration(user));
+  // Since profile migration hasn't been marked as completed, this returns
+  // false.
+  EXPECT_FALSE(browser_util::IsLacrosEnabled());
+
+  browser_util::SetProfileMigrationCompletedForUser(&pref_service_,
+                                                    user->username_hash());
+
+  EXPECT_TRUE(browser_util::IsLacrosEnabled());
+
+  // Clean up Local State.
+  TestingBrowserProcess::GetGlobal()->SetLocalState(nullptr);
 }
 
 TEST_F(BrowserUtilTest, LacrosGoogleRollout) {
@@ -718,7 +744,7 @@ TEST_F(BrowserUtilTest, DeviceSettingsWithData) {
   base::RunLoop().RunUntilIdle();
   testing_profile_.ScopedCrosSettingsTestHelper()
       ->GetStubbedProvider()
-      ->SetBoolean(chromeos::kAttestationForContentProtectionEnabled, true);
+      ->SetBoolean(ash::kAttestationForContentProtectionEnabled, true);
 
   base::Value allowlist(base::Value::Type::LIST);
   base::Value ids(base::Value::Type::DICTIONARY);
@@ -727,7 +753,7 @@ TEST_F(BrowserUtilTest, DeviceSettingsWithData) {
   allowlist.Append(std::move(ids));
 
   testing_profile_.ScopedCrosSettingsTestHelper()->GetStubbedProvider()->Set(
-      chromeos::kUsbDetachableAllowlist, std::move(allowlist));
+      ash::kUsbDetachableAllowlist, std::move(allowlist));
 
   auto settings = browser_util::GetDeviceSettings();
   testing_profile_.ScopedCrosSettingsTestHelper()
@@ -746,6 +772,25 @@ TEST_F(BrowserUtilTest, DeviceSettingsWithData) {
       true);
   EXPECT_EQ(settings->usb_detachable_allow_list->usb_device_ids[0]->product_id,
             3);
+}
+
+TEST_F(BrowserUtilTest, IsProfileMigrationCompletedForUser) {
+  const std::string user_id_hash = "abcd";
+
+  // `IsLacrosDisabledAfterSkippedOrFailedMigration()` should return
+  // false by default.
+  EXPECT_FALSE(browser_util::IsProfileMigrationCompletedForUser(&pref_service_,
+                                                                user_id_hash));
+
+  browser_util::SetProfileMigrationCompletedForUser(&pref_service_,
+                                                    user_id_hash);
+  EXPECT_TRUE(browser_util::IsProfileMigrationCompletedForUser(&pref_service_,
+                                                               user_id_hash));
+
+  browser_util::ClearProfileMigrationCompletedForUser(&pref_service_,
+                                                      user_id_hash);
+  EXPECT_FALSE(browser_util::IsProfileMigrationCompletedForUser(&pref_service_,
+                                                                user_id_hash));
 }
 
 }  // namespace crosapi

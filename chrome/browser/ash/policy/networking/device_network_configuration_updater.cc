@@ -6,6 +6,8 @@
 
 #include <map>
 
+#include "ash/components/settings/cros_settings_names.h"
+#include "ash/components/settings/cros_settings_provider.h"
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
 #include "base/bind.h"
@@ -13,8 +15,6 @@
 #include "base/command_line.h"
 #include "base/feature_list.h"
 #include "chrome/browser/ash/policy/core/browser_policy_connector_ash.h"
-#include "chrome/browser/ash/policy/networking/network_roaming_state_migration_handler_impl.h"
-#include "chrome/browser/ash/policy/networking/roaming_configuration_migration_handler.h"
 #include "chrome/browser/ash/settings/cros_settings.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part.h"
@@ -23,8 +23,6 @@
 #include "chromeos/network/onc/onc_parsed_certificates.h"
 #include "chromeos/network/onc/onc_utils.h"
 #include "chromeos/network/onc/variable_expander.h"
-#include "chromeos/settings/cros_settings_names.h"
-#include "chromeos/settings/cros_settings_provider.h"
 #include "chromeos/system/statistics_provider.h"
 #include "chromeos/tpm/install_attributes.h"
 #include "components/policy/policy_constants.h"
@@ -79,22 +77,12 @@ DeviceNetworkConfigurationUpdater::DeviceNetworkConfigurationUpdater(
       device_asset_id_fetcher_(device_asset_id_fetcher) {
   DCHECK(network_device_handler_);
   data_roaming_setting_subscription_ = cros_settings->AddSettingsObserver(
-      chromeos::kSignedDataRoamingEnabled,
+      ash::kSignedDataRoamingEnabled,
       base::BindRepeating(
           &DeviceNetworkConfigurationUpdater::OnDataRoamingSettingChanged,
           base::Unretained(this)));
   if (device_asset_id_fetcher_.is_null())
     device_asset_id_fetcher_ = base::BindRepeating(&GetDeviceAssetID);
-  if (!base::FeatureList::IsEnabled(
-          ash::features::kCellularAllowPerNetworkRoaming)) {
-    network_roaming_state_migration_handler_ =
-        std::make_unique<NetworkRoamingStateMigrationHandlerImpl>();
-    if (!chromeos::InstallAttributes::Get()->IsEnterpriseManaged()) {
-      roaming_configuration_migration_handler_ =
-          std::make_unique<RoamingConfigurationMigrationHandler>(
-              network_roaming_state_migration_handler_.get());
-    }
-  }
 }
 
 void DeviceNetworkConfigurationUpdater::Init() {
@@ -151,28 +139,27 @@ void DeviceNetworkConfigurationUpdater::ApplyNetworkPolicy(
 }
 
 void DeviceNetworkConfigurationUpdater::OnDataRoamingSettingChanged() {
-  chromeos::CrosSettingsProvider::TrustedStatus trusted_status =
+  ash::CrosSettingsProvider::TrustedStatus trusted_status =
       cros_settings_->PrepareTrustedValues(base::BindOnce(
           &DeviceNetworkConfigurationUpdater::OnDataRoamingSettingChanged,
           weak_factory_.GetWeakPtr()));
 
-  if (trusted_status == chromeos::CrosSettingsProvider::TEMPORARILY_UNTRUSTED) {
+  if (trusted_status == ash::CrosSettingsProvider::TEMPORARILY_UNTRUSTED) {
     // Return, this function will be called again later by
     // PrepareTrustedValues.
     return;
   }
 
   bool data_roaming_setting = false;
-  if (trusted_status == chromeos::CrosSettingsProvider::TRUSTED) {
-    if (!cros_settings_->GetBoolean(chromeos::kSignedDataRoamingEnabled,
+  if (trusted_status == ash::CrosSettingsProvider::TRUSTED) {
+    if (!cros_settings_->GetBoolean(ash::kSignedDataRoamingEnabled,
                                     &data_roaming_setting)) {
       LOG(ERROR) << "Couldn't get device setting "
-                 << chromeos::kSignedDataRoamingEnabled;
+                 << ash::kSignedDataRoamingEnabled;
       data_roaming_setting = false;
     }
   } else {
-    DCHECK_EQ(trusted_status,
-              chromeos::CrosSettingsProvider::PERMANENTLY_UNTRUSTED);
+    DCHECK_EQ(trusted_status, ash::CrosSettingsProvider::PERMANENTLY_UNTRUSTED);
     // Roaming is disabled as we can't determine the correct setting.
   }
 

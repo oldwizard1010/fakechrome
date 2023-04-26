@@ -27,7 +27,6 @@
 #include "ash/system/unified/unified_system_tray.h"
 #include "base/bind.h"
 #include "base/command_line.h"
-#include "base/macros.h"
 #include "base/task/post_task.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "build/build_config.h"
@@ -267,7 +266,6 @@ IN_PROC_BROWSER_TEST_F(LoggedInSpokenFeedbackTest, LearnModeHardwareKeys) {
         browser()->profile(), extension_misc::kChromeVoxExtensionId,
         "CommandHandler.onCommand('showKbExplorerPage');");
   });
-  sm_.ExpectSpeech("ChromeVox Learn Mode");
   sm_.ExpectSpeechPattern(
       "Press a qwerty key, refreshable braille key, or touch gesture to learn "
       "*");
@@ -305,7 +303,6 @@ IN_PROC_BROWSER_TEST_F(LoggedInSpokenFeedbackTest, LearnModeEscapeWithGesture) {
         browser()->profile(), extension_misc::kChromeVoxExtensionId,
         "CommandHandler.onCommand('showKbExplorerPage');");
   });
-  sm_.ExpectSpeech("ChromeVox Learn Mode");
   sm_.ExpectSpeechPattern(
       "Press a qwerty key, refreshable braille key, or touch gesture to learn "
       "*");

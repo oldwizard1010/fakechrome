@@ -60,9 +60,13 @@
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/public/cpp/app_list/internal_app_id_constants.h"
+#include "ash/webui/camera_app_ui/url_constants.h"
+#include "ash/webui/connectivity_diagnostics/url_constants.h"
+#include "ash/webui/firmware_update_ui/url_constants.h"
 #include "ash/webui/help_app_ui/url_constants.h"
 #include "ash/webui/media_app_ui/url_constants.h"
 #include "ash/webui/os_feedback_ui/url_constants.h"
+#include "ash/webui/personalization_app/personalization_app_url_constants.h"
 #include "ash/webui/shimless_rma/url_constants.h"
 #include "ash/webui/shortcut_customization_ui/url_constants.h"
 #include "chrome/browser/ash/web_applications/camera_app/camera_system_web_app_info.h"
@@ -71,10 +75,13 @@
 #include "chrome/browser/ash/web_applications/diagnostics_system_web_app_info.h"
 #include "chrome/browser/ash/web_applications/eche_app_info.h"
 #include "chrome/browser/ash/web_applications/file_manager_web_app_info.h"
+#include "chrome/browser/ash/web_applications/firmware_update_system_web_app_info.h"
 #include "chrome/browser/ash/web_applications/help_app/help_app_web_app_info.h"
 #include "chrome/browser/ash/web_applications/media_app/media_web_app_info.h"
 #include "chrome/browser/ash/web_applications/os_feedback_system_web_app_info.h"
+#include "chrome/browser/ash/web_applications/os_flags_system_web_app_info.h"
 #include "chrome/browser/ash/web_applications/os_settings_web_app_info.h"
+#include "chrome/browser/ash/web_applications/os_url_handler_system_web_app_info.h"
 #include "chrome/browser/ash/web_applications/personalization_app/personalization_app_info.h"
 #include "chrome/browser/ash/web_applications/print_management_web_app_info.h"
 #include "chrome/browser/ash/web_applications/projector_system_web_app_info.h"
@@ -83,9 +90,6 @@
 #include "chrome/browser/ash/web_applications/shortcut_customization_system_web_app_info.h"
 #include "chrome/browser/ash/web_applications/terminal_system_web_app_info.h"
 #include "chrome/browser/web_applications/web_app_id_constants.h"
-#include "chromeos/components/camera_app_ui/url_constants.h"
-#include "chromeos/components/connectivity_diagnostics/url_constants.h"
-#include "chromeos/components/personalization_app/personalization_app_url_constants.h"
 #include "chromeos/strings/grit/chromeos_strings.h"  // nogncheck
 #if !defined(OFFICIAL_BUILD)
 #include "chrome/browser/ash/web_applications/demo_mode_web_app_info.h"
@@ -98,10 +102,6 @@
 namespace web_app {
 
 namespace {
-
-// Copy the origin trial name from runtime_enabled_features.json5, to avoid
-// complex dependencies.
-const char kFileHandlingOriginTrial[] = "FileHandling";
 
 // Number of attempts to install a given version & locale of the SWAs before
 // bailing out.
@@ -139,6 +139,11 @@ SystemAppDelegateMap CreateSystemWebApps(Profile* profile) {
       std::make_unique<FileManagerSystemAppDelegate>(profile));
   info_vec.emplace_back(
       std::make_unique<ProjectorSystemWebAppDelegate>(profile));
+  info_vec.emplace_back(
+      std::make_unique<OsUrlHandlerSystemWebAppDelegate>(profile));
+  info_vec.emplace_back(
+      std::make_unique<FirmwareUpdateSystemAppDelegate>(profile));
+  info_vec.emplace_back(std::make_unique<OsFlagsSystemWebAppDelegate>(profile));
 
 #if !defined(OFFICIAL_BUILD)
   info_vec.emplace_back(std::make_unique<TelemetrySystemAppDelegate>(profile));
@@ -410,13 +415,6 @@ const std::vector<std::string>* SystemWebAppManager::GetEnabledOriginTrials(
   return &iter_trials->second;
 }
 
-bool SystemWebAppManager::AppHasFileHandlingOriginTrial(
-    const SystemWebAppDelegate* system_app) {
-  const std::vector<std::string>* trials =
-      GetEnabledOriginTrials(system_app, system_app->GetInstallUrl());
-  return trials && base::Contains(*trials, kFileHandlingOriginTrial);
-}
-
 void SystemWebAppManager::OnReadyToCommitNavigation(
     const AppId& app_id,
     content::NavigationHandle* navigation_handle) {
@@ -467,7 +465,7 @@ absl::optional<SystemAppType> SystemWebAppManager::GetCapturingSystemAppForURL(
     replacements.ClearQuery();
     replacements.ClearRef();
     if (url.ReplaceComponents(replacements).spec() !=
-        chromeos::kChromeUICameraAppMainURL)
+        ash::kChromeUICameraAppMainURL)
       return absl::nullopt;
   }
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
@@ -586,13 +584,10 @@ void SystemWebAppManager::OnAppsSynchronized(
     if (!app_id)
       continue;
 
-    if (AppHasFileHandlingOriginTrial(it.second.get())) {
-      os_integration_manager_->ForceEnableFileHandlingOriginTrial(
-          app_id.value());
-    } else {
-      os_integration_manager_->DisableForceEnabledFileHandlingOriginTrial(
-          app_id.value());
-    }
+    InstallOsHooksOptions options;
+    options.os_hooks[OsHookType::kFileHandlers] = true;
+    os_integration_manager_->InstallOsHooks(*app_id, base::DoNothing(),
+                                            /*web_app_info=*/nullptr, options);
   }
 
   const base::TimeDelta install_duration =

@@ -13,7 +13,6 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
@@ -148,7 +147,7 @@ TEST_F(ExternalCacheImplTest, Basic) {
   ExternalCacheImpl external_cache(
       cache_dir, url_loader_factory(),
       base::ThreadPool::CreateSequencedTaskRunner({base::MayBlock()}), this,
-      true, false);
+      true, false, false);
 
   std::unique_ptr<base::DictionaryValue> prefs(new base::DictionaryValue);
   prefs->SetKey(kTestExtensionId1, CreateEntryWithUpdateUrl(true));
@@ -287,7 +286,7 @@ TEST_F(ExternalCacheImplTest, PreserveExternalCrx) {
   ExternalCacheImpl external_cache(
       cache_dir, url_loader_factory(),
       base::ThreadPool::CreateSequencedTaskRunner({base::MayBlock()}), this,
-      true, false);
+      true, false, false);
 
   std::unique_ptr<base::DictionaryValue> prefs(new base::DictionaryValue);
   prefs->SetKey(kTestExtensionId1, CreateEntryWithExternalCrx());

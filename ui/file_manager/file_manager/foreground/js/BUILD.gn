@@ -196,6 +196,7 @@ js_library("banner_controller") {
   deps = [
     ":constants",
     ":directory_model",
+    "ui/banners:drive_low_space_banner",
     "ui/banners:drive_welcome_banner",
     "ui/banners:holding_space_welcome_banner",
     "ui/banners:local_disk_low_space_banner",
@@ -738,6 +739,7 @@ js_library("file_transfer_controller") {
     "//ui/file_manager/file_manager/externs:volume_manager",
     "//ui/file_manager/file_manager/externs/background:file_operation_manager",
     "//ui/file_manager/file_manager/externs/background:progress_center",
+    "//ui/file_manager/file_manager/foreground/elements:files_toast",
     "//ui/webui/resources/js:assert.m",
     "//ui/webui/resources/js:util.m",
     "//ui/webui/resources/js/cr/ui:command.m",
@@ -770,6 +772,7 @@ js_unittest("file_transfer_controller_unittest.m") {
     "//ui/file_manager/file_manager/externs/background:file_operation_manager",
     "//ui/file_manager/file_manager/externs/background:import_history",
     "//ui/file_manager/file_manager/externs/background:progress_center",
+    "//ui/file_manager/file_manager/foreground/elements:files_toast",
     "//ui/webui/resources/js:util.m",
     "//ui/webui/resources/js/cr:ui.m",
     "//ui/webui/resources/js/cr/ui:command.m",
@@ -815,6 +818,7 @@ js_library("folder_shortcuts_data_model") {
     "//ui/file_manager/file_manager/common/js:metrics",
     "//ui/file_manager/file_manager/common/js:util",
     "//ui/file_manager/file_manager/common/js:volume_manager_types",
+    "//ui/file_manager/file_manager/common/js:xfm",
     "//ui/webui/resources/js/cr:event_target.m",
   ]
 }

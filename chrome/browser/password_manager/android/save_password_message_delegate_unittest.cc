@@ -5,7 +5,6 @@
 #include "chrome/browser/password_manager/android/save_password_message_delegate.h"
 
 #include "base/android/jni_android.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/utf_string_conversions.h"
@@ -328,7 +327,7 @@ TEST_F(SavePasswordMessageDelegateTest, MessagePropertyValues_SavePassword) {
   EXPECT_EQ(
       ResourceMapper::MapToJavaDrawableId(IDR_ANDROID_INFOBAR_SAVE_PASSWORD),
       GetMessageWrapper()->GetIconResourceId());
-  EXPECT_EQ(ResourceMapper::MapToJavaDrawableId(IDR_ANDROID_AUTOFILL_SETTINGS),
+  EXPECT_EQ(ResourceMapper::MapToJavaDrawableId(IDR_ANDROID_MESSAGE_SETTINGS),
             GetMessageWrapper()->GetSecondaryIconResourceId());
 
   DismissMessage(messages::DismissReason::UNKNOWN);

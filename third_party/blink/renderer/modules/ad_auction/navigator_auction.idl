@@ -20,11 +20,14 @@
   [CallWith=ScriptState, Measure, RaisesException]
   void leaveAdInterestGroup(AuctionAdInterestGroup group);
 
-  [CallWith=ScriptState, Measure]
+  [CallWith=ScriptState, Measure, RaisesException]
   void updateAdInterestGroups();
 
   [RuntimeEnabled=Fledge, CallWith=ScriptState, Measure, RaisesException]
   Promise<USVString?> runAdAuction(AuctionAdConfig config);
+
+  [RuntimeEnabled=Fledge, CallWith=ScriptState, Measure, RaisesException]
+  sequence<USVString> adAuctionComponents([Clamp] unsigned short numComponents);
 
   // https://crbug.com/1249186
   // ToDo: Fully define params and types.

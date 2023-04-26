@@ -10,13 +10,13 @@
 
 #include "base/callback_forward.h"
 #include "base/files/file_path.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/enterprise/browser/reporting/reporting_delegate_factory.h"
+#include "components/policy/core/common/cloud/chrome_browser_cloud_management_metrics.h"
 #include "components/policy/core/common/cloud/cloud_policy_client.h"
 #include "components/policy/core/common/policy_service.h"
 
@@ -171,6 +171,9 @@ class ChromeBrowserCloudManagementController
 
     // Called when the cloud reporting is launched.
     virtual void OnCloudReportingLaunched() {}
+
+    // Called when enrollment result is recorded.
+    virtual void OnEnrollmentResultRecorded() {}
   };
 
   // Directory name under the user-data-dir where the policy data is stored.
@@ -263,6 +266,11 @@ class ChromeBrowserCloudManagementController
       ConfigurationPolicyProvider* platform_provider,
       base::OnceCallback<
           void(std::unique_ptr<MachineLevelUserCloudPolicyManager>)> callback);
+
+  // Logs enrollment result to histogram
+  // `Enterprise.MachineLevelUserCloudPolicyEnrollment.Result`.
+  void RecordEnrollmentResult(
+      ChromeBrowserCloudManagementEnrollmentResult result);
 
   base::ObserverList<Observer, true>::Unchecked observers_;
 

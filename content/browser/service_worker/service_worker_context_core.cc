@@ -14,7 +14,6 @@
 #include "base/callback_helpers.h"
 #include "base/files/file_path.h"
 #include "base/location.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/string_util.h"
 #include "base/task/single_thread_task_runner.h"
@@ -171,6 +170,10 @@ class ClearAllServiceWorkersHelper
     DCHECK_CURRENTLY_ON(BrowserThread::UI);
   }
 
+  ClearAllServiceWorkersHelper(const ClearAllServiceWorkersHelper&) = delete;
+  ClearAllServiceWorkersHelper& operator=(const ClearAllServiceWorkersHelper&) =
+      delete;
+
   void OnResult(blink::ServiceWorkerStatusCode) {
     DCHECK_CURRENTLY_ON(BrowserThread::UI);
     // We do nothing in this method. We use this class to wait for all callbacks
@@ -210,7 +213,6 @@ class ClearAllServiceWorkersHelper
   }
 
   base::OnceClosure callback_;
-  DISALLOW_COPY_AND_ASSIGN(ClearAllServiceWorkersHelper);
 };
 
 }  // namespace

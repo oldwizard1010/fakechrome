@@ -62,6 +62,7 @@
 #include "third_party/blink/renderer/core/editing/markers/document_marker_controller.h"
 #include "third_party/blink/renderer/core/events/error_event.h"
 #include "third_party/blink/renderer/core/exported/web_plugin_container_impl.h"
+#include "third_party/blink/renderer/core/fragment_directive/text_fragment_handler.h"
 #include "third_party/blink/renderer/core/frame/browser_controls.h"
 #include "third_party/blink/renderer/core/frame/find_in_page.h"
 #include "third_party/blink/renderer/core/frame/frame_overlay.h"
@@ -97,6 +98,7 @@
 #include "third_party/blink/renderer/core/intersection_observer/intersection_observer_controller.h"
 #include "third_party/blink/renderer/core/layout/adjust_for_absolute_zoom.h"
 #include "third_party/blink/renderer/core/layout/geometry/transform_state.h"
+#include "third_party/blink/renderer/core/layout/geometry/writing_mode_converter.h"
 #include "third_party/blink/renderer/core/layout/layout_counter.h"
 #include "third_party/blink/renderer/core/layout/layout_embedded_content.h"
 #include "third_party/blink/renderer/core/layout/layout_embedded_object.h"
@@ -238,7 +240,7 @@ LocalFrameView::LocalFrameView(LocalFrame& frame)
 }
 
 LocalFrameView::LocalFrameView(LocalFrame& frame, const IntSize& initial_size)
-    : LocalFrameView(frame, IntRect(IntPoint(), initial_size)) {
+    : LocalFrameView(frame, IntRect(gfx::Point(), initial_size)) {
   SetLayoutSizeInternal(initial_size);
   Show();
 }
@@ -1820,8 +1822,10 @@ void LocalFrameView::DismissFragmentAnchor() {
   if (!fragment_anchor_)
     return;
 
-  if (fragment_anchor_->Dismiss())
+  if (fragment_anchor_->Dismiss()) {
+    TextFragmentHandler::RemoveSelectorsFromUrl(frame_);
     fragment_anchor_ = nullptr;
+  }
 }
 
 bool LocalFrameView::UpdatePlugins() {
@@ -2045,6 +2049,7 @@ Color LocalFrameView::DocumentBackgroundColor() {
 }
 
 void LocalFrameView::WillBeRemovedFromFrame() {
+  mobile_friendliness_checker_->WillBeRemovedFromFrame();
   if (paint_artifact_compositor_)
     paint_artifact_compositor_->WillBeRemovedFromFrame();
 
@@ -2496,6 +2501,14 @@ void LocalFrameView::UpdateLifecyclePhasesInternal(
     if (needs_to_repeat_lifecycle)
       continue;
 
+    // DocumentTransition mirrors post layout transform for shared elements to
+    // UA created elements. If the transform for a shared element was updated,
+    // the style for UA created elements will be dirtied during the notification
+    // below.
+    needs_to_repeat_lifecycle = RunDocumentTransitionSteps(target_state);
+    if (needs_to_repeat_lifecycle)
+      continue;
+
     needs_to_repeat_lifecycle = RunPostLayoutIntersectionObserverSteps();
     if (!needs_to_repeat_lifecycle)
       break;
@@ -2535,6 +2548,29 @@ bool LocalFrameView::RunScrollTimelineSteps() {
                               DocumentLifecycle::kCompositingAssignmentsClean);
       });
   return re_run_lifecycles;
+}
+
+bool LocalFrameView::RunDocumentTransitionSteps(
+    DocumentLifecycle::LifecycleState target_state) {
+  DCHECK(frame_ && frame_->GetDocument());
+
+  // This step must be done after layout since it requires the element's
+  // transform computed during layout. But before paint since it can dirty style
+  // and trigger another style/layout update.
+  if (target_state != DocumentLifecycle::kPaintClean)
+    return false;
+
+  auto* document_transition_supplement =
+      DocumentTransitionSupplement::FromIfExists(*frame_->GetDocument());
+  if (!document_transition_supplement)
+    return false;
+
+  // Update the transforms for elements created for the transition to the
+  // transform on the corresponding shared element. Since this can change
+  // styles on the transition elements, it can trigger another lifecycle
+  // update.
+  document_transition_supplement->GetTransition()->UpdateTransforms();
+  return Lifecycle().GetState() < DocumentLifecycle::kPrePaintClean;
 }
 
 bool LocalFrameView::RunResizeObserverSteps(
@@ -2747,7 +2783,6 @@ bool LocalFrameView::AnyFrameIsPrintingOrPaintingPreview() {
 }
 
 void LocalFrameView::RunPaintLifecyclePhase(PaintBenchmarkMode benchmark_mode) {
-  ScriptForbiddenScope forbid_script;
   DCHECK(LocalFrameTreeAllowsThrottling());
   TRACE_EVENT0("blink,benchmark", "LocalFrameView::RunPaintLifecyclePhase");
   // While printing or capturing a paint preview of a document, the paint walk
@@ -2783,9 +2818,15 @@ void LocalFrameView::RunPaintLifecyclePhase(PaintBenchmarkMode benchmark_mode) {
             area->UpdateCompositorScrollAnimations();
         }
         Document& document = frame_view.GetLayoutView()->GetDocument();
-        document.GetDocumentAnimations().UpdateAnimations(
-            DocumentLifecycle::kPaintClean, paint_artifact_compositor_.get(),
-            needed_update);
+        {
+          // Updating animations can notify ready promises which could mutate
+          // the DOM. We should delay these until we have finished the lifecycle
+          // update. https://crbug.com/1196781
+          ScriptForbiddenScope forbid_script;
+          document.GetDocumentAnimations().UpdateAnimations(
+              DocumentLifecycle::kPaintClean, paint_artifact_compositor_.get(),
+              needed_update);
+        }
         total_animations_count +=
             document.GetDocumentAnimations().GetAnimationsCount();
       });
@@ -2816,6 +2857,11 @@ bool LocalFrameView::RunAccessibilityLifecyclePhase(
     DocumentLifecycle::LifecycleState target_state) {
   TRACE_EVENT0("blink,benchmark",
                "LocalFrameView::RunAccessibilityLifecyclePhase");
+
+  // Reduce redundant ancestor chain walking for display lock computations.
+  auto display_lock_memoization_scope =
+      DisplayLockUtilities::CreateLockCheckMemoizationScope();
+
   ForAllNonThrottledLocalFrameViews([](LocalFrameView& frame_view) {
     if (AXObjectCache* cache = frame_view.ExistingAXObjectCache()) {
       frame_view.Lifecycle().AdvanceTo(DocumentLifecycle::kInAccessibility);
@@ -2943,18 +2989,12 @@ bool LocalFrameView::PaintTree(PaintBenchmarkMode benchmark_mode,
         visual_viewport_or_overlay_needs_repaint_) {
       GraphicsContext graphics_context(*paint_controller_);
 
-      bool painted_full_screen_overlay = false;
-      if (frame_->IsMainFrame()) {
-        PaintLayer* full_screen_layer = GetFullScreenOverlayLayer();
-        if (full_screen_layer) {
-          PaintLayerPainter(*full_screen_layer)
-              .Paint(graphics_context, CullRect::Infinite(),
-                     kGlobalPaintNormalPhase, 0);
-          painted_full_screen_overlay = true;
-        }
-      }
-
-      if (!painted_full_screen_overlay) {
+      // Draw the overlay layer (video or WebXR DOM overlay) if present.
+      if (PaintLayer* full_screen_layer = GetFullScreenOverlayLayer()) {
+        PaintLayerPainter(*full_screen_layer)
+            .Paint(graphics_context, CullRect::Infinite(),
+                   kGlobalPaintNormalPhase, 0);
+      } else {
         PaintInternal(graphics_context, kGlobalPaintNormalPhase,
                       CullRect::Infinite());
 
@@ -3052,9 +3092,13 @@ bool LocalFrameView::PaintTree(PaintBenchmarkMode benchmark_mode,
   return repainted;
 }
 
-const cc::Layer* LocalFrameView::RootCcLayer() const {
+cc::Layer* LocalFrameView::RootCcLayer() {
   return paint_artifact_compositor_ ? paint_artifact_compositor_->RootLayer()
                                     : nullptr;
+}
+
+const cc::Layer* LocalFrameView::RootCcLayer() const {
+  return const_cast<LocalFrameView*>(this)->RootCcLayer();
 }
 
 void LocalFrameView::CreatePaintTimelineEvents() {
@@ -3160,7 +3204,6 @@ void LocalFrameView::PushPaintArtifactToCompositor(bool repainted) {
       std::move(document_transition_requests));
 
   CreatePaintTimelineEvents();
-  probe::LayerTreePainted(&GetFrame());
 }
 
 void LocalFrameView::AppendDocumentTransitionRequests(
@@ -3438,31 +3481,27 @@ void LocalFrameView::ForceLayoutForPagination(
       frame_->GetDocument()->UpdateStyleAndLayout(
           DocumentUpdateReason::kPrinting);
 
-      PhysicalRect updated_document_rect(layout_view->DocumentRect());
-      LayoutUnit doc_logical_height = horizontal_writing_mode
-                                          ? updated_document_rect.Height()
-                                          : updated_document_rect.Width();
-      LayoutUnit doc_logical_top = horizontal_writing_mode
-                                       ? updated_document_rect.Y()
-                                       : updated_document_rect.X();
-      LayoutUnit doc_logical_right = horizontal_writing_mode
-                                         ? updated_document_rect.Right()
-                                         : updated_document_rect.Bottom();
+      WritingModeConverter converter(
+          layout_view->StyleRef().GetWritingDirection(),
+          PhysicalSize(layout_view->Size()));
+      LogicalRect logical_rect =
+          converter.ToLogical(layout_view->DocumentRect());
       LayoutUnit clipped_logical_left;
       if (!layout_view->StyleRef().IsLeftToRightDirection()) {
         clipped_logical_left =
-            LayoutUnit(doc_logical_right - page_logical_width);
+            LayoutUnit(logical_rect.InlineEndOffset() - page_logical_width);
       }
-      LayoutRect overflow(clipped_logical_left, doc_logical_top,
-                          LayoutUnit(page_logical_width), doc_logical_height);
+      logical_rect.offset.inline_offset = clipped_logical_left;
+      logical_rect.size.inline_size = LayoutUnit(page_logical_width);
 
-      if (!horizontal_writing_mode)
-        overflow = overflow.TransposedRect();
       AdjustViewSize();
       UpdateStyleAndLayout();
       // This is how we clip in case we overflow again.
       layout_view->ClearLayoutOverflow();
-      layout_view->AddLayoutOverflow(overflow);
+      layout_view->AddLayoutOverflow(
+          converter.ToPhysical(logical_rect)
+              .ToLayoutFlippedRect(layout_view->StyleRef(),
+                                   PhysicalSize(layout_view->Size())));
       return;
     }
   }
@@ -3474,14 +3513,14 @@ void LocalFrameView::ForceLayoutForPagination(
 }
 
 IntRect LocalFrameView::RootFrameToDocument(const IntRect& rect_in_root_frame) {
-  IntPoint offset = RootFrameToDocument(rect_in_root_frame.origin());
+  gfx::Point offset = RootFrameToDocument(rect_in_root_frame.origin());
   IntRect local_rect = rect_in_root_frame;
   local_rect.set_origin(offset);
   return local_rect;
 }
 
-IntPoint LocalFrameView::RootFrameToDocument(
-    const IntPoint& point_in_root_frame) {
+gfx::Point LocalFrameView::RootFrameToDocument(
+    const gfx::Point& point_in_root_frame) {
   return FlooredIntPoint(RootFrameToDocument(FloatPoint(point_in_root_frame)));
 }
 
@@ -3510,9 +3549,9 @@ DoublePoint LocalFrameView::DocumentToFrame(
   return point_in_document - layout_viewport->GetScrollOffset();
 }
 
-IntPoint LocalFrameView::DocumentToFrame(
-    const IntPoint& point_in_document) const {
-  return FlooredIntPoint(DocumentToFrame(DoublePoint(point_in_document)));
+gfx::Point LocalFrameView::DocumentToFrame(
+    const gfx::Point& point_in_document) const {
+  return ToFlooredPoint(DocumentToFrame(DoublePoint(point_in_document)));
 }
 
 FloatPoint LocalFrameView::DocumentToFrame(
@@ -3536,8 +3575,9 @@ PhysicalRect LocalFrameView::DocumentToFrame(
                       rect_in_document.size);
 }
 
-IntPoint LocalFrameView::FrameToDocument(const IntPoint& point_in_frame) const {
-  return FlooredIntPoint(FrameToDocument(PhysicalOffset(point_in_frame)));
+gfx::Point LocalFrameView::FrameToDocument(
+    const gfx::Point& point_in_frame) const {
+  return ToFlooredPoint(FrameToDocument(PhysicalOffset(point_in_frame)));
 }
 
 PhysicalOffset LocalFrameView::FrameToDocument(
@@ -3583,7 +3623,7 @@ IntRect LocalFrameView::ConvertFromContainingEmbeddedContentView(
     const IntRect& parent_rect) const {
   if (ParentFrameView()) {
     IntRect local_rect = parent_rect;
-    local_rect.MoveBy(-Location());
+    local_rect.Offset(-ToIntSize(Location()));
     return local_rect;
   }
   return parent_rect;
@@ -3659,9 +3699,9 @@ DoublePoint LocalFrameView::ConvertFromContainingEmbeddedContentView(
   return parent_point;
 }
 
-IntPoint LocalFrameView::ConvertToContainingEmbeddedContentView(
-    const IntPoint& local_point) const {
-  return RoundedIntPoint(
+gfx::Point LocalFrameView::ConvertToContainingEmbeddedContentView(
+    const gfx::Point& local_point) const {
+  return ToRoundedPoint(
       ConvertToContainingEmbeddedContentView(PhysicalOffset(local_point)));
 }
 
@@ -3967,9 +4007,9 @@ IntRect LocalFrameView::ViewportToFrame(const IntRect& rect_in_viewport) const {
   return ConvertFromRootFrame(rect_in_root_frame);
 }
 
-IntPoint LocalFrameView::ViewportToFrame(
-    const IntPoint& point_in_viewport) const {
-  return RoundedIntPoint(ViewportToFrame(PhysicalOffset(point_in_viewport)));
+gfx::Point LocalFrameView::ViewportToFrame(
+    const gfx::Point& point_in_viewport) const {
+  return ToRoundedPoint(ViewportToFrame(PhysicalOffset(point_in_viewport)));
 }
 
 IntRect LocalFrameView::FrameToViewport(const IntRect& rect_in_frame) const {
@@ -3978,8 +4018,9 @@ IntRect LocalFrameView::FrameToViewport(const IntRect& rect_in_frame) const {
       rect_in_root_frame);
 }
 
-IntPoint LocalFrameView::FrameToViewport(const IntPoint& point_in_frame) const {
-  IntPoint point_in_root_frame = ConvertToRootFrame(point_in_frame);
+gfx::Point LocalFrameView::FrameToViewport(
+    const gfx::Point& point_in_frame) const {
+  gfx::Point point_in_root_frame = ConvertToRootFrame(point_in_frame);
   return frame_->GetPage()->GetVisualViewport().RootFrameToViewport(
       point_in_root_frame);
 }
@@ -3990,9 +4031,9 @@ IntRect LocalFrameView::FrameToScreen(const IntRect& rect) const {
   return IntRect();
 }
 
-IntPoint LocalFrameView::SoonToBeRemovedUnscaledViewportToContents(
-    const IntPoint& point_in_viewport) const {
-  IntPoint point_in_root_frame = FlooredIntPoint(
+gfx::Point LocalFrameView::SoonToBeRemovedUnscaledViewportToContents(
+    const gfx::Point& point_in_viewport) const {
+  gfx::Point point_in_root_frame = FlooredIntPoint(
       frame_->GetPage()->GetVisualViewport().ViewportCSSPixelsToRootFrame(
           FloatPoint(point_in_viewport)));
   return ConvertFromRootFrame(point_in_root_frame);
@@ -4193,8 +4234,9 @@ IntRect LocalFrameView::ConvertToRootFrame(const IntRect& local_rect) const {
   return local_rect;
 }
 
-IntPoint LocalFrameView::ConvertToRootFrame(const IntPoint& local_point) const {
-  return RoundedIntPoint(ConvertToRootFrame(PhysicalOffset(local_point)));
+gfx::Point LocalFrameView::ConvertToRootFrame(
+    const gfx::Point& local_point) const {
+  return ToRoundedPoint(ConvertToRootFrame(PhysicalOffset(local_point)));
 }
 
 PhysicalOffset LocalFrameView::ConvertToRootFrame(
@@ -4237,9 +4279,9 @@ IntRect LocalFrameView::ConvertFromRootFrame(
   return rect_in_root_frame;
 }
 
-IntPoint LocalFrameView::ConvertFromRootFrame(
-    const IntPoint& point_in_root_frame) const {
-  return RoundedIntPoint(
+gfx::Point LocalFrameView::ConvertFromRootFrame(
+    const gfx::Point& point_in_root_frame) const {
+  return ToRoundedPoint(
       ConvertFromRootFrame(PhysicalOffset(point_in_root_frame)));
 }
 
@@ -4999,7 +5041,8 @@ PaintLayer* LocalFrameView::GetFullScreenOverlayLayer() const {
     return GetXrOverlayLayer(*doc);
 
   // Fullscreen overlay video layers are only used for the main frame.
-  DCHECK(frame_->IsMainFrame());
+  if (!frame_->IsMainFrame())
+    return nullptr;
   return GetFullScreenOverlayVideoLayer(*doc);
 }
 

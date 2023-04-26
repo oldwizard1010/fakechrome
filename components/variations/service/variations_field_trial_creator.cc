@@ -41,6 +41,7 @@
 #include "components/variations/variations_seed_processor.h"
 #include "components/variations/variations_switches.h"
 #include "components/version_info/channel.h"
+#include "components/version_info/version_info.h"
 #include "ui/base/device_form_factor.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
@@ -173,7 +174,7 @@ std::string VariationsFieldTrialCreator::GetLatestCountry() const {
              : local_state()->GetString(prefs::kVariationsCountry);
 }
 
-bool VariationsFieldTrialCreator::SetupFieldTrials(
+bool VariationsFieldTrialCreator::SetUpFieldTrials(
     const std::vector<std::string>& variation_ids,
     const std::vector<base::FeatureList::FeatureOverrideInfo>& extra_overrides,
     std::unique_ptr<const base::FieldTrial::EntropyProvider>
@@ -189,9 +190,6 @@ bool VariationsFieldTrialCreator::SetupFieldTrials(
   DCHECK(platform_field_trials);
   DCHECK(safe_seed_manager);
 
-#if !defined(OS_ANDROID) && !defined(OS_IOS)
-  // TODO(crbug/1248239): Enable Extended Variations Safe Mode on Clank.
-  // TODO(crbug/1255305): Re-enable it on iOS.
   if (extend_variations_safe_mode &&
       !metrics_state_manager->is_background_session()) {
     // If the session is expected to be a background session, then do not extend
@@ -201,7 +199,6 @@ bool VariationsFieldTrialCreator::SetupFieldTrials(
     // crashes.
     MaybeExtendVariationsSafeMode(metrics_state_manager);
   }
-#endif  // !defined(OS_ANDROID) && !defined(OS_IOS)
 
   // TODO(crbug/1257204): Some FieldTrial-setup-related code is here and some is
   // in MetricsStateManager::InstantiateFieldTrialList(). It's not ideal that
@@ -269,7 +266,7 @@ bool VariationsFieldTrialCreator::SetupFieldTrials(
                                      feature_list.get(), safe_seed_manager);
   }
 
-  platform_field_trials->SetupFeatureControllingFieldTrials(
+  platform_field_trials->SetUpFeatureControllingFieldTrials(
       used_seed, low_entropy_provider.get(), feature_list.get());
 
   base::FeatureList::SetInstance(std::move(feature_list));
@@ -283,7 +280,7 @@ bool VariationsFieldTrialCreator::SetupFieldTrials(
   }
 
   // This must be called after |local_state_| is initialized.
-  platform_field_trials->SetupFieldTrials();
+  platform_field_trials->SetUpFieldTrials();
 
   return used_seed;
 }
@@ -447,7 +444,6 @@ bool VariationsFieldTrialCreator::IsOverrideResourceMapEmpty() {
   return overridden_strings_map_.empty();
 }
 
-#if !defined(OS_ANDROID) && !defined(OS_IOS)
 void VariationsFieldTrialCreator::MaybeExtendVariationsSafeMode(
     metrics::MetricsStateManager* metrics_state_manager) {
   const std::string group_name =
@@ -468,7 +464,6 @@ void VariationsFieldTrialCreator::MaybeExtendVariationsSafeMode(
       /*has_session_shutdown_cleanly=*/false,
       /*write_synchronously=*/true);
 }
-#endif  // !defined(OS_ANDROID) && !defined(OS_IOS)
 
 bool VariationsFieldTrialCreator::HasSeedExpired(bool is_safe_seed) {
   const base::Time fetch_time = is_safe_seed
@@ -500,6 +495,21 @@ bool VariationsFieldTrialCreator::HasSeedExpired(bool is_safe_seed) {
   return has_seed_expired;
 }
 
+bool VariationsFieldTrialCreator::IsSeedForFutureMilestone(bool is_safe_seed) {
+  const std::string milestone_pref = is_safe_seed
+                                         ? prefs::kVariationsSafeSeedMilestone
+                                         : prefs::kVariationsSeedMilestone;
+
+  // The regular and safe seed milestone prefs were added in M97, so the prefs
+  // are not populated for seeds stored before then.
+  int seed_milestone = local_state()->GetInteger(milestone_pref);
+  if (!seed_milestone)
+    return false;
+
+  int client_milestone = version_info::GetMajorVersionNumberAsInt();
+  return seed_milestone > client_milestone;
+}
+
 bool VariationsFieldTrialCreator::CreateTrialsFromSeed(
     const base::FieldTrial::EntropyProvider* low_entropy_provider,
     base::FeatureList* feature_list,
@@ -529,8 +539,15 @@ bool VariationsFieldTrialCreator::CreateTrialsFromSeed(
     LoadSeedResult result =
         GetSeedStore()->LoadSafeSeed(&seed, client_filterable_state.get());
     if (result == LoadSeedResult::kSuccess) {
+      // TODO(crbug/1261685): The expiry and milestone checks are repeated below
+      // for regular seeds. Refactor this.
       if (HasSeedExpired(/*is_safe_seed=*/true)) {
         RecordVariationsSeedUsage(SeedUsage::kExpiredSafeSeedNotUsed);
+        return false;
+      }
+      if (IsSeedForFutureMilestone(/*is_safe_seed=*/true)) {
+        RecordVariationsSeedUsage(
+            SeedUsage::kSafeSeedForFutureMilestoneNotUsed);
         return false;
       }
       RecordVariationsSeedUsage(SeedUsage::kSafeSeedUsed);
@@ -558,6 +575,11 @@ bool VariationsFieldTrialCreator::CreateTrialsFromSeed(
                 ? SeedUsage::kExpiredRegularSeedNotUsedAfterEmptySafeSeedLoaded
                 : SeedUsage::kExpiredRegularSeedNotUsed;
         RecordVariationsSeedUsage(seed_usage);
+        return false;
+      }
+      if (IsSeedForFutureMilestone(/*is_safe_seed=*/false)) {
+        RecordVariationsSeedUsage(
+            SeedUsage::kRegularSeedForFutureMilestoneNotUsed);
         return false;
       }
       seed_usage = should_run_in_safe_mode
@@ -590,9 +612,10 @@ bool VariationsFieldTrialCreator::CreateTrialsFromSeed(
   // running in safe mode – once running in safe mode, there can never be a need
   // to save the active state to the safe seed prefs.
   if (!run_in_safe_mode) {
-    safe_seed_manager->SetActiveSeedState(seed_data, base64_seed_signature,
-                                          std::move(client_filterable_state),
-                                          seed_store_->GetLastFetchTime());
+    safe_seed_manager->SetActiveSeedState(
+        seed_data, base64_seed_signature,
+        local_state()->GetInteger(prefs::kVariationsSeedMilestone),
+        std::move(client_filterable_state), seed_store_->GetLastFetchTime());
   }
 
   UMA_HISTOGRAM_TIMES("Variations.SeedProcessingTime",

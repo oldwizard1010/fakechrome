@@ -7,7 +7,6 @@
 
 #include <string>
 
-#include "base/macros.h"
 #include "content/public/browser/storage_partition_config.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "extensions/browser/app_window/app_window_registry.h"
@@ -117,7 +116,8 @@ class WebAuthFlow : public content::WebContentsObserver,
   void DidStopLoading() override;
   void InnerWebContentsCreated(
       content::WebContents* inner_web_contents) override;
-  void RenderProcessGone(base::TerminationStatus status) override;
+  void PrimaryMainFrameRenderProcessGone(
+      base::TerminationStatus status) override;
   void TitleWasSet(content::NavigationEntry* entry) override;
   void DidStartNavigation(
       content::NavigationHandle* navigation_handle) override;

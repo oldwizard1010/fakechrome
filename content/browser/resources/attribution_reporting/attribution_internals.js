@@ -7,7 +7,7 @@ import {getTrustedHTML} from 'chrome://resources/js/static_types.js';
 import {$, getRequiredElement} from 'chrome://resources/js/util.m.js';
 import {Origin} from 'chrome://resources/mojo/url/mojom/origin.mojom-webui.js';
 
-import {AttributionInternalsHandler, AttributionInternalsHandlerRemote, SourceType, WebUIConversionReport, WebUIConversionReport_Status, WebUIImpression,} from './attribution_internals.mojom-webui.js';
+import {AttributionInternalsHandler, AttributionInternalsHandlerRemote, SourceType, WebUIAttributionReport, WebUIAttributionReport_Status, WebUIAttributionSource} from './attribution_internals.mojom-webui.js';
 
 /**
  * @template T
@@ -298,13 +298,13 @@ Table.prototype.__proto__ = HTMLDivElement.prototype;
 
 class Source {
   /**
-   * @param {!WebUIImpression} mojo
+   * @param {!WebUIAttributionSource} mojo
    */
   constructor(mojo) {
-    this.impressionData = mojo.impressionData;
-    this.impressionOrigin = UrlToText(mojo.impressionOrigin);
-    this.conversionDestination = UrlToText(mojo.conversionDestination);
-    this.reportingOrigin = UrlToText(mojo.reportingOrigin);
+    this.sourceEventId = mojo.sourceEventId;
+    this.impressionOrigin = OriginToText(mojo.impressionOrigin);
+    this.attributionDestination = mojo.attributionDestination;
+    this.reportingOrigin = OriginToText(mojo.reportingOrigin);
     this.impressionTime = new Date(mojo.impressionTime);
     this.expiryTime = new Date(mojo.expiryTime);
     this.sourceType = SourceTypeToText(mojo.sourceType);
@@ -320,9 +320,9 @@ class SourceTableModel extends TableModel {
     super();
 
     this.cols = [
-      new Column('Source Event ID', (e) => e.impressionData),
+      new Column('Source Event ID', (e) => e.sourceEventId),
       new Column('Source Origin', (e) => e.impressionOrigin),
-      new Column('Destination', (e) => e.conversionDestination),
+      new Column('Destination', (e) => e.attributionDestination),
       new Column('Report To', (e) => e.reportingOrigin),
       new DateColumn('Source Registration Time', (e) => e.impressionTime),
       new DateColumn('Expiry Time', (e) => e.expiryTime),
@@ -338,11 +338,11 @@ class SourceTableModel extends TableModel {
 
 class Report {
   /**
-   * @param {!WebUIConversionReport} mojo
+   * @param {!WebUIAttributionReport} mojo
    */
   constructor(mojo) {
     this.reportBody = mojo.reportBody;
-    this.conversionOrigin = UrlToText(mojo.conversionOrigin);
+    this.attributionDestination = mojo.attributionDestination;
     this.reportUrl = mojo.reportUrl.url;
     this.triggerTime = new Date(mojo.triggerTime);
     this.reportTime = new Date(mojo.reportTime);
@@ -350,17 +350,17 @@ class Report {
     this.attributedTruthfully = mojo.attributedTruthfully;
 
     switch (mojo.status) {
-      case WebUIConversionReport_Status.kSent:
+      case WebUIAttributionReport_Status.kSent:
         this.status = `Sent: HTTP ${mojo.httpResponseCode}`;
         this.httpResponseCode = mojo.httpResponseCode;
         break;
-      case WebUIConversionReport_Status.kPending:
+      case WebUIAttributionReport_Status.kPending:
         this.status = 'Pending';
         break;
-      case WebUIConversionReport_Status.kDroppedDueToLowPriority:
+      case WebUIAttributionReport_Status.kDroppedDueToLowPriority:
         this.status = 'Dropped due to low priority';
         break;
-      case WebUIConversionReport_Status.kDroppedForNoise:
+      case WebUIAttributionReport_Status.kDroppedForNoise:
         this.status = 'Dropped for noise';
         break;
     }
@@ -374,7 +374,7 @@ class ReportTableModel extends TableModel {
 
     this.cols = [
       new CodeColumn('Report Body', (e) => e.reportBody),
-      new Column('Destination', (e) => e.conversionOrigin),
+      new Column('Destination', (e) => e.attributionDestination),
       new Column('Report URL', (e) => e.reportUrl),
       new DateColumn('Trigger Time', (e) => e.triggerTime),
       new DateColumn('Report Time', (e) => e.reportTime),
@@ -405,7 +405,7 @@ let pageHandler = null;
  * @param {Origin} origin Origin to convert
  * @return {string}
  */
-function UrlToText(origin) {
+function OriginToText(origin) {
   if (origin.host.length == 0) {
     return 'Null';
   }
@@ -440,8 +440,8 @@ function SourceTypeToText(sourceType) {
  * backend and populate the tables. Also update measurement enabled status.
  */
 function updatePageData() {
-  // Get the feature status for ConversionMeasurement and populate it.
-  pageHandler.isMeasurementEnabled().then((response) => {
+  // Get the feature status for Attribution Reporting and populate it.
+  pageHandler.isAttributionReportingEnabled().then((response) => {
     $('feature-status-content').innerText =
         response.enabled ? 'enabled' : 'disabled';
     $('feature-status-content').classList.toggle('disabled', !response.enabled);
@@ -455,9 +455,9 @@ function updatePageData() {
     }
   });
 
-  pageHandler.getActiveImpressions().then((response) => {
+  pageHandler.getActiveSources().then((response) => {
     $('source-table-wrapper')
-        .setRows(response.impressions.map((mojo) => new Source(mojo)));
+        .setRows(response.sources.map((mojo) => new Source(mojo)));
   });
 
   pageHandler.getReports().then((response) => {

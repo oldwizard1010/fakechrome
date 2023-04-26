@@ -8,7 +8,6 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/string_util.h"
@@ -413,7 +412,7 @@ IN_PROC_BROWSER_TEST_P(WebNavigationApiTestWithContextType, UserAction) {
   content::RenderFrameHost* child_frame = ChildFrameAt(tab, 0);
   ASSERT_TRUE(child_frame);
 
-  TestRenderViewContextMenu menu(child_frame, params);
+  TestRenderViewContextMenu menu(*child_frame, params);
   menu.Init();
   menu.ExecuteCommand(IDC_CONTENT_CONTEXT_OPENLINKNEWTAB, 0);
 

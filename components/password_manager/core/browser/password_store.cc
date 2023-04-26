@@ -10,11 +10,10 @@
 #include <string>
 #include <utility>
 
-#include "base/barrier_closure.h"
+#include "base/barrier_callback.h"
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/location.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
@@ -64,66 +63,31 @@ void InvokeCallbackOnChanges(
     std::move(completion_callback).Run(!changes.empty());
 }
 
-// Helper object which aggregates results from multiple operations and invokes
-// completion callback when all the operations are finished.
-class OperationHandler {
- public:
-  static OperationHandler* CreateOperationHandler() {
-    return new OperationHandler();
+PasswordStoreChangeList JoinPasswordStoreChanges(
+    std::vector<PasswordStoreChangeList> changes) {
+  PasswordStoreChangeList joined_changes;
+  for (auto changes_list : changes) {
+    std::move(changes_list.begin(), changes_list.end(),
+              std::back_inserter(joined_changes));
   }
-
-  void AwaitOperation(
-      base::OnceCallback<void(PasswordStoreChangeListReply)> operation) {
-    std::move(operation).Run(
-        base::BindOnce(&OperationHandler::OnPasswordStoreChangesReceived,
-                       base::Unretained(this)));
-    operations_++;
-  }
-
-  // After |InvokeOnCompletion| was called the object shouldn't be used.
-  void InvokeOnCompletion(PasswordStoreChangeListReply callback) {
-    DCHECK_NE(0, operations_);
-    changes_received_ = base::BarrierClosure(
-        operations_, base::BindOnce(&OperationHandler::OnAllOperationsFinished,
-                                    base::Owned(this), std::move(callback)));
-  }
-
- private:
-  OperationHandler() = default;
-
-  void OnPasswordStoreChangesReceived(const PasswordStoreChangeList& changes) {
-    operations_--;
-    changes_.insert(changes_.end(), changes.begin(), changes.end());
-    if (changes_received_)
-      changes_received_.Run();
-  }
-
-  void OnAllOperationsFinished(PasswordStoreChangeListReply callback) {
-    std::move(callback).Run(changes_);
-  }
-
-  PasswordStoreChangeList changes_;
-
-  base::RepeatingClosure changes_received_;
-
-  int operations_ = 0;
-};
+  return joined_changes;
+}
 
 }  // namespace
 
-PasswordStore::PasswordStore() = default;
-
-PasswordStore::PasswordStore(std::unique_ptr<PasswordStoreBackend> backend)
-    : PasswordStore() {
+PasswordStore::PasswordStore(std::unique_ptr<PasswordStoreBackend> backend) {
   backend_deleter_ = std::move(backend);
   backend_ = backend_deleter_.get();
 }
 
-bool PasswordStore::Init(PrefService* prefs,
-                         base::RepeatingClosure sync_enabled_or_disabled_cb) {
+bool PasswordStore::Init(
+    PrefService* prefs,
+    std::unique_ptr<AffiliatedMatchHelper> affiliated_match_helper,
+    base::RepeatingClosure sync_enabled_or_disabled_cb) {
   main_task_runner_ = base::SequencedTaskRunnerHandle::Get();
   DCHECK(main_task_runner_);
   prefs_ = prefs;
+  affiliated_match_helper_ = std::move(affiliated_match_helper);
 
   // TODO(crbug.bom/1226042): Backend might be null in tests, remove this after
   // tests switch to MockPasswordStoreInterface.
@@ -136,13 +100,7 @@ bool PasswordStore::Init(PrefService* prefs,
         std::move(sync_enabled_or_disabled_cb),
         base::BindOnce(&PasswordStore::OnInitCompleted, this));
   }
-
   return true;
-}
-
-void PasswordStore::SetAffiliatedMatchHelper(
-    std::unique_ptr<AffiliatedMatchHelper> helper) {
-  affiliated_match_helper_ = std::move(helper);
 }
 
 void PasswordStore::AddLogin(const PasswordForm& form) {
@@ -181,15 +139,14 @@ void PasswordStore::UpdateLoginWithPrimaryKey(
         base::flat_map<InsecureType, InsecurityMetadata>();
   }
 
-  OperationHandler* handler = OperationHandler::CreateOperationHandler();
-  handler->AwaitOperation(
-      base::BindOnce(&PasswordStoreBackend::RemoveLoginAsync,
-                     base::Unretained(backend_), old_primary_key));
-  handler->AwaitOperation(base::BindOnce(
-      &PasswordStoreBackend::AddLoginAsync, base::Unretained(backend_),
-      new_form_with_correct_password_issues));
-  handler->InvokeOnCompletion(
-      base::BindOnce(&PasswordStore::NotifyLoginsChangedOnMainSequence, this));
+  auto barrier_callback = base::BarrierCallback<const PasswordStoreChangeList&>(
+      2, base::BindOnce(&JoinPasswordStoreChanges)
+             .Then(base::BindOnce(
+                 &PasswordStore::NotifyLoginsChangedOnMainSequence, this)));
+
+  backend_->RemoveLoginAsync(old_primary_key, barrier_callback);
+  backend_->AddLoginAsync(new_form_with_correct_password_issues,
+                          barrier_callback);
 }
 
 void PasswordStore::RemoveLogin(const PasswordForm& form) {
@@ -381,6 +338,9 @@ void PasswordStore::OnInitCompleted(bool success) {
   base::UmaHistogramBoolean("PasswordManager.PasswordStoreInitResult", success);
   TRACE_EVENT_NESTABLE_ASYNC_END0(
       "passwords", "PasswordStore::InitOnBackgroundSequence", this);
+
+  if (affiliated_match_helper_)
+    affiliated_match_helper_->Initialize(this);
 }
 
 void PasswordStore::NotifyLoginsChangedOnMainSequence(
@@ -421,20 +381,18 @@ void PasswordStore::UnblocklistInternal(
     return;
   }
 
-  OperationHandler* handler = OperationHandler::CreateOperationHandler();
-
-  for (const auto& form : forms_to_remove) {
-    handler->AwaitOperation(
-        base::BindOnce(&PasswordStoreBackend::RemoveLoginAsync,
-                       base::Unretained(backend_), form));
-  }
-
   auto notify_callback =
       base::BindOnce(&PasswordStore::NotifyLoginsChangedOnMainSequence, this);
   if (completion)
     notify_callback = std::move(notify_callback).Then(std::move(completion));
 
-  handler->InvokeOnCompletion(std::move(notify_callback));
+  auto barrier_callback = base::BarrierCallback<const PasswordStoreChangeList&>(
+      forms_to_remove.size(), base::BindOnce(&JoinPasswordStoreChanges)
+                                  .Then(std::move(notify_callback)));
+
+  for (const auto& form : forms_to_remove) {
+    backend_->RemoveLoginAsync(form, barrier_callback);
+  }
 }
 
 void PasswordStore::InjectAffiliationAndBrandingInformation(

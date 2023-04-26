@@ -2253,6 +2253,11 @@ class CacheStorageSideDataSizeChecker
         cache_name_(cache_name),
         url_(url) {}
 
+  CacheStorageSideDataSizeChecker(const CacheStorageSideDataSizeChecker&) =
+      delete;
+  CacheStorageSideDataSizeChecker& operator=(
+      const CacheStorageSideDataSizeChecker&) = delete;
+
  private:
   friend class base::RefCounted<CacheStorageSideDataSizeChecker>;
 
@@ -2323,7 +2328,6 @@ class CacheStorageSideDataSizeChecker
       cache_storage_cache_;
   const std::string cache_name_;
   const GURL url_;
-  DISALLOW_COPY_AND_ASSIGN(CacheStorageSideDataSizeChecker);
 };
 
 class ServiceWorkerV8CodeCacheForCacheStorageTest
@@ -3393,7 +3397,7 @@ class ServiceWorkerBackForwardCacheAndKeepActiveFreezingBrowserTest
   }
 
   RenderFrameHostImpl* current_frame_host() {
-    return web_contents()->GetFrameTree()->root()->current_frame_host();
+    return web_contents()->GetPrimaryFrameTree().root()->current_frame_host();
   }
 
   const std::string kTryToTriggerEvictionScript = R"(
@@ -3631,8 +3635,8 @@ class ServiceWorkerBackForwardCacheBrowserTest
 
   RenderFrameHostImpl* current_frame_host() {
     return static_cast<WebContentsImpl*>(shell()->web_contents())
-        ->GetFrameTree()
-        ->root()
+        ->GetPrimaryFrameTree()
+        .root()
         ->current_frame_host();
   }
 

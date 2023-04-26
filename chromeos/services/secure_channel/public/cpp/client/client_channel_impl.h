@@ -7,7 +7,6 @@
 
 #include "base/callback.h"
 #include "base/containers/flat_map.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chromeos/services/secure_channel/public/cpp/client/client_channel.h"
 #include "chromeos/services/secure_channel/public/mojom/secure_channel.mojom.h"
@@ -45,6 +44,9 @@ class ClientChannelImpl : public ClientChannel,
    private:
     static Factory* test_factory_;
   };
+
+  ClientChannelImpl(const ClientChannelImpl&) = delete;
+  ClientChannelImpl& operator=(const ClientChannelImpl&) = delete;
 
   ~ClientChannelImpl() override;
 
@@ -107,8 +109,6 @@ class ClientChannelImpl : public ClientChannel,
       file_transfer_update_callbacks_;
 
   base::WeakPtrFactory<ClientChannelImpl> weak_ptr_factory_{this};
-
-  DISALLOW_COPY_AND_ASSIGN(ClientChannelImpl);
 };
 
 }  // namespace secure_channel

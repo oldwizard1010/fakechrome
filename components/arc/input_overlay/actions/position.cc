@@ -9,6 +9,10 @@
 namespace arc {
 namespace input_overlay {
 namespace {
+// Key strings in the Json file.
+constexpr char kAnchor[] = "anchor";
+constexpr char kAnchorToTarget[] = "anchor_to_target";
+
 absl::optional<gfx::PointF> ParseTwoElementsArray(const base::Value& value,
                                                   const char* key,
                                                   bool required) {
@@ -69,9 +73,9 @@ bool Position::ParseFromJson(const base::Value& value) {
   return true;
 }
 
-gfx::PointF Position::CalculatePosition(const gfx::RectF& window_bounds) {
+gfx::PointF Position::CalculatePosition(const gfx::RectF& content_bounds) {
   gfx::PointF res = anchor_ + anchor_to_target_;
-  res.Scale(window_bounds.width(), window_bounds.height());
+  res.Scale(content_bounds.width(), content_bounds.height());
   return res;
 }
 

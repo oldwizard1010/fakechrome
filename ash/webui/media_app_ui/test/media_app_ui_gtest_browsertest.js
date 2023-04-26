@@ -157,8 +157,16 @@ TEST_F('MediaAppUIGtestBrowserTest', 'MultipleSelectionLaunch', () => {
   runMediaAppTest('MultipleSelectionLaunch');
 });
 
+TEST_F('MediaAppUIGtestBrowserTest', 'NotifyCurrentFile', () => {
+  runMediaAppTest('NotifyCurrentFile');
+});
+
 TEST_F('MediaAppUIGtestBrowserTest', 'LaunchUnopenableFile', () => {
   runMediaAppTest('LaunchUnopenableFile');
+});
+
+TEST_F('MediaAppUIGtestBrowserTest', 'LaunchUnnavigableDirectory', () => {
+  runMediaAppTest('LaunchUnnavigableDirectory');
 });
 
 TEST_F('MediaAppUIGtestBrowserTest', 'NavigateWithUnopenableSibling', () => {
@@ -251,6 +259,10 @@ TEST_F('MediaAppUIGtestBrowserTest', 'SaveAsErrorHandling', () => {
 
 TEST_F('MediaAppUIGtestBrowserTest', 'OpenFileIPC', () => {
   runMediaAppTest('OpenFileIPC');
+});
+
+TEST_F('MediaAppUIGtestBrowserTest', 'OpenFilesWithFilePickerIPC', () => {
+  runMediaAppTest('OpenFilesWithFilePickerIPC');
 });
 
 TEST_F('MediaAppUIGtestBrowserTest', 'RelatedFiles', () => {

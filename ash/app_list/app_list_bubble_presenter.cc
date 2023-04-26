@@ -11,12 +11,14 @@
 #include "ash/app_list/app_list_controller_impl.h"
 #include "ash/app_list/views/app_list_bubble_view.h"
 #include "ash/app_list/views/app_list_drag_and_drop_host.h"
+#include "ash/constants/ash_features.h"
 #include "ash/public/cpp/assistant/controller/assistant_ui_controller.h"
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/shelf/home_button.h"
 #include "ash/shelf/shelf.h"
 #include "ash/shelf/shelf_navigation_widget.h"
 #include "ash/shell.h"
+#include "ash/wm/container_finder.h"
 #include "base/bind.h"
 #include "base/check.h"
 #include "base/check_op.h"
@@ -24,6 +26,7 @@
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "chromeos/services/assistant/public/cpp/assistant_enums.h"
+#include "ui/aura/client/focus_client.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/gfx/geometry/rect.h"
@@ -123,6 +126,7 @@ views::Widget* CreateBubbleWidget(aura::Window* root_window) {
   views::Widget* widget = new views::Widget();
   views::Widget::InitParams params(
       views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
+  params.name = "AppListBubble";
   params.parent =
       Shell::GetContainer(root_window, kShellWindowId_AppListContainer);
   // AppListBubbleView handles round corners and blur via layers.
@@ -141,9 +145,13 @@ AppListBubblePresenter::AppListBubblePresenter(
 }
 
 AppListBubblePresenter::~AppListBubblePresenter() {
+  // Aborting in-progress animations will run their cleanup callbacks, which
+  // might close the widget.
+  if (bubble_view_)
+    bubble_view_->AbortAllAnimations();
   if (bubble_widget_)
     bubble_widget_->CloseNow();
-  CHECK(!IsInObserverList());
+  CHECK(!views::WidgetObserver::IsInObserverList());
 }
 
 void AppListBubblePresenter::Show(int64_t display_id) {
@@ -162,7 +170,6 @@ void AppListBubblePresenter::Show(int64_t display_id) {
       std::make_unique<AppListBubbleView>(controller_, drag_and_drop_host));
   // The widget bounds sometimes depend on the height of the apps grid, so set
   // the bounds after creating and setting the contents.
-  // TODO(jamescook): Update bounds on display configuration change.
   bubble_widget_->SetBounds(ComputeBubbleBounds(root_window, bubble_view_));
 
   // Arrow left/right and up/down triggers the same focus movement as
@@ -170,8 +177,13 @@ void AppListBubblePresenter::Show(int64_t display_id) {
   bubble_widget_->widget_delegate()->SetEnableArrowKeyTraversal(true);
 
   bubble_widget_->AddObserver(this);
+  aura::client::GetFocusClient(bubble_widget_->GetNativeWindow())
+      ->AddObserver(this);
   controller_->OnVisibilityWillChange(/*visible=*/true, display_id);
   bubble_widget_->Show();
+  if (features::IsProductivityLauncherAnimationEnabled()) {
+    bubble_view_->StartShowAnimation();
+  }
   controller_->OnVisibilityChanged(/*visible=*/true, display_id);
   bubble_view_->FocusSearchBox();  // Must happen after widget creation.
 
@@ -203,7 +215,7 @@ ShelfAction AppListBubblePresenter::Toggle(int64_t display_id) {
 
 void AppListBubblePresenter::Dismiss() {
   DVLOG(1) << __PRETTY_FUNCTION__;
-  if (!bubble_widget_)
+  if (!bubble_widget_ || in_hide_animation_)
     return;
 
   // Reset keyboard traversal in case the user switches to tablet launcher.
@@ -215,12 +227,23 @@ void AppListBubblePresenter::Dismiss() {
 
   const int64_t display_id = GetDisplayId();
   controller_->OnVisibilityWillChange(/*visible=*/false, display_id);
-  bubble_widget_->CloseNow();
+  if (features::IsProductivityLauncherAnimationEnabled()) {
+    in_hide_animation_ = true;
+    bubble_view_->StartHideAnimation(
+        base::BindRepeating(&AppListBubblePresenter::OnHideAnimationEnded,
+                            weak_factory_.GetWeakPtr()));
+  } else {
+    bubble_widget_->CloseNow();
+  }
   controller_->OnVisibilityChanged(/*visible=*/false, display_id);
 
   // Clean up assistant. Must occur after CloseNow(), otherwise it will try to
   // Dismiss() the app list and call this function re-entrantly.
   AssistantUiController::Get()->CloseUi(AssistantExitPoint::kLauncherClose);
+}
+
+aura::Window* AppListBubblePresenter::GetWindow() const {
+  return bubble_widget_ ? bubble_widget_->GetNativeWindow() : nullptr;
 }
 
 bool AppListBubblePresenter::IsShowing() const {
@@ -240,9 +263,43 @@ void AppListBubblePresenter::ShowEmbeddedAssistantUI() {
 void AppListBubblePresenter::OnWidgetDestroying(views::Widget* widget) {
   // `bubble_event_filter_` holds a pointer to the widget.
   bubble_event_filter_.reset();
+  aura::client::GetFocusClient(bubble_widget_->GetNativeView())
+      ->RemoveObserver(this);
   bubble_widget_->RemoveObserver(this);
   bubble_widget_ = nullptr;
   bubble_view_ = nullptr;
+}
+
+void AppListBubblePresenter::OnWindowFocused(aura::Window* gained_focus,
+                                             aura::Window* lost_focus) {
+  if (!bubble_widget_)
+    return;
+
+  aura::Window* app_list_container =
+      bubble_widget_->GetNativeWindow()->parent();
+
+  // If the bubble or one of its children (e.g. an uninstall dialog) gained
+  // focus, the bubble should stay open.
+  if (gained_focus && app_list_container->Contains(gained_focus))
+    return;
+
+  // Otherwise, if the bubble or one of its children lost focus, the bubble
+  // should close.
+  if (lost_focus && app_list_container->Contains(lost_focus))
+    Dismiss();
+}
+
+void AppListBubblePresenter::OnDisplayMetricsChanged(
+    const display::Display& display,
+    uint32_t changed_metrics) {
+  if (!IsShowing())
+    return;
+  // Ignore changes to displays that aren't showing the launcher.
+  if (display.id() != GetDisplayId())
+    return;
+  aura::Window* root_window =
+      bubble_widget_->GetNativeWindow()->GetRootWindow();
+  bubble_widget_->SetBounds(ComputeBubbleBounds(root_window, bubble_view_));
 }
 
 void AppListBubblePresenter::OnPressOutsideBubble() {
@@ -258,6 +315,14 @@ int64_t AppListBubblePresenter::GetDisplayId() const {
   return display::Screen::GetScreen()
       ->GetDisplayNearestView(bubble_widget_->GetNativeView())
       .id();
+}
+
+void AppListBubblePresenter::OnHideAnimationEnded() {
+  in_hide_animation_ = false;
+  if (bubble_widget_)
+    bubble_widget_->CloseNow();
+  // OnWidgetDestroyed() resets state.
+  DCHECK(!bubble_widget_);
 }
 
 }  // namespace ash

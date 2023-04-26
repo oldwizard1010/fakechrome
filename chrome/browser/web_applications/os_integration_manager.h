@@ -22,19 +22,16 @@
 #include "chrome/browser/web_applications/web_app_shortcut_manager.h"
 #include "chrome/browser/web_applications/web_application_info.h"
 #include "components/services/app_service/public/cpp/file_handler.h"
+#include "content/public/common/custom_handlers/protocol_handler.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
 class Profile;
 
-namespace content {
-class WebContents;
-}
-
 namespace web_app {
 
-class WebAppRegistrar;
-class WebAppIconManager;
 class FakeOsIntegrationManager;
+class WebAppIconManager;
+class WebAppRegistrar;
 class WebAppUiManager;
 
 // OsHooksErrors contains the result of all Os hook deployments.
@@ -142,11 +139,6 @@ class OsIntegrationManager {
   const absl::optional<GURL> GetMatchingFileHandlerURL(
       const AppId& app_id,
       const std::vector<base::FilePath>& launch_files);
-  void MaybeUpdateFileHandlingOriginTrialExpiry(
-      content::WebContents* web_contents,
-      const AppId& app_id);
-  void ForceEnableFileHandlingOriginTrial(const AppId& app_id);
-  void DisableForceEnabledFileHandlingOriginTrial(const AppId& app_id);
 
   // Proxy calls for WebAppProtocolHandlerManager.
   virtual absl::optional<GURL> TranslateProtocolUrl(const AppId& app_id,

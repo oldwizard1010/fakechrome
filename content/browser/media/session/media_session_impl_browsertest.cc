@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "base/atomic_sequence_num.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_samples.h"
 #include "base/strings/strcat.h"
@@ -129,6 +128,11 @@ class MockAudioFocusDelegate : public content::AudioFocusDelegate {
 namespace content {
 
 class MediaSessionImplBrowserTest : public ContentBrowserTest {
+ public:
+  MediaSessionImplBrowserTest(const MediaSessionImplBrowserTest&) = delete;
+  MediaSessionImplBrowserTest& operator=(const MediaSessionImplBrowserTest&) =
+      delete;
+
  protected:
   MediaSessionImplBrowserTest() = default;
 
@@ -307,8 +311,6 @@ class MediaSessionImplBrowserTest : public ContentBrowserTest {
   std::unique_ptr<MockMediaSessionServiceImpl> mock_media_session_service_;
   net::EmbeddedTestServer favicon_server_;
   base::AtomicSequenceNumber favicon_calls_;
-
-  DISALLOW_COPY_AND_ASSIGN(MediaSessionImplBrowserTest);
 };
 
 class MediaSessionImplParamBrowserTest
@@ -3240,8 +3242,6 @@ class MediaSessionImplWithBackForwardCacheBrowserTest
     params["process_binding_strength"] = "NORMAL";
 #endif
     enabled_features.emplace_back(features::kBackForwardCache, params);
-    enabled_features.emplace_back(features::kBackForwardCacheMediaPlay,
-                                  std::map<std::string, std::string>{});
 
     std::vector<base::Feature> disabled_features = {
         features::kBackForwardCacheMemoryControls,

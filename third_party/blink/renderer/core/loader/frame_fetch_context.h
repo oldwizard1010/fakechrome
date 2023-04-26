@@ -135,6 +135,8 @@ class CORE_EXPORT FrameFetchContext final : public BaseFetchContext,
 
   mojom::blink::ContentSecurityNotifier& GetContentSecurityNotifier() const;
 
+  ExecutionContext* GetExecutionContext() const override;
+
  private:
   friend class FrameFetchContextTest;
 
@@ -176,7 +178,6 @@ class CORE_EXPORT FrameFetchContext final : public BaseFetchContext,
                                                  const KURL&) const override;
 
   const KURL& Url() const override;
-  const SecurityOrigin* GetParentSecurityOrigin() const override;
   ContentSecurityPolicy* GetContentSecurityPolicy() const override;
   void AddConsoleMessage(ConsoleMessage*) const override;
 

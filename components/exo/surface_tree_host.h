@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/exo/layer_tree_frame_sink_holder.h"
 #include "components/exo/surface.h"
@@ -115,7 +114,6 @@ class SurfaceTreeHost : public SurfaceDelegate,
   void SetInitialWorkspace(const char* initial_workspace) override {}
   void Pin(bool trusted) override {}
   void Unpin() override {}
-  void SetClientSubmitsSurfacesInPixelCoordinates(bool enabled) override;
 
   // display::DisplayObserver:
   void OnDisplayMetricsChanged(const display::Display& display,
@@ -123,6 +121,10 @@ class SurfaceTreeHost : public SurfaceDelegate,
 
   // viz::ContextLostObserver:
   void OnContextLost() override;
+
+  void set_client_submits_surfaces_in_pixel_coordinates(bool enabled) {
+    client_submits_surfaces_in_pixel_coordinates_ = enabled;
+  }
 
  protected:
   void UpdateDisplayOnTree();

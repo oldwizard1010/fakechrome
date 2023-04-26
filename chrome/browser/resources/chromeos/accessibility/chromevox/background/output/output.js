@@ -2184,6 +2184,20 @@ Output = class {
       ret.push({text: node.placeholder});
     }
 
+    // Invalid Grammar text.
+    if (uniqueAncestors.find(
+            /** @type {function(?) : boolean} */
+            (AutomationPredicate.hasInvalidGrammarMarker))) {
+      ret.push({msgId: 'hint_invalid_grammar'});
+    }
+
+    // Invalid Spelling text.
+    if (uniqueAncestors.find(
+            /** @type {function(?) : boolean} */
+            (AutomationPredicate.hasInvalidSpellingMarker))) {
+      ret.push({msgId: 'hint_invalid_spelling'});
+    }
+
     // Only include tooltip as a hint as a last alternative. It may have been
     // included as the name or description previously. As a rule of thumb,
     // only include it if there's no name and no description.
@@ -2559,6 +2573,10 @@ Output.RULES = {
       startOf: `$nameFromNode $role $state $description`,
       endOf: `@end_of_container($role)`
     },
+    abstractFormFieldContainer: {
+      enter: `$nameFromNode $role $state $description`,
+      leave: `@exited_container($role)`
+    },
     abstractItem: {
       // Note that ChromeVox generally does not output position/count. Only for
       // some roles (see sub-output rules) or when explicitly provided by an
@@ -2611,8 +2629,8 @@ Output.RULES = {
         braille: `$state $cellIndexText $node(tableCellColumnHeaders)
             $nameFromNode $roleDescription`,
       },
-      speak: `$name $cellIndexText $node(tableCellColumnHeaders)
-          $roleDescription $state $description`,
+      speak: `$nameFromNode $descendants $cellIndexText
+          $node(tableCellColumnHeaders) $roleDescription $state $description`,
       braille: `$state
           $name $cellIndexText $node(tableCellColumnHeaders) $roleDescription
           $description
@@ -2677,6 +2695,10 @@ Output.RULES = {
     list: {
       speak: `$nameFromNode $descendants $role
           @@list_with_items($setSize) $description $state`
+    },
+    listBox: {
+      enter: `$nameFromNode $role @@list_with_items($setSize)
+          $restriction $description`
     },
     listBoxOption: {
       speak: `$state $name $role @describe_index($posInSet, $setSize)
@@ -2782,8 +2804,8 @@ Output.RULES = {
     },
     unknown: {speak: ``},
     window: {
-      enter: `@describe_window($name)`,
-      speak: `@describe_window($name) $earcon(OBJECT_OPEN)`
+      enter: `@describe_window($name) $description`,
+      speak: `@describe_window($name) $description $earcon(OBJECT_OPEN)`
     }
   },
   menuStart:

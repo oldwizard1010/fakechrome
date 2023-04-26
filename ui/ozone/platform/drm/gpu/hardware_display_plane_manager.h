@@ -11,7 +11,7 @@
 #include <memory>
 #include <vector>
 
-#include "base/macros.h"
+#include "base/trace_event/traced_value.h"
 #include "ui/display/types/gamma_ramp_rgb_entry.h"
 #include "ui/ozone/platform/drm/common/scoped_drm_types.h"
 #include "ui/ozone/platform/drm/gpu/crtc_commit_request.h"
@@ -53,6 +53,8 @@ struct HardwareDisplayPlaneList {
   std::vector<PageFlipInfo> legacy_page_flips;
 
   ScopedDrmAtomicReqPtr atomic_property_set;
+
+  void AsValueInto(base::trace_event::TracedValue* value) const;
 };
 
 class HardwareDisplayPlaneManager {
@@ -209,6 +211,16 @@ class HardwareDisplayPlaneManager {
   void UpdateCrtcAndPlaneStatesAfterModeset(
       const CommitRequest& commit_request);
 
+  // As the CRTC is being initialized, all connectors connected to it should
+  // be disabled. This is a workaround for a bug on Hatch where Puff enables
+  // a connector in dev mode before Chrome even starts. The kernel maps the HW
+  // state at initial modeset (with a dangling connector attached to a CRTC).
+  // When an Atomic Modeset is performed, it fails to modeset as the CRTC is
+  // already attached to another dead connector. (Analysis: crbug/1067121#c5)
+  // TODO(b/168154314): Remove this call when the bug is fixed.
+  void DisableConnectedConnectorsToCrtcs(
+      const ScopedDrmResourcesPtr& resources);
+
   virtual bool InitializePlanes() = 0;
 
   virtual bool SetPlaneData(HardwareDisplayPlaneList* plane_list,
@@ -226,10 +238,10 @@ class HardwareDisplayPlaneManager {
       uint32_t crtc_index,
       const DrmOverlayPlane& overlay) const;
 
-  // Convert |crtc/connector_id| into an index, returning -1 if the ID couldn't
-  // be found.
-  int LookupCrtcIndex(uint32_t crtc_id) const;
-  int LookupConnectorIndex(uint32_t connector_id) const;
+  // Convert |crtc/connector_id| into an index, returning empty if the ID
+  // couldn't be found.
+  absl::optional<int> LookupCrtcIndex(uint32_t crtc_id) const;
+  absl::optional<int> LookupConnectorIndex(uint32_t connector_id) const;
 
   // Get Mutable CRTC State.
   CrtcState& CrtcStateForCrtcId(uint32_t crtc_id);

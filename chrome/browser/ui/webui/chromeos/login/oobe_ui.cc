@@ -19,7 +19,6 @@
 #include "base/command_line.h"
 #include "base/containers/contains.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/system/sys_info.h"
 #include "base/values.h"
 #include "build/branding_buildflags.h"
@@ -241,8 +240,10 @@ void AddMarketingOptInResources(content::WebUIDataSource* source) {
 }
 
 void AddMultiDeviceSetupResources(content::WebUIDataSource* source) {
-  source->AddResourcePath("multidevice_setup.json",
-                          IDR_MULTIDEVICE_SETUP_ANIMATION);
+  source->AddResourcePath("multidevice_setup_light.json",
+                          IDR_MULTIDEVICE_SETUP_ANIMATION_LIGHT);
+  source->AddResourcePath("multidevice_setup_dark.json",
+                          IDR_MULTIDEVICE_SETUP_ANIMATION_DARK);
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::WorkerSrc, "worker-src blob: 'self';");
 }

@@ -6,8 +6,10 @@
 
 #include <memory>
 
+#include "ash/components/phonehub/fake_notification_access_manager.h"
 #include "ash/constants/ash_features.h"
-#include "base/macros.h"
+#include "ash/webui/eche_app_ui/apps_access_manager.h"
+#include "ash/webui/eche_app_ui/fake_apps_access_manager.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ash/android_sms/android_sms_urls.h"
 #include "chrome/browser/ash/android_sms/fake_android_sms_app_manager.h"
@@ -15,7 +17,6 @@
 #include "chrome/browser/nearby_sharing/nearby_sharing_service_factory.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chromeos/components/multidevice/remote_device_test_util.h"
-#include "chromeos/components/phonehub/fake_notification_access_manager.h"
 #include "chromeos/services/multidevice_setup/public/cpp/fake_android_sms_pairing_state_tracker.h"
 #include "chromeos/services/multidevice_setup/public/cpp/fake_multidevice_setup_client.h"
 #include "chromeos/services/multidevice_setup/public/cpp/prefs.h"
@@ -41,12 +42,14 @@ class TestMultideviceHandler : public MultideviceHandler {
       phonehub::NotificationAccessManager* notification_access_manager,
       multidevice_setup::AndroidSmsPairingStateTracker*
           android_sms_pairing_state_tracker,
-      android_sms::AndroidSmsAppManager* android_sms_app_manager)
+      android_sms::AndroidSmsAppManager* android_sms_app_manager,
+      ash::eche_app::AppsAccessManager* apps_access_manager)
       : MultideviceHandler(prefs,
                            multidevice_setup_client,
                            notification_access_manager,
                            android_sms_pairing_state_tracker,
-                           android_sms_app_manager) {}
+                           android_sms_app_manager,
+                           apps_access_manager) {}
   ~TestMultideviceHandler() override = default;
 
   // Make public for testing.
@@ -70,6 +73,8 @@ GenerateDefaultFeatureStatesMap() {
        multidevice_setup::mojom::FeatureState::kUnavailableNoVerifiedHost},
       {multidevice_setup::mojom::Feature::kPhoneHubNotifications,
        multidevice_setup::mojom::FeatureState::kUnavailableNoVerifiedHost},
+      {multidevice_setup::mojom::Feature::kPhoneHubCameraRoll,
+       multidevice_setup::mojom::FeatureState::kUnavailableNoVerifiedHost},
       {multidevice_setup::mojom::Feature::kPhoneHubTaskContinuation,
        multidevice_setup::mojom::FeatureState::kUnavailableNoVerifiedHost},
       {multidevice_setup::mojom::Feature::kWifiSync,
@@ -84,7 +89,8 @@ void VerifyPageContentDict(
     const absl::optional<multidevice::RemoteDeviceRef>& expected_host_device,
     const multidevice_setup::MultiDeviceSetupClient::FeatureStatesMap&
         feature_states_map,
-    bool expected_is_nearby_share_disallowed_by_policy_) {
+    bool expected_is_nearby_share_disallowed_by_policy_,
+    bool expected_is_phone_hub_apps_access_granted_) {
   const base::DictionaryValue* page_content_dict;
   EXPECT_TRUE(value->GetAsDictionary(&page_content_dict));
 
@@ -131,6 +137,13 @@ void VerifyPageContentDict(
       multidevice_setup::mojom::Feature::kPhoneHubNotifications);
   EXPECT_EQ(static_cast<int>(it->second), *phone_hub_notifications_state);
 
+  absl::optional<int> phone_hub_camera_roll_state =
+      page_content_dict->FindIntKey("phoneHubCameraRollState");
+  ASSERT_TRUE(phone_hub_camera_roll_state);
+  it = feature_states_map.find(
+      multidevice_setup::mojom::Feature::kPhoneHubCameraRoll);
+  EXPECT_EQ(static_cast<int>(it->second), *phone_hub_camera_roll_state);
+
   absl::optional<int> phone_hub_task_continuation_state =
       page_content_dict->FindIntKey("phoneHubTaskContinuationState");
   ASSERT_TRUE(phone_hub_task_continuation_state);
@@ -171,6 +184,14 @@ void VerifyPageContentDict(
   EXPECT_TRUE(
       page_content_dict->GetBoolean("isPhoneHubAppsAccessGranted",
                                     &is_phone_hub_apps_access_granted));
+  EXPECT_EQ(expected_is_phone_hub_apps_access_granted_,
+            is_phone_hub_apps_access_granted);
+
+  bool is_phone_hub_permissions_dialog_supported;
+  EXPECT_TRUE(page_content_dict->GetBoolean(
+      "isPhoneHubPermissionsDialogSupported",
+      &is_phone_hub_permissions_dialog_supported));
+  EXPECT_TRUE(is_phone_hub_permissions_dialog_supported);
 }
 
 }  // namespace
@@ -197,6 +218,10 @@ class MultideviceHandlerTest : public testing::Test {
         multidevice_setup::FakeAndroidSmsPairingStateTracker>();
     fake_android_sms_app_manager_ =
         std::make_unique<android_sms::FakeAndroidSmsAppManager>();
+    fake_apps_access_manager_ =
+        std::make_unique<ash::eche_app::FakeAppsAccessManager>(
+            ash::eche_app::AppsAccessManager::AccessStatus::
+                kAvailableButNotGranted);
 
     prefs_ = std::make_unique<TestingPrefServiceSimple>();
     RegisterNearbySharingPrefs(prefs_->registry());
@@ -212,7 +237,7 @@ class MultideviceHandlerTest : public testing::Test {
         prefs_.get(), fake_multidevice_setup_client_.get(),
         fake_notification_access_manager_.get(),
         fake_android_sms_pairing_state_tracker_.get(),
-        fake_android_sms_app_manager_.get());
+        fake_android_sms_app_manager_.get(), fake_apps_access_manager_.get());
 
     test_web_contents_ = content::WebContents::Create(
         content::WebContents::CreateParams(&test_profile_));
@@ -224,7 +249,9 @@ class MultideviceHandlerTest : public testing::Test {
     handler_->AllowJavascript();
 
     scoped_feature_list_.InitWithFeatures(
-        {chromeos::features::kPhoneHub, chromeos::features::kEcheSWA}, {});
+        {chromeos::features::kPhoneHub, chromeos::features::kEcheSWA,
+         chromeos::features::kEchePhoneHubPermissionsOnboarding},
+        {});
   }
 
   void CallGetPageContentData() {
@@ -391,6 +418,28 @@ class MultideviceHandlerTest : public testing::Test {
     VerifyPageContent(call_data.arg2());
   }
 
+  void SimulateAppsAccessStatusChanged(bool has_access_been_granted) {
+    size_t call_data_count_before_call = test_web_ui()->call_data().size();
+
+    ash::eche_app::AppsAccessManager::AccessStatus apps_access_status =
+        has_access_been_granted
+            ? ash::eche_app::AppsAccessManager::AccessStatus::kAccessGranted
+            : ash::eche_app::AppsAccessManager::AccessStatus::
+                  kAvailableButNotGranted;
+    fake_apps_access_manager()->SetAccessStatusInternal(apps_access_status);
+    expected_is_phone_hub_apps_access_granted_ = has_access_been_granted;
+
+    EXPECT_EQ(call_data_count_before_call + 1u,
+              test_web_ui()->call_data().size());
+
+    const content::TestWebUI::CallData& call_data =
+        CallDataAtIndex(call_data_count_before_call);
+    EXPECT_EQ("cr.webUIListenerCallback", call_data.function_name());
+    EXPECT_EQ("settings.updateMultidevicePageContentData",
+              call_data.arg1()->GetString());
+    VerifyPageContent(call_data.arg2());
+  }
+
   void CallRetryPendingHostSetup(bool success) {
     base::ListValue empty_args;
     test_web_ui()->HandleReceivedMessage("retryPendingHostSetup", &empty_args);
@@ -453,6 +502,10 @@ class MultideviceHandlerTest : public testing::Test {
     return fake_notification_access_manager_.get();
   }
 
+  ash::eche_app::FakeAppsAccessManager* fake_apps_access_manager() {
+    return fake_apps_access_manager_.get();
+  }
+
   void SimulateNotificationOptInStatusChange(
       phonehub::NotificationAccessSetupOperation::Status status) {
     size_t call_data_count_before_call = test_web_ui()->call_data().size();
@@ -483,6 +536,7 @@ class MultideviceHandlerTest : public testing::Test {
   const multidevice::RemoteDeviceRef test_device_;
 
   bool expected_is_nearby_share_disallowed_by_policy_ = false;
+  bool expected_is_phone_hub_apps_access_granted_ = false;
 
  private:
   void VerifyPageContent(const base::Value* value) {
@@ -490,7 +544,8 @@ class MultideviceHandlerTest : public testing::Test {
         value, fake_multidevice_setup_client_->GetHostStatus().first,
         fake_multidevice_setup_client_->GetHostStatus().second,
         fake_multidevice_setup_client_->GetFeatureStates(),
-        expected_is_nearby_share_disallowed_by_policy_);
+        expected_is_nearby_share_disallowed_by_policy_,
+        expected_is_phone_hub_apps_access_granted_);
   }
 
   content::BrowserTaskEnvironment task_environment_;
@@ -504,6 +559,8 @@ class MultideviceHandlerTest : public testing::Test {
       fake_notification_access_manager_;
   std::unique_ptr<multidevice_setup::FakeAndroidSmsPairingStateTracker>
       fake_android_sms_pairing_state_tracker_;
+  std::unique_ptr<ash::eche_app::FakeAppsAccessManager>
+      fake_apps_access_manager_;
 
   multidevice_setup::MultiDeviceSetupClient::HostStatusWithDevice
       host_status_with_device_;
@@ -604,6 +661,7 @@ TEST_F(MultideviceHandlerTest, PageContentData) {
                                        /*is_managed=*/true);
   SimulateNearbyShareEnabledPrefChange(/*is_enabled=*/false,
                                        /*is_managed=*/true);
+  SimulateAppsAccessStatusChanged(/*has_access_been_granted=*/true);
 }
 
 TEST_F(MultideviceHandlerTest, RetryPendingHostSetup) {

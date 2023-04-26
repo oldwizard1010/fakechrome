@@ -212,7 +212,8 @@
         <template is="dom-if" route-path="/multidevice/nearbyshare" restamp>
           <settings-subpage page-title="$i18n{nearbyShareTitle}">
             <settings-nearby-share-subpage settings="{{settings}}"
-                prefs="{{prefs}}">
+                prefs="{{prefs}}"
+                is-settings-retreived="[[isSettingsRetreived]]">
             </settings-nearby-share-subpage>
           </settings-subpage>
         </template>
@@ -223,10 +224,22 @@
           on-token-obtained="onTokenObtained_">
       </settings-password-prompt-dialog>
     </template>
-    <template is="dom-if" if="[[showNotificationAccessSetupDialog_]]" restamp>
+    <template is="dom-if" if="[[showPermissionsSetupDialog_(
+        showPhonePermissionSetupDialog_)]]"
+        restamp>
       <settings-multidevice-notification-access-setup-dialog
-          on-close="onHideNotificationSetupAccessDialog_">
+          is-password-dialog-showing="{{isPasswordDialogShowing_}}"
+          on-close="onHidePhonePermissionsSetupDialog_">
       </settings-multidevice-notification-access-setup-dialog>
+    </template>
+    <template is="dom-if"
+        if="[[showNewPermissionsSetupDialog_(
+        showPhonePermissionSetupDialog_)]]"
+        restamp>
+      <settings-multidevice-permissions-setup-dialog
+          is-password-dialog-showing="{{isPasswordDialogShowing_}}"
+          on-close="onHidePhonePermissionsSetupDialog_">
+      </settings-multidevice-permissions-setup-dialog>
     </template>
   </template>
   <script src="multidevice_page.js"></script>

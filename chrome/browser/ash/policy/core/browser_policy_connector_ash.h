@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "base/containers/flat_set.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ash/login/users/affiliation.h"
@@ -105,15 +104,9 @@ class BrowserPolicyConnectorAsh : public ChromeBrowserPolicyConnector,
   // Returns the enterprise enrollment domain if device is managed.
   std::string GetEnterpriseEnrollmentDomain() const;
 
-  // Custom enterprise display domain used in UI if specified, otherwise
-  // defaults to enterprise enrollment domain. The policy needs to be loaded
-  // before the custom display domain can be used.
-  std::string GetEnterpriseDisplayDomain() const;
-
   // Returns the manager of the domain for use in UI if specified, otherwise the
   // enterprise display domain.
-  // TODO(crbug.com/1081272): refactor localization hints for all strings that
-  // depend on this method
+  // The policy needs to be loaded before the display manager can be used.
   std::string GetEnterpriseDomainManager() const;
 
   // Returns the SSO profile id for the managing OU of this device. Currently

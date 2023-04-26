@@ -11,9 +11,12 @@
 
 #include "ash/ash_export.h"
 #include "base/callback.h"
+#include "base/callback_forward.h"
 #include "base/files/file_path.h"
 #include "chromeos/services/multidevice_setup/public/mojom/multidevice_setup.mojom-forward.h"
 #include "chromeos/ui/base/window_pin_type.h"
+#include "components/favicon_base/favicon_callback.h"
+#include "components/services/app_service/public/mojom/types.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "services/device/public/mojom/bluetooth_system.mojom-forward.h"
 #include "services/device/public/mojom/fingerprint.mojom-forward.h"
@@ -22,6 +25,10 @@
 
 namespace aura {
 class Window;
+}
+
+namespace base {
+class CancelableTaskTracker;
 }
 
 namespace ui {
@@ -39,9 +46,10 @@ class DeskModel;
 namespace ash {
 
 class AccessibilityDelegate;
-class CaptureModeDelegate;
-class BackGestureContextualNudgeDelegate;
 class BackGestureContextualNudgeController;
+class BackGestureContextualNudgeDelegate;
+class CaptureModeDelegate;
+class DeskTemplate;
 class NearbyShareController;
 class NearbyShareDelegate;
 
@@ -147,6 +155,29 @@ class ASH_EXPORT ShellDelegate {
   // Returns either the local desk storage backend or Chrome sync desk storage
   // backend depending on the feature flag DeskTemplateSync.
   virtual desks_storage::DeskModel* GetDeskModel();
+
+  // Fetches the favicon for `page_url` and returns it via the provided
+  // `callback`. `callback` may be called synchronously.
+  virtual void GetFaviconForUrl(const std::string& page_url,
+                                int desired_icon_size,
+                                favicon_base::FaviconRawBitmapCallback callback,
+                                base::CancelableTaskTracker* teacker) const = 0;
+
+  // Fetches the icon for the app with `app_id` and returns it via the provided
+  // `callback`. `callback` may be called synchronously.
+  virtual void GetIconForAppId(
+      const std::string& app_id,
+      int desired_icon_size,
+      base::OnceCallback<void(apps::mojom::IconValuePtr icon_value)> callback)
+      const = 0;
+
+  // Launches apps into the active desk. Ran immediately after a desk is created
+  // for a template.
+  virtual void LaunchAppsFromTemplate(
+      std::unique_ptr<DeskTemplate> desk_template) = 0;
+
+  // Checks whether `window` is supported in the desks templates feature.
+  virtual bool IsWindowSupportedForDeskTemplate(aura::Window* window) const = 0;
 };
 
 }  // namespace ash

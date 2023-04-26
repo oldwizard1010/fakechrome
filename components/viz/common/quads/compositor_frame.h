@@ -8,7 +8,6 @@
 #include <memory>
 #include <vector>
 
-#include "base/macros.h"
 #include "components/viz/common/quads/compositor_frame_metadata.h"
 #include "components/viz/common/quads/compositor_render_pass.h"
 #include "components/viz/common/resources/transferable_resource.h"
@@ -41,13 +40,6 @@ class VIZ_COMMON_EXPORT CompositorFrame {
   const gfx::Size& size_in_pixels() const {
     DCHECK(!render_pass_list.empty());
     return render_pass_list.back()->output_rect.size();
-  }
-
-  // The capture bounds from the root render pass, may be nullptr if
-  // no bounds are set.
-  const RegionCaptureBounds* capture_bounds() const {
-    DCHECK(!render_pass_list.empty());
-    return render_pass_list.back()->capture_bounds.get();
   }
 
   bool HasCopyOutputRequests() const;

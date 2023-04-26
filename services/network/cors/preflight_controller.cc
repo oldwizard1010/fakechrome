@@ -84,7 +84,7 @@ std::string CreateAccessControlRequestHeadersHeader(
 std::unique_ptr<ResourceRequest> CreatePreflightRequest(
     const ResourceRequest& request,
     bool tainted,
-    const net::NetLogSource& net_log_source,
+    const net::NetLogWithSource& net_log_for_actual_request,
     const absl::optional<base::UnguessableToken>& devtools_request_id) {
   DCHECK(!request.url.has_username());
   DCHECK(!request.url.has_password());
@@ -120,6 +120,17 @@ std::unique_ptr<ResourceRequest> CreatePreflightRequest(
         header_names::kAccessControlRequestHeaders, request_headers);
   }
 
+  preflight_request->target_ip_address_space = request.target_ip_address_space;
+  if (preflight_request->target_ip_address_space !=
+      mojom::IPAddressSpace::kUnknown) {
+    // See the CORS-preflight fetch algorithm modifications laid out in the
+    // Private Network Access spec, in step 4 of the CORS preflight section as
+    // of writing: https://wicg.github.io/private-network-access/#cors-preflight
+    preflight_request->headers.SetHeader(
+        header_names::kAccessControlRequestPrivateNetwork, "true");
+  }
+
+  // TODO(https://crbug.com/1263483): Remove this.
   if (request.is_external_request) {
     preflight_request->headers.SetHeader(
         header_names::kAccessControlRequestExternal, "true");
@@ -156,7 +167,20 @@ std::unique_ptr<ResourceRequest> CreatePreflightRequest(
   }
   preflight_request->is_fetch_like_api = request.is_fetch_like_api;
   preflight_request->is_favicon = request.is_favicon;
-  preflight_request->net_log_reference_info = net_log_source;
+
+  // Set `net_log_reference_info` to reference actual request from preflight
+  // request in NetLog.
+  preflight_request->net_log_reference_info =
+      net_log_for_actual_request.source();
+
+  net::NetLogSource net_log_source_for_preflight = net::NetLogSource(
+      net::NetLogSourceType::URL_REQUEST, net::NetLog::Get()->NextID());
+  net_log_for_actual_request.AddEventReferencingSource(
+      net::NetLogEventType::CORS_PREFLIGHT_URL_REQUEST,
+      net_log_source_for_preflight);
+  // Set `net_log_create_info` to specify NetLog source used in preflight
+  // URL Request.
+  preflight_request->net_log_create_info = net_log_source_for_preflight;
 
   return preflight_request;
 }
@@ -263,9 +287,21 @@ std::unique_ptr<PreflightResult> CreatePreflightResult(
   if (*detected_error_status)
     return nullptr;
 
+  // TODO(https://crbug.com/1263483): Remove this.
   if (original_request.is_external_request) {
     *detected_error_status = CheckExternalPreflight(GetHeaderString(
         head.headers, header_names::kAccessControlAllowExternal));
+    if (*detected_error_status)
+      return nullptr;
+  }
+
+  // See the CORS-preflight fetch algorithm modifications laid out in the
+  // Private Network Access spec, in step 4 of the CORS preflight section as of
+  // writing: https://wicg.github.io/private-network-access/#cors-preflight
+  if (original_request.target_ip_address_space !=
+      mojom::IPAddressSpace::kUnknown) {
+    *detected_error_status = CheckExternalPreflight(GetHeaderString(
+        head.headers, header_names::kAccessControlAllowPrivateNetwork));
     if (*detected_error_status)
       return nullptr;
   }
@@ -280,14 +316,14 @@ std::unique_ptr<PreflightResult> CreatePreflightResult(
 
   if (error)
     *detected_error_status = CorsErrorStatus(*error);
+
   return result;
 }
 
 absl::optional<CorsErrorStatus> CheckPreflightResult(
     PreflightResult* result,
     const ResourceRequest& original_request,
-    PreflightResult::WithNonWildcardRequestHeadersSupport
-        with_non_wildcard_request_headers_support) {
+    NonWildcardRequestHeadersSupport non_wildcard_request_headers_support) {
   absl::optional<CorsErrorStatus> status =
       result->EnsureAllowedCrossOriginMethod(original_request.method);
   if (status)
@@ -295,7 +331,7 @@ absl::optional<CorsErrorStatus> CheckPreflightResult(
 
   return result->EnsureAllowedCrossOriginHeaders(
       original_request.headers, original_request.is_revalidating,
-      with_non_wildcard_request_headers_support);
+      non_wildcard_request_headers_support);
 }
 
 }  // namespace
@@ -307,8 +343,7 @@ class PreflightController::PreflightLoader final {
       CompletionCallback completion_callback,
       const ResourceRequest& request,
       WithTrustedHeaderClient with_trusted_header_client,
-      WithNonWildcardRequestHeadersSupport
-          with_non_wildcard_request_headers_support,
+      NonWildcardRequestHeadersSupport non_wildcard_request_headers_support,
       bool tainted,
       const net::NetworkTrafficAnnotationTag& annotation_tag,
       const net::NetworkIsolationKey& network_isolation_key,
@@ -317,16 +352,16 @@ class PreflightController::PreflightLoader final {
       : controller_(controller),
         completion_callback_(std::move(completion_callback)),
         original_request_(request),
-        with_non_wildcard_request_headers_support_(
-            with_non_wildcard_request_headers_support),
+        non_wildcard_request_headers_support_(
+            non_wildcard_request_headers_support),
         tainted_(tainted),
         network_isolation_key_(network_isolation_key),
         devtools_observer_(std::move(devtools_observer)),
         net_log_(net_log) {
     if (devtools_observer_)
       devtools_request_id_ = base::UnguessableToken::Create();
-    auto preflight_request = CreatePreflightRequest(
-        request, tainted, net_log.source(), devtools_request_id_);
+    auto preflight_request =
+        CreatePreflightRequest(request, tainted, net_log, devtools_request_id_);
 
     if (devtools_observer_) {
       DCHECK(devtools_request_id_);
@@ -345,6 +380,9 @@ class PreflightController::PreflightLoader final {
     }
     loader_->SetURLLoaderFactoryOptions(options);
   }
+
+  PreflightLoader(const PreflightLoader&) = delete;
+  PreflightLoader& operator=(const PreflightLoader&) = delete;
 
   void Request(mojom::URLLoaderFactory* loader_factory) {
     DCHECK(loader_);
@@ -407,12 +445,16 @@ class PreflightController::PreflightLoader final {
       DCHECK(!detected_error_status);
       detected_error_status =
           CheckPreflightResult(result.get(), original_request_,
-                               with_non_wildcard_request_headers_support_);
+                               non_wildcard_request_headers_support_);
       has_authorization_covered_by_wildcard =
           result->HasAuthorizationCoveredByWildcard(original_request_.headers);
     }
 
     if (!(original_request_.load_flags & net::LOAD_DISABLE_CACHE) &&
+        // TODO(https://crbug.com/1268312): Key the cache by target address
+        // space and remove this guard.
+        original_request_.target_ip_address_space ==
+            mojom::IPAddressSpace::kUnknown &&
         !detected_error_status) {
       controller_->AppendToCache(*original_request_.request_initiator,
                                  original_request_.url, network_isolation_key_,
@@ -426,6 +468,9 @@ class PreflightController::PreflightLoader final {
 
   void HandleResponseBody(std::unique_ptr<std::string> response_body) {
     const int error = loader_->NetError();
+    const absl::optional<URLLoaderCompletionStatus>& status =
+        loader_->CompletionStatus();
+
     if (!completion_callback_.is_null()) {
       // As HandleResponseHeader() isn't called due to a request failure, such
       // as unknown hosts. unreachable remote, reset by peer, and so on, we
@@ -435,7 +480,10 @@ class PreflightController::PreflightLoader final {
         devtools_observer_->OnCorsPreflightRequestCompleted(
             *devtools_request_id_, network::URLLoaderCompletionStatus(error));
       }
-      std::move(completion_callback_).Run(error, absl::nullopt, false);
+      std::move(completion_callback_)
+          .Run(error,
+               status.has_value() ? status->cors_error_status : absl::nullopt,
+               false);
     }
 
     RemoveFromController();
@@ -456,15 +504,12 @@ class PreflightController::PreflightLoader final {
   PreflightController::CompletionCallback completion_callback_;
   const ResourceRequest original_request_;
 
-  const WithNonWildcardRequestHeadersSupport
-      with_non_wildcard_request_headers_support_;
+  const NonWildcardRequestHeadersSupport non_wildcard_request_headers_support_;
   const bool tainted_;
   absl::optional<base::UnguessableToken> devtools_request_id_;
   const net::NetworkIsolationKey network_isolation_key_;
   mojo::Remote<mojom::DevToolsObserver> devtools_observer_;
   const net::NetLogWithSource net_log_;
-
-  DISALLOW_COPY_AND_ASSIGN(PreflightLoader);
 };
 
 // static
@@ -474,8 +519,8 @@ PreflightController::CreatePreflightRequestForTesting(
     bool tainted) {
   return CreatePreflightRequest(
       request, tainted,
-      net::NetLogSource(net::NetLogSourceType::URL_REQUEST,
-                        net::NetLog::Get()->NextID()),
+      net::NetLogWithSource::Make(net::NetLog::Get(),
+                                  net::NetLogSourceType::URL_REQUEST),
       /*devtools_request_id=*/absl::nullopt);
 }
 
@@ -521,8 +566,7 @@ void PreflightController::PerformPreflightCheck(
     CompletionCallback callback,
     const ResourceRequest& request,
     WithTrustedHeaderClient with_trusted_header_client,
-    WithNonWildcardRequestHeadersSupport
-        with_non_wildcard_request_headers_support,
+    NonWildcardRequestHeadersSupport non_wildcard_request_headers_support,
     bool tainted,
     const net::NetworkTrafficAnnotationTag& annotation_tag,
     mojom::URLLoaderFactory* loader_factory,
@@ -537,7 +581,12 @@ void PreflightController::PerformPreflightCheck(
           : request.trusted_params.has_value()
                 ? request.trusted_params->isolation_info.network_isolation_key()
                 : net::NetworkIsolationKey();
-  if (!RetrieveCacheFlags(request.load_flags) && !request.is_external_request &&
+  if (!RetrieveCacheFlags(request.load_flags) &&
+      // TODO(https://crbug.com/1263483): Remove this.
+      !request.is_external_request &&
+      // TODO(https://crbug.com/1268312): Key the cache by target address space
+      // and remove this guard.
+      request.target_ip_address_space == mojom::IPAddressSpace::kUnknown &&
       cache_.CheckIfRequestCanSkipPreflight(
           request.request_initiator.value(), request.url, network_isolation_key,
           request.credentials_mode, request.method, request.headers,
@@ -548,7 +597,7 @@ void PreflightController::PerformPreflightCheck(
 
   auto emplaced_pair = loaders_.emplace(std::make_unique<PreflightLoader>(
       this, std::move(callback), request, with_trusted_header_client,
-      with_non_wildcard_request_headers_support, tainted, annotation_tag,
+      non_wildcard_request_headers_support, tainted, annotation_tag,
       network_isolation_key, std::move(devtools_observer), net_log));
   (*emplaced_pair.first)->Request(loader_factory);
 }

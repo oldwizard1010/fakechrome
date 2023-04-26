@@ -44,16 +44,14 @@ bool ContainsBucket(const std::set<BucketLocator>& buckets,
   return it != buckets.end();
 }
 
-BucketLocator ToBucketLocator(const BucketInfo& bucket) {
-  return BucketLocator(bucket.id, bucket.storage_key, bucket.type,
-                       bucket.name == kDefaultBucketName);
-}
-
 }  // namespace
 
 class MockQuotaManagerTest : public testing::Test {
  public:
   MockQuotaManagerTest() : deletion_callback_count_(0) {}
+
+  MockQuotaManagerTest(const MockQuotaManagerTest&) = delete;
+  MockQuotaManagerTest& operator=(const MockQuotaManagerTest&) = delete;
 
   void SetUp() override {
     ASSERT_TRUE(data_dir_.CreateUniqueTempDir());
@@ -159,8 +157,6 @@ class MockQuotaManagerTest : public testing::Test {
   StorageType type_;
 
   base::WeakPtrFactory<MockQuotaManagerTest> weak_factory_{this};
-
-  DISALLOW_COPY_AND_ASSIGN(MockQuotaManagerTest);
 };
 
 TEST_F(MockQuotaManagerTest, GetOrCreateBucket) {
@@ -307,7 +303,7 @@ TEST_F(MockQuotaManagerTest, BucketDeletion) {
   manager()->AddBucket(bucket2, {kClientFile, kClientDB}, base::Time::Now());
   manager()->AddBucket(bucket3, {kClientFile, kClientDB}, base::Time::Now());
 
-  DeleteBucketData(ToBucketLocator(bucket2), {kClientFile});
+  DeleteBucketData(bucket2.ToBucketLocator(), {kClientFile});
 
   EXPECT_EQ(1, deletion_callback_count());
   EXPECT_EQ(manager()->BucketDataCount(kClientFile), 2);
@@ -317,7 +313,7 @@ TEST_F(MockQuotaManagerTest, BucketDeletion) {
   EXPECT_TRUE(manager()->BucketHasData(bucket3, kClientFile));
   EXPECT_TRUE(manager()->BucketHasData(bucket3, kClientDB));
 
-  DeleteBucketData(ToBucketLocator(bucket3), {kClientFile, kClientDB});
+  DeleteBucketData(bucket3.ToBucketLocator(), {kClientFile, kClientDB});
 
   EXPECT_EQ(2, deletion_callback_count());
   EXPECT_EQ(manager()->BucketDataCount(kClientFile), 1);

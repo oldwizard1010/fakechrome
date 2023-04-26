@@ -142,6 +142,7 @@ class MODULES_EXPORT OffscreenCanvasRenderingContext2D final
   bool PushFrame() override;
 
   CanvasRenderingContextHost* GetCanvasRenderingContextHost() override;
+  ExecutionContext* GetTopExecutionContext() const override;
 
   IdentifiableToken IdentifiableTextToken() const override {
     return identifiability_study_helper_.GetToken();
@@ -158,6 +159,8 @@ class MODULES_EXPORT OffscreenCanvasRenderingContext2D final
   bool IdentifiabilityEncounteredPartiallyDigestedImage() const override {
     return identifiability_study_helper_.encountered_partially_digested_image();
   }
+
+  void FlushCanvas() override;
 
  protected:
   // This reports CanvasColorParams to the CanvasRenderingContext interface.

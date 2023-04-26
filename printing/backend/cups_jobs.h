@@ -39,11 +39,12 @@ struct COMPONENT_EXPORT(PRINT_BACKEND) CupsJob {
     ABORTED      // an error occurred causing the printer to give up
   };
 
-  // Possible reasons sent by CUPS in job-state-reason sorted lexicographically.
+  // Possible reasons sent by CUPS in job-state-reason
   // The strings are hardcoded in CUPS code and these strings the only once are
   // currently needed.
   enum class JobStateReason {
     kJobCompletedWithErrors = 0,
+    kCupsHeldForAuthentication,
   };
 
   CupsJob();
@@ -94,6 +95,10 @@ enum JobCompletionState {
   COMPLETED,  // only completed jobs
   PROCESSING  // only jobs that are being processed
 };
+
+// Converts a JobStateReason to the exact string returned by CUPS.
+const base::StringPiece COMPONENT_EXPORT(PRINT_BACKEND)
+    ToJobStateReasonString(CupsJob::JobStateReason stateReason);
 
 // Returns the uri for printer with `id` as served by CUPS. Assumes that `id` is
 // a valid CUPS printer name and performs no error checking or escaping.

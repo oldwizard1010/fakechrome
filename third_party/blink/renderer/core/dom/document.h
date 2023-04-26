@@ -66,7 +66,7 @@
 #include "third_party/blink/renderer/core/dom/tree_scope.h"
 #include "third_party/blink/renderer/core/dom/user_action_element_set.h"
 #include "third_party/blink/renderer/core/editing/forward.h"
-#include "third_party/blink/renderer/core/frame/fragment_directive.h"
+#include "third_party/blink/renderer/core/fragment_directive/fragment_directive.h"
 #include "third_party/blink/renderer/core/html/forms/listed_element.h"
 #include "third_party/blink/renderer/core/html/parser/parser_synchronization_policy.h"
 #include "third_party/blink/renderer/core/loader/font_preload_manager.h"
@@ -77,6 +77,7 @@
 #include "third_party/blink/renderer/platform/timer.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
+#include "third_party/blink/renderer/platform/wtf/gc_plugin_ignore.h"
 #include "third_party/blink/renderer/platform/wtf/hash_set.h"
 
 namespace base {
@@ -213,6 +214,7 @@ class TreeWalker;
 class TrustedHTML;
 class V8NodeFilter;
 class V8UnionElementCreationOptionsOrString;
+class V8UnionStringOrTrustedHTML;
 class ViewportData;
 class VisitedLinkState;
 class WebMouseEvent;
@@ -248,11 +250,6 @@ enum DocumentClass {
   kSVGDocumentClass = 1 << 5,
   kXMLDocumentClass = 1 << 6,
 };
-
-// Best understood as a boolean.
-// kShadowCascadeNone means that there are no shadow roots.
-// kShadowCascade means that there might be shadow roots.
-enum ShadowCascadeOrder { kShadowCascadeNone, kShadowCascade };
 
 using DocumentClassFlags = unsigned char;
 
@@ -1162,8 +1159,14 @@ class CORE_EXPORT Document : public ContainerNode,
   // See "core/editing/commands/document_exec_command.cc" for implementations.
   bool execCommand(const String& command,
                    bool show_ui,
+                   const V8UnionStringOrTrustedHTML* value,
+                   ExceptionState&);
+
+  bool execCommand(const String& command,
+                   bool show_ui,
                    const String& value,
                    ExceptionState&);
+
   bool IsRunningExecCommand() const { return is_running_exec_command_; }
   bool queryCommandEnabled(const String& command, ExceptionState&);
   bool queryCommandIndeterm(const String& command, ExceptionState&);
@@ -1493,14 +1496,9 @@ class CORE_EXPORT Document : public ContainerNode,
   SnapCoordinator& GetSnapCoordinator();
   void PerformScrollSnappingTasks();
 
-  ShadowCascadeOrder GetShadowCascadeOrder() const {
-    return shadow_cascade_order_;
-  }
-  void SetShadowCascadeOrder(ShadowCascadeOrder);
+  void SetContainsShadowRoot() { may_contain_shadow_roots_ = true; }
 
-  bool ContainsShadowTree() const {
-    return shadow_cascade_order_ == ShadowCascadeOrder::kShadowCascade;
-  }
+  bool MayContainShadowRoots() const { return may_contain_shadow_roots_; }
 
   RootScrollerController& GetRootScrollerController() const {
     DCHECK(root_scroller_controller_);
@@ -1671,8 +1669,6 @@ class CORE_EXPORT Document : public ContainerNode,
     return !pending_javascript_urls_.IsEmpty();
   }
 
-  String GetFragmentDirective() const { return fragment_directive_string_; }
-
   void ApplyScrollRestorationLogic();
 
   void MarkHasFindInPageRequest();
@@ -1840,8 +1836,6 @@ class CORE_EXPORT Document : public ContainerNode,
   Node* Clone(Document&, CloneChildrenFlag) const override;
   void CloneDataFromDocument(const Document&);
 
-  ShadowCascadeOrder shadow_cascade_order_ = kShadowCascadeNone;
-
   void UpdateTitle(const String&);
   void DispatchDidReceiveTitle();
   void UpdateFocusAppearance();
@@ -1924,7 +1918,7 @@ class CORE_EXPORT Document : public ContainerNode,
   Vector<base::OnceClosure> will_dispatch_prerenderingchange_callbacks_;
 
   // The callback list for post-prerendering activation step.
-  // https://jeremyroman.github.io/alternate-loading-modes/#document-post-prerendering-activation-steps-list
+  // https://wicg.github.io/nav-speculation/prerendering.html#document-post-prerendering-activation-steps-list
   Vector<base::OnceClosure> post_prerendering_activation_callbacks_;
 
   bool evaluate_media_queries_on_style_recalc_;
@@ -2051,6 +2045,10 @@ class CORE_EXPORT Document : public ContainerNode,
   bool have_explicitly_disabled_dns_prefetch_;
   bool contains_plugins_;
 
+  // Set to true whenever shadow root is attached to document. Does not
+  // get reset if all roots are removed.
+  bool may_contain_shadow_roots_ = false;
+
   // https://html.spec.whatwg.org/C/dynamic-markup-insertion.html#ignore-destructive-writes-counter
   unsigned ignore_destructive_write_count_;
   // https://html.spec.whatwg.org/C/dynamic-markup-insertion.html#throw-on-dynamic-markup-insertion-counter
@@ -2115,14 +2113,14 @@ class CORE_EXPORT Document : public ContainerNode,
   // the stack and cleared upon leaving its allocated scope. Hence it
   // is acceptable not to trace it -- should a conservative GC occur,
   // the cache object's references will be traced by a stack walk.
-  GC_PLUGIN_IGNORE("461878")
+  GC_PLUGIN_IGNORE("https://crbug.com/461878")
   NthIndexCache* nth_index_cache_ = nullptr;
 
   // This is an untraced pointer to the cache-scoped object that is first
   // allocated on the stack. It is set upon the first object being allocated
   // on the stack, and cleared upon leaving its allocated scope. The object's
   // references will be traced by a stack walk.
-  GC_PLUGIN_IGNORE("669058")
+  GC_PLUGIN_IGNORE("https://crbug.com/669058")
   HasMatchedCacheScope* has_matched_cache_scope_ = nullptr;
 
   DocumentClassFlags document_classes_;
@@ -2289,7 +2287,6 @@ class CORE_EXPORT Document : public ContainerNode,
 
   bool is_for_markup_sanitization_ = false;
 
-  String fragment_directive_string_;
   Member<FragmentDirective> fragment_directive_;
 
   HeapHashMap<WeakMember<Element>, Member<ExplicitlySetAttrElementsMap>>

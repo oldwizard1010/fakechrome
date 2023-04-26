@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "components/autofill_assistant/browser/action_value.pb.h"
@@ -67,12 +66,14 @@ class WebController {
   // for the lifetime of the controller.
   static std::unique_ptr<WebController> CreateForWebContents(
       content::WebContents* web_contents,
-      const UserData* user_data);
+      const UserData* user_data,
+      ProcessedActionStatusDetailsProto* log_info);
 
   // |web_contents| and |user_data| must outlive this web controller.
   WebController(content::WebContents* web_contents,
                 std::unique_ptr<DevtoolsClient> devtools_client,
-                const UserData* user_data);
+                const UserData* user_data,
+                ProcessedActionStatusDetailsProto* log_info);
 
   WebController(const WebController&) = delete;
   WebController& operator=(const WebController&) = delete;
@@ -85,12 +86,19 @@ class WebController {
 
   // Find the element given by |selector|. If multiple elements match
   // |selector| and if |strict_mode| is false, return the first one that is
-  // found. Otherwise if |strict-mode| is true, do not return any.
+  // found. Otherwise if |strict_mode| is true, do not return any.
   //
   // To check multiple elements, use a BatchElementChecker.
   virtual void FindElement(const Selector& selector,
                            bool strict_mode,
                            ElementFinder::Callback callback);
+
+  // Find the element given by |selector| starting from the given
+  // |start_element|. Returns results or errors based on the |result_type|.
+  virtual void RunElementFinder(const ElementFinder::Result& start_element,
+                                const Selector& selector,
+                                ElementFinder::ResultType result_type,
+                                ElementFinder::Callback callback);
 
   // Find all elements matching |selector|. If there are no matches, the status
   // will be ELEMENT_RESOLUTION_FAILED.
@@ -200,11 +208,6 @@ class WebController {
   // Check if the selected option of the |element| is the expected |option|.
   virtual void CheckSelectedOptionElement(
       const ElementFinder::Result& option,
-      const ElementFinder::Result& element,
-      base::OnceCallback<void(const ClientStatus&)> callback);
-
-  // Highlight an |element|.
-  virtual void HighlightElement(
       const ElementFinder::Result& element,
       base::OnceCallback<void(const ClientStatus&)> callback);
 
@@ -406,9 +409,6 @@ class WebController {
       base::OnceCallback<void(const ClientStatus&)> callback,
       const DevtoolsClient::ReplyStatus& reply_status,
       std::unique_ptr<runtime::EvaluateResult> result);
-  void RunElementFinder(const Selector& selector,
-                        ElementFinder::ResultType result_type,
-                        ElementFinder::Callback callback);
   void OnFindElementResult(ElementFinder* finder_to_release,
                            ElementFinder::Callback callback,
                            const ClientStatus& status,
@@ -523,6 +523,7 @@ class WebController {
   std::unique_ptr<DevtoolsClient> devtools_client_;
   // Must not be |nullptr| and outlive this web controller.
   const UserData* const user_data_;
+  ProcessedActionStatusDetailsProto* const log_info_;
 
   // Currently running workers.
   std::vector<std::unique_ptr<WebControllerWorker>> pending_workers_;

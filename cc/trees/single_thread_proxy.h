@@ -54,7 +54,6 @@ class CC_EXPORT SingleThreadProxy : public Proxy,
   void SetNeedsUpdateLayers() override;
   void SetNeedsCommit() override;
   void SetNeedsRedraw(const gfx::Rect& damage_rect) override;
-  void SetNextCommitWaitsForActivation() override;
   void SetTargetLocalSurfaceId(
       const viz::LocalSurfaceId& target_local_surface_id) override;
   bool RequestedAnimatePending() override;
@@ -82,6 +81,7 @@ class CC_EXPORT SingleThreadProxy : public Proxy,
       std::unique_ptr<RenderFrameMetadataObserver> observer) override;
   void SetEnableFrameRateThrottling(
       bool enable_frame_rate_throttling) override {}
+  uint32_t GetAverageThroughput() const override;
 
   void UpdateBrowserControlsState(BrowserControlsState constraints,
                                   BrowserControlsState current,
@@ -174,7 +174,7 @@ class CC_EXPORT SingleThreadProxy : public Proxy,
   void BeginMainFrame(const viz::BeginFrameArgs& begin_frame_args);
   void BeginMainFrameAbortedOnImplThread(CommitEarlyOutReason reason);
   void DoBeginMainFrame(const viz::BeginFrameArgs& begin_frame_args);
-  void DoPainting();
+  void DoPainting(const viz::BeginFrameArgs& commit_args);
   void DoCommit(const viz::BeginFrameArgs& commit_args);
   DrawResult DoComposite(LayerTreeHostImpl::FrameData* frame);
   void DoSwap();

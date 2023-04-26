@@ -11,8 +11,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/macros.h"
-
 namespace content {
 
 // Impements IDWriteLocalizedStrings, backed by a vector of string pairs.
@@ -22,6 +20,9 @@ class DWriteLocalizedStrings
           IDWriteLocalizedStrings> {
  public:
   DWriteLocalizedStrings();
+
+  DWriteLocalizedStrings& operator=(const DWriteLocalizedStrings&) = delete;
+
   ~DWriteLocalizedStrings() override;
 
   // IDWriteLocalizedStrings:
@@ -49,8 +50,6 @@ class DWriteLocalizedStrings
   // of pairs is small (typically 1-2, rarely up to a few dozen?) and we need
   // index-based access.
   std::vector<std::pair<std::u16string, std::u16string>> strings_;
-
-  DISALLOW_ASSIGN(DWriteLocalizedStrings);
 };
 
 }  // namespace content

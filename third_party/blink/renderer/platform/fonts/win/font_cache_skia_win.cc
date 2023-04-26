@@ -41,11 +41,12 @@
 
 #include "base/cxx17_backports.h"
 #include "base/debug/alias.h"
+#include "base/feature_list.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/trace_event/trace_event.h"
 #include "third_party/blink/public/common/thread_safe_browser_interface_broker_proxy.h"
 #include "third_party/blink/public/platform/platform.h"
-#include "third_party/blink/public/web/win/web_font_prewarmer.h"
+#include "third_party/blink/public/platform/web_font_prewarmer.h"
 #include "third_party/blink/renderer/platform/fonts/bitmap_glyphs_block_list.h"
 #include "third_party/blink/renderer/platform/fonts/font_description.h"
 #include "third_party/blink/renderer/platform/fonts/font_face_creation_params.h"
@@ -196,6 +197,20 @@ void FontCache::PrewarmFamily(const AtomicString& family_name) {
 
   if (!prewarmer_)
     return;
+
+  // Platform is initialized before |FeatureList| that we may have a prewarmer
+  // even when the feature is not enabled.
+  // TODO(crbug.com/1256946): Review if there is a better timing to set the
+  // prewarmer.
+  static bool is_initialized = false;
+  if (!is_initialized) {
+    is_initialized = true;
+    if (!base::FeatureList::IsEnabled(kAsyncFontAccess)) {
+      prewarmer_ = nullptr;
+      return;
+    }
+  }
+  DCHECK(base::FeatureList::IsEnabled(kAsyncFontAccess));
 
   static HashSet<AtomicString> prewarmed_families;
   const auto result = prewarmed_families.insert(family_name);

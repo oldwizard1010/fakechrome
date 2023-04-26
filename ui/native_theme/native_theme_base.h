@@ -8,7 +8,6 @@
 
 #include "base/compiler_specific.h"
 #include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "cc/paint/paint_flags.h"
 #include "ui/native_theme/native_theme.h"
 
@@ -222,9 +221,6 @@ class NATIVE_THEME_EXPORT NativeThemeBase : public NativeTheme {
   // have different padding from those on desktop Chrome. Get rid of this when
   // crbug.com/530746 is resolved.
   virtual void AdjustCheckboxRadioRectForPadding(SkRect* rect) const;
-
-  virtual float AdjustBorderWidthByZoom(float border_width,
-                                        float zoom_level) const;
 
   void set_scrollbar_button_length(int length) {
     scrollbar_button_length_ = length;

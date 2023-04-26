@@ -7,8 +7,6 @@
 
 #include <stdint.h>
 
-#include "base/macros.h"
-
 struct wl_client;
 struct wl_resource;
 
@@ -39,6 +37,9 @@ void bind_xdg_shell(wl_client* client,
                     uint32_t id);
 
 ShellSurfaceBase* GetShellSurfaceFromToplevelResource(
+    wl_resource* surface_resource);
+
+ShellSurfaceBase* GetShellSurfaceFromPopupResource(
     wl_resource* surface_resource);
 
 }  // namespace wayland

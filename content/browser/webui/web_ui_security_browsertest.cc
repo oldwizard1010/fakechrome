@@ -47,6 +47,9 @@ class WebUISecurityTest : public ContentBrowserTest {
  public:
   WebUISecurityTest() = default;
 
+  WebUISecurityTest(const WebUISecurityTest&) = delete;
+  WebUISecurityTest& operator=(const WebUISecurityTest&) = delete;
+
   TestWebUIControllerFactory* factory() { return &factory_; }
   ui::TestUntrustedWebUIControllerFactory& untrusted_factory() {
     return untrusted_factory_;
@@ -58,8 +61,6 @@ class WebUISecurityTest : public ContentBrowserTest {
   ui::TestUntrustedWebUIControllerFactory untrusted_factory_;
   ScopedWebUIControllerFactoryRegistration untrusted_factory_registration_{
       &untrusted_factory_};
-
-  DISALLOW_COPY_AND_ASSIGN(WebUISecurityTest);
 };
 
 // Verify chrome-untrusted:// have no bindings.
@@ -131,8 +132,8 @@ IN_PROC_BROWSER_TEST_F(WebUISecurityTest, WebUIReuse) {
   EXPECT_TRUE(NavigateToURL(shell(), test_url));
 
   FrameTreeNode* root = static_cast<WebContentsImpl*>(shell()->web_contents())
-                            ->GetFrameTree()
-                            ->root();
+                            ->GetPrimaryFrameTree()
+                            .root();
 
   // Capture the SiteInstance and WebUI used in the first navigation to compare
   // with the ones used after the reload.
@@ -167,8 +168,8 @@ IN_PROC_BROWSER_TEST_F(WebUISecurityTest, WebUISameSiteSubframe) {
   EXPECT_TRUE(NavigateToURL(shell(), test_url));
 
   FrameTreeNode* root = static_cast<WebContentsImpl*>(shell()->web_contents())
-                            ->GetFrameTree()
-                            ->root();
+                            ->GetPrimaryFrameTree()
+                            .root();
   EXPECT_EQ(1U, root->child_count());
 
   TestFrameNavigationObserver observer(root->child_at(0));
@@ -199,8 +200,8 @@ IN_PROC_BROWSER_TEST_F(WebUISecurityTest, WebUICrossSiteSubframe) {
   EXPECT_TRUE(NavigateToURL(shell(), main_frame_url));
 
   FrameTreeNode* root = static_cast<WebContentsImpl*>(shell()->web_contents())
-                            ->GetFrameTree()
-                            ->root();
+                            ->GetPrimaryFrameTree()
+                            .root();
   EXPECT_EQ(1U, root->child_count());
   FrameTreeNode* child = root->child_at(0);
 
@@ -283,8 +284,8 @@ IN_PROC_BROWSER_TEST_F(WebUISecurityTest, WebUIReuseInSubframe) {
   EXPECT_TRUE(NavigateToURL(shell(), main_frame_url));
 
   FrameTreeNode* root = static_cast<WebContentsImpl*>(shell()->web_contents())
-                            ->GetFrameTree()
-                            ->root();
+                            ->GetPrimaryFrameTree()
+                            .root();
   EXPECT_EQ(1U, root->child_count());
   FrameTreeNode* child = root->child_at(0);
 
@@ -425,8 +426,8 @@ IN_PROC_BROWSER_TEST_F(WebUISecurityTest, WebUIFailedNavigation) {
             shell()->web_contents()->GetMainFrame()->GetEnabledBindings());
 
   FrameTreeNode* root = static_cast<WebContentsImpl*>(shell()->web_contents())
-                            ->GetFrameTree()
-                            ->root();
+                            ->GetPrimaryFrameTree()
+                            .root();
 
   GURL webui_error_url(GetWebUIURL("web-ui/error"));
   EXPECT_FALSE(NavigateToURL(shell(), webui_error_url));

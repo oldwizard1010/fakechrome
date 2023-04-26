@@ -897,6 +897,10 @@ bool StyleEngine::ShouldSkipInvalidationFor(const Element& element) const {
 #endif  // DCHECK_IS_ON()
     return true;
   }
+  return false;
+}
+
+bool StyleEngine::IsSubtreeAndSiblingsStyleDirty(const Element& element) const {
   if (GetDocument().GetStyleChangeType() == kSubtreeStyleChange)
     return true;
   Element* root = GetDocument().documentElement();
@@ -907,11 +911,60 @@ bool StyleEngine::ShouldSkipInvalidationFor(const Element& element) const {
   return element.parentNode()->GetStyleChangeType() == kSubtreeStyleChange;
 }
 
+namespace {
+
+bool PossiblyAffectingHasState(Element& element) {
+  const ComputedStyle* style = element.GetComputedStyle();
+  // When display:none, the ComputedStyle will be null. So in this case, we
+  // cannot determine whether the element has ancestors affected by ':has()'
+  // or not. There can be an ancestor affected by ':has()', so return true
+  // to walk up to check ancestors.
+  return !style || style->AncestorsAffectedByHas();
+}
+
+void InvalidateAncestorsAffectedByHas(Element* element) {
+  while (element) {
+    const ComputedStyle* style = element->GetComputedStyle();
+
+    if (style && style->AffectedByHas()) {
+      // TODO(blee@igalia.com) non-terminal ':has() is not supported yet,
+      // so we will always invalidate the element marked as 'AffectedByHas'
+
+      // TODO(blee@igalia.com) Need filtering for irrelevant elements.
+      // e.g. When we have '.a:has(.b) {}', '.c:has(.d) {}', mutation of class
+      // value 'd' can invalidate ancestor with class value 'a' because we don't
+      // have any filtering for this case.
+      element->SetNeedsStyleRecalc(
+          StyleChangeType::kLocalStyleChange,
+          StyleChangeReasonForTracing::Create(
+              blink::style_change_reason::kStyleInvalidator));
+    }
+
+    // Stop walk up only when the 'AncestorsAffectedByHas' flag is false.
+    if (style && !style->AncestorsAffectedByHas())
+      return;
+
+    element = element->parentElement();
+  }
+}
+
+}  // namespace
+
 void StyleEngine::ClassChangedForElement(
     const SpaceSplitString& changed_classes,
     Element& element) {
   if (ShouldSkipInvalidationFor(element))
     return;
+
+  if (RuntimeEnabledFeatures::CSSPseudoHasEnabled() &&
+      PossiblyAffectingHasState(element)) {
+    // TODO(blee@igalia.com) Need filtering for irrelevant mutations
+    InvalidateAncestorsAffectedByHas(element.parentElement());
+  }
+
+  if (IsSubtreeAndSiblingsStyleDirty(element))
+    return;
+
   InvalidationLists invalidation_lists;
   unsigned changed_size = changed_classes.size();
   const RuleFeatureSet& features = GetRuleFeatureSet();
@@ -933,6 +986,15 @@ void StyleEngine::ClassChangedForElement(const SpaceSplitString& old_classes,
     ClassChangedForElement(new_classes, element);
     return;
   }
+
+  if (RuntimeEnabledFeatures::CSSPseudoHasEnabled() &&
+      PossiblyAffectingHasState(element)) {
+    // TODO(blee@igalia.com) Need filtering for irrelevant mutations
+    InvalidateAncestorsAffectedByHas(element.parentElement());
+  }
+
+  if (IsSubtreeAndSiblingsStyleDirty(element))
+    return;
 
   // Class vectors tend to be very short. This is faster than using a hash
   // table.
@@ -994,6 +1056,15 @@ void StyleEngine::AttributeChangedForElement(
   if (ShouldSkipInvalidationFor(element))
     return;
 
+  if (RuntimeEnabledFeatures::CSSPseudoHasEnabled() &&
+      PossiblyAffectingHasState(element)) {
+    // TODO(blee@igalia.com) Need filtering for irrelevant mutations
+    InvalidateAncestorsAffectedByHas(element.parentElement());
+  }
+
+  if (IsSubtreeAndSiblingsStyleDirty(element))
+    return;
+
   InvalidationLists invalidation_lists;
   GetRuleFeatureSet().CollectInvalidationSetsForAttribute(
       invalidation_lists, element, attribute_name);
@@ -1014,6 +1085,15 @@ void StyleEngine::IdChangedForElement(const AtomicString& old_id,
   if (ShouldSkipInvalidationFor(element))
     return;
 
+  if (RuntimeEnabledFeatures::CSSPseudoHasEnabled() &&
+      PossiblyAffectingHasState(element)) {
+    // TODO(blee@igalia.com) Need filtering for irrelevant mutations
+    InvalidateAncestorsAffectedByHas(element.parentElement());
+  }
+
+  if (IsSubtreeAndSiblingsStyleDirty(element))
+    return;
+
   InvalidationLists invalidation_lists;
   const RuleFeatureSet& features = GetRuleFeatureSet();
   if (!old_id.IsEmpty())
@@ -1029,6 +1109,8 @@ void StyleEngine::PseudoStateChangedForElement(
     Element& element) {
   if (ShouldSkipInvalidationFor(element))
     return;
+  if (IsSubtreeAndSiblingsStyleDirty(element))
+    return;
 
   InvalidationLists invalidation_lists;
   GetRuleFeatureSet().CollectInvalidationSetsForPseudoClass(
@@ -1039,6 +1121,8 @@ void StyleEngine::PseudoStateChangedForElement(
 
 void StyleEngine::PartChangedForElement(Element& element) {
   if (ShouldSkipInvalidationFor(element))
+    return;
+  if (IsSubtreeAndSiblingsStyleDirty(element))
     return;
   if (element.GetTreeScope() == document_)
     return;
@@ -1051,6 +1135,8 @@ void StyleEngine::PartChangedForElement(Element& element) {
 
 void StyleEngine::ExportpartsChangedForElement(Element& element) {
   if (ShouldSkipInvalidationFor(element))
+    return;
+  if (IsSubtreeAndSiblingsStyleDirty(element))
     return;
   if (!element.GetShadowRoot())
     return;
@@ -1229,6 +1315,13 @@ void StyleEngine::ScheduleCustomElementInvalidations(
                                                          *document_);
 }
 
+void StyleEngine::ChildElementInsertedOrRemoved(Element* parent) {
+  if (!RuntimeEnabledFeatures::CSSPseudoHasEnabled())
+    return;
+  // TODO(blee@igalia.com) Need filtering for irrelevant insertion or removal
+  InvalidateAncestorsAffectedByHas(parent);
+}
+
 void StyleEngine::InvalidateStyle() {
   StyleInvalidator style_invalidator(
       pending_invalidations_.GetPendingInvalidationMap());
@@ -1379,10 +1472,12 @@ void StyleEngine::InitialStyleChanged() {
   if (viewport_resolver_)
     viewport_resolver_->InitialStyleChanged();
 
-  // Media queries may rely on the initial font size relative lengths which may
-  // have changed.
-  MediaQueryAffectingValueChanged(MediaValueChange::kOther);
   MarkViewportStyleDirty();
+  // We need to update the viewport style immediately because media queries
+  // evaluated in MediaQueryAffectingValueChanged() below may rely on the
+  // initial font size relative lengths which may have changed.
+  UpdateViewportStyle();
+  MediaQueryAffectingValueChanged(MediaValueChange::kOther);
   MarkAllElementsForStyleRecalc(
       StyleChangeReasonForTracing::Create(style_change_reason::kSettings));
 }
@@ -1426,6 +1521,8 @@ enum RuleSetFlags {
   kCounterStyleRules = 1 << 5,
   kLayerRules = 1 << 6,
 };
+
+const unsigned kRuleSetFlagsAll = ~0u;
 
 unsigned GetRuleSetFlags(const HeapHashSet<Member<RuleSet>> rule_sets) {
   unsigned flags = 0;
@@ -1569,6 +1666,12 @@ void StyleEngine::ApplyUserRuleSetChanges(
 
     if (resolver_)
       resolver_->InvalidateMatchedPropertiesCache();
+
+    // When we have layer changes other than appended, existing layer ordering
+    // may be changed, which requires rebuilding all at-rule registries and
+    // full document style recalc.
+    if (change == kActiveSheetsChanged)
+      changed_rule_flags = kRuleSetFlagsAll;
   }
 
   bool has_rebuilt_font_face_cache = false;
@@ -1708,6 +1811,15 @@ void StyleEngine::ApplyRuleSetChanges(
     }
     if (resolver_)
       resolver_->InvalidateMatchedPropertiesCache();
+
+    // When we have layer changes other than appended, existing layer ordering
+    // may be changed, which requires rebuilding all at-rule registries and
+    // full document style recalc.
+    if (change == kActiveSheetsChanged) {
+      changed_rule_flags = kRuleSetFlagsAll;
+      if (tree_scope.RootNode().IsDocumentNode())
+        rebuild_font_face_cache = true;
+    }
   }
 
   if ((changed_rule_flags & kPropertyRules) || rebuild_at_property_registry) {
@@ -2122,7 +2234,8 @@ void StyleEngine::UpdateStyleAndLayoutTreeForContainer(
   auto* evaluator = cq_data->GetContainerQueryEvaluator();
   DCHECK(evaluator);
 
-  switch (evaluator->ContainerChanged(physical_size, physical_axes)) {
+  switch (evaluator->ContainerChanged(GetDocument(), style, physical_size,
+                                      physical_axes)) {
     case ContainerQueryEvaluator::Change::kNone:
       if (!cq_data->SkippedStyleRecalc())
         return;
@@ -2364,14 +2477,6 @@ void StyleEngine::UpdateLayoutTreeRebuildRoot(ContainerNode* ancestor,
   }
   DCHECK(GetDocument().InStyleRecalc());
   DCHECK(dirty_node);
-  if (!ancestor && !dirty_node->NeedsReattachLayoutTree() &&
-      !dirty_node->ChildNeedsReattachLayoutTree()) {
-    // The StyleTraversalRoot requires the root node to be dirty or child-dirty.
-    // When we mark for whitespace re-attachment, we only mark the ancestor
-    // chain. Use the parent as the dirty node if the dirty_node is not dirty.
-    dirty_node = dirty_node->GetReattachParent();
-    DCHECK(dirty_node && dirty_node->ChildNeedsReattachLayoutTree());
-  }
   layout_tree_rebuild_root_.Update(ancestor, dirty_node);
 }
 
@@ -2408,12 +2513,22 @@ void StyleEngine::UpdateColorScheme() {
   mojom::blink::PreferredColorScheme old_preferred_color_scheme =
       preferred_color_scheme_;
   preferred_color_scheme_ = settings->GetPreferredColorScheme();
+
   if (const auto* overrides =
           GetDocument().GetPage()->GetMediaFeatureOverrides()) {
-    MediaQueryExpValue value = overrides->GetOverride("prefers-color-scheme");
-    if (value.IsValid())
-      preferred_color_scheme_ = CSSValueIDToPreferredColorScheme(value.Id());
+    MediaQueryExpValue forced_colors_value =
+        overrides->GetOverride("forced-colors");
+    if (forced_colors_value.IsValid())
+      forced_colors_ = CSSValueIDToForcedColors(forced_colors_value.Id());
+
+    MediaQueryExpValue preferred_color_scheme_value =
+        overrides->GetOverride("prefers-color-scheme");
+    if (preferred_color_scheme_value.IsValid()) {
+      preferred_color_scheme_ =
+          CSSValueIDToPreferredColorScheme(preferred_color_scheme_value.Id());
+    }
   }
+
   if (GetDocument().Printing())
     preferred_color_scheme_ = mojom::blink::PreferredColorScheme::kLight;
 

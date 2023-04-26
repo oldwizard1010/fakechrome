@@ -110,11 +110,18 @@ bool IsSelectiveUIAEnablementEnabled() {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 const base::Feature kMagnifierContinuousMouseFollowingModeSetting{
     "MagnifierContinuousMouseFollowingModeSetting",
-    base::FEATURE_DISABLED_BY_DEFAULT};
+    base::FEATURE_ENABLED_BY_DEFAULT};
 
 bool IsMagnifierContinuousMouseFollowingModeSettingEnabled() {
   return base::FeatureList::IsEnabled(
       ::features::kMagnifierContinuousMouseFollowingModeSetting);
+}
+
+const base::Feature kDockedMagnifierResizing{"DockedMagnifierResizing",
+                                             base::FEATURE_DISABLED_BY_DEFAULT};
+
+bool IsDockedMagnifierResizingEnabled() {
+  return base::FeatureList::IsEnabled(::features::kDockedMagnifierResizing);
 }
 
 const base::Feature kExperimentalAccessibilityDictationOffline{
@@ -179,16 +186,6 @@ const base::Feature kEnableAriaElementReflection{
 bool IsAriaElementReflectionEnabled() {
   return base::FeatureList::IsEnabled(::features::kEnableAriaElementReflection);
 }
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-const base::Feature kSelectToSpeakNavigationControl{
-    "SelectToSpeakNavigationControl", base::FEATURE_ENABLED_BY_DEFAULT};
-
-bool IsSelectToSpeakNavigationControlEnabled() {
-  return base::FeatureList::IsEnabled(
-      ::features::kSelectToSpeakNavigationControl);
-}
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 #if defined(OS_ANDROID)
 const base::Feature kComputeAXMode{"ComputeAXMode",

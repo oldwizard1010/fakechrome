@@ -323,7 +323,7 @@ class RemoveCookieTester {
 
 class RemoveSafeBrowsingCookieTester : public RemoveCookieTester {
  public:
-  RemoveSafeBrowsingCookieTester()
+  explicit RemoveSafeBrowsingCookieTester(Profile* profile)
       : browser_process_(TestingBrowserProcess::GetGlobal()) {
     // TODO(crbug/925153): Port consumers of the |sb_service| to use the
     // interface in components/safe_browsing, and remove this cast.
@@ -338,7 +338,7 @@ class RemoveSafeBrowsingCookieTester : public RemoveCookieTester {
     // TODO(mmenke): Is this really needed?
     base::RunLoop run_loop;
     mojo::Remote<network::mojom::CookieManager> cookie_manager;
-    sb_service->GetNetworkContext()->GetCookieManager(
+    sb_service->GetNetworkContext(profile)->GetCookieManager(
         cookie_manager.BindNewPipeAndPassReceiver());
     cookie_manager->DeleteCookies(
         network::mojom::CookieDeletionFilter::New(),
@@ -931,7 +931,7 @@ class MockReportingService : public net::ReportingService {
   }
 
   void ProcessReportToHeader(
-      const GURL& url,
+      const url::Origin& origin,
       const net::NetworkIsolationKey& network_isolation_key,
       const std::string& header_value) override {
     NOTREACHED();
@@ -1330,7 +1330,7 @@ class ChromeBrowsingDataRemoverDelegateTest : public testing::Test {
 //                         initialization.
 TEST_F(ChromeBrowsingDataRemoverDelegateTest,
        DISABLED_RemoveSafeBrowsingCookieForever) {
-  RemoveSafeBrowsingCookieTester tester;
+  RemoveSafeBrowsingCookieTester tester(GetProfile());
 
   tester.AddCookie();
   ASSERT_TRUE(tester.ContainsCookie());
@@ -1349,7 +1349,7 @@ TEST_F(ChromeBrowsingDataRemoverDelegateTest,
 //                         initialization.
 TEST_F(ChromeBrowsingDataRemoverDelegateTest,
        DISABLED_RemoveSafeBrowsingCookieLastHour) {
-  RemoveSafeBrowsingCookieTester tester;
+  RemoveSafeBrowsingCookieTester tester(GetProfile());
 
   tester.AddCookie();
   ASSERT_TRUE(tester.ContainsCookie());
@@ -1370,7 +1370,7 @@ TEST_F(ChromeBrowsingDataRemoverDelegateTest,
 //                         initialization.
 TEST_F(ChromeBrowsingDataRemoverDelegateTest,
        DISABLED_RemoveSafeBrowsingCookieForeverWithPredicate) {
-  RemoveSafeBrowsingCookieTester tester;
+  RemoveSafeBrowsingCookieTester tester(GetProfile());
 
   tester.AddCookie();
   ASSERT_TRUE(tester.ContainsCookie());

@@ -39,17 +39,19 @@ ASH_PUBLIC_EXPORT extern const char kCrostiniFolderId[];
 
 // App list config types supported by AppListConfig.
 enum class AppListConfigType {
-  // Config used on large screens when app_list_features::ScalableAppList
-  // feature is enabled.
+  // Legacy configs, chosen based on the size of the screen.
+  // Used when ProductivityLauncher is disabled.
   kLarge,
-
-  // Config used on medium sized screens when app_list_features::ScalableAppList
-  // feature is enabled.
   kMedium,
+  kSmall,
 
-  // Config used on small screens when app_list_features::ScalableAppList
-  // feature is enabled.
-  kSmall
+  // Config for tablet mode on typical size screens.
+  // Used when ProductivityLauncher is enabled.
+  kRegular,
+
+  // Config for clamshell mode. Also used for tablet mode on small screens.
+  // Used when ProductivityLauncher is enabled.
+  kDense,
 };
 
 // A structure holding the common information which is sent between ash and,
@@ -82,7 +84,7 @@ struct ASH_PUBLIC_EXPORT AppListItemMetadata {
 // All possible orders to sort app list items.
 enum class AppListSortOrder {
   // The sort order is not set.
-  kEmpty = 0,
+  kCustom = 0,
 
   // Items are sorted by the name alphabetical order. Note that folders are
   // always placed in front of other types of items.
@@ -91,6 +93,27 @@ enum class AppListSortOrder {
   // Items are sorted by the name reverse alphabetical order. Note that folders
   // are always placed in front of other types of items.
   kNameReverseAlphabetical
+};
+
+// Lists the reasons that ash requests for item position update.
+enum class RequestPositionUpdateReason {
+  // Fix the position when multiple items share the same position.
+  kFixItem,
+
+  // Move an item.
+  kMoveItem
+};
+
+// Lists the reasons that ash requests to move an item into a folder.
+enum class RequestMoveToFolderReason {
+  // Merge two items and move the first item to the created folder.
+  kMergeFirstItem,
+
+  // Merge two items and move the second item to the created folder.
+  kMergeSecondItem,
+
+  // Move an item to an existed folder.
+  kMoveItem
 };
 
 // All possible states of the app list.
@@ -242,14 +265,17 @@ enum SearchResultOmniboxDisplayType {
   kOmniboxTypeMax,  // Do not use.
 };
 
-// Actions for OmniBox zero state suggestion.
-enum OmniBoxZeroStateAction {
-  // Removes the zero state suggestion.
-  kRemoveSuggestion = 0,
-  // Appends the suggestion to search box query.
-  kAppendSuggestion,
-  // kZeroStateActionMax is always last.
-  kZeroStateActionMax
+// Actions for search results. These map to the buttons beside some search
+// results, and do not include the launching of the result itself.
+// TODO(crbug.com/1263751): Currently these are only relevant to omnibox
+// results, but these are being generalized to other result types.
+enum SearchResultActionType {
+  // Removes the search result.
+  kRemove = 0,
+  // Appends the result to search box query.
+  kAppend,
+  // kSearchResultActionMax is always last.
+  kSearchResultActionTypeMax
 };
 
 // The shape to mask a search result icon with.
@@ -286,9 +312,9 @@ struct ASH_PUBLIC_EXPORT SearchResultIconInfo {
   SearchResultIconShape shape = SearchResultIconShape::kDefault;
 };
 
-// Returns OmniBoxZeroStateAction mapped for |button_index|.
-ASH_PUBLIC_EXPORT OmniBoxZeroStateAction
-GetOmniBoxZeroStateAction(int button_index);
+// Returns SearchResultActionType mapped for |button_index|.
+ASH_PUBLIC_EXPORT SearchResultActionType
+GetSearchResultActionType(int button_index);
 
 // A tagged range in search result text.
 struct ASH_PUBLIC_EXPORT SearchResultTag {

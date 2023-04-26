@@ -450,6 +450,7 @@ bool OutOfProcessInstance::Init(uint32_t argc,
 
   text_input_ = std::make_unique<pp::TextInput_Dev>(this);
 
+  // Parse attributes. Keep in sync with `ParseWebPluginParams()`.
   const char* src_url = nullptr;
   const char* original_url = nullptr;
   const char* top_level_url = nullptr;
@@ -667,7 +668,7 @@ void OutOfProcessInstance::InitImageData(const gfx::Size& size) {
       std::make_unique<pp::ImageData>(pepper_image_data_));
 }
 
-void OutOfProcessInstance::SetFormFieldInFocus(bool in_focus) {
+void OutOfProcessInstance::SetFormTextFieldInFocus(bool in_focus) {
   if (!text_input_)
     return;
 

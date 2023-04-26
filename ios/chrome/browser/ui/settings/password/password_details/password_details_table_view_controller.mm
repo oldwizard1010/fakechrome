@@ -147,8 +147,8 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
   self.tableView.allowsSelectionDuringEditing = YES;
 
   if (self.credentialType == CredentialTypeNew) {
-    // TODO(crbug.com/1226006): Use i18n strings for the buttons.
-    self.navigationItem.title = @"Add Password";
+    self.navigationItem.title = l10n_util::GetNSString(
+        IDS_IOS_PASSWORD_SETTINGS_ADD_PASSWORD_MANUALLY_TITLE);
 
     // Adds 'Cancel' and 'Save' buttons to Navigation bar.
     self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc]
@@ -160,11 +160,12 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
     self.navigationItem.leftBarButtonItem.accessibilityIdentifier =
         kPasswordsAddPasswordCancelButtonId;
 
-    self.navigationItem.rightBarButtonItem =
-        [[UIBarButtonItem alloc] initWithTitle:@"Save"
-                                         style:UIBarButtonItemStyleDone
-                                        target:self
-                                        action:@selector(didTapSaveButton:)];
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+        initWithTitle:l10n_util::GetNSString(
+                          IDS_IOS_PASSWORD_SETTINGS_SAVE_BUTTON)
+                style:UIBarButtonItemStyleDone
+               target:self
+               action:@selector(didTapSaveButton:)];
     self.navigationItem.rightBarButtonItem.enabled = NO;
     self.navigationItem.rightBarButtonItem.accessibilityIdentifier =
         kPasswordsAddPasswordSaveButtonId;
@@ -305,8 +306,8 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
   item.keyboardType = UIKeyboardTypeURL;
   if (base::FeatureList::IsEnabled(
           password_manager::features::kSupportForAddPasswordsInSettings)) {
-    // TODO(crbug.com/1226006): Use i18n string for the placeholder.
-    item.textFieldPlaceholder = @"example.com";
+    item.textFieldPlaceholder = l10n_util::GetNSString(
+        IDS_IOS_PASSWORD_SETTINGS_WEBSITE_PLACEHOLDER_TEXT);
   }
   if (self.credentialType == CredentialTypeNew) {
     item.delegate = self;
@@ -337,8 +338,8 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
   item.textFieldEnabled |= (self.credentialType == CredentialTypeNew);
   if (base::FeatureList::IsEnabled(
           password_manager::features::kSupportForAddPasswordsInSettings)) {
-    // TODO(crbug.com/1226006): Use i18n string for the placeholder.
-    item.textFieldPlaceholder = @"optional";
+    item.textFieldPlaceholder = l10n_util::GetNSString(
+        IDS_IOS_PASSWORD_SETTINGS_USERNAME_PLACEHOLDER_TEXT);
   }
   return item;
 }
@@ -366,8 +367,8 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
   item.delegate = self;
   if (base::FeatureList::IsEnabled(
           password_manager::features::kSupportForAddPasswordsInSettings)) {
-    // TODO(crbug.com/1226006): Use i18n string for the placeholder.
-    item.textFieldPlaceholder = @"password";
+    item.textFieldPlaceholder = l10n_util::GetNSString(
+        IDS_IOS_PASSWORD_SETTINGS_PASSWORD_PLACEHOLDER_TEXT);
   }
 
   // During editing password is exposed so eye icon shouldn't be shown.
@@ -377,8 +378,9 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
     item.identifyingIcon = [[UIImage imageNamed:image]
         imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
     item.identifyingIconEnabled = YES;
-    item.identifyingIconAccessibilityLabel =
-        l10n_util::GetNSString(IDS_IOS_SETTINGS_PASSWORD_SHOW_BUTTON);
+    item.identifyingIconAccessibilityLabel = l10n_util::GetNSString(
+        [self isPasswordShown] ? IDS_IOS_SETTINGS_PASSWORD_HIDE_BUTTON
+                               : IDS_IOS_SETTINGS_PASSWORD_SHOW_BUTTON);
   }
   return item;
 }
@@ -418,8 +420,8 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
 - (TableViewTextItem*)duplicatePasswordViewButtonItem {
   TableViewTextItem* item = [[TableViewTextItem alloc]
       initWithType:ItemTypeDuplicateCredentialButton];
-  // TODO(crbug.com/1226006): Use i18n string.
-  item.text = @"Test View Password";
+  item.text =
+      l10n_util::GetNSString(IDS_IOS_PASSWORD_SETTINGS_VIEW_PASSWORD_BUTTON);
   item.textColor = [UIColor colorNamed:kBlueColor];
   item.accessibilityTraits = UIAccessibilityTraitButton;
   return item;
@@ -428,8 +430,17 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
 - (SettingsImageDetailTextItem*)duplicatePasswordMessageItem {
   SettingsImageDetailTextItem* item = [[SettingsImageDetailTextItem alloc]
       initWithType:ItemTypeDuplicateCredentialMessage];
-  // TODO(crbug.com/1226006): Use i18n string.
-  item.detailText = @"Test You already saved a password";
+  if (self.usernameTextItem &&
+      [self.usernameTextItem.textFieldValue length] > 0) {
+    item.detailText = l10n_util::GetNSStringF(
+        IDS_IOS_SETTINGS_PASSWORDS_DUPLICATE_SECTION_ALERT_DESCRIPTION,
+        base::SysNSStringToUTF16(self.usernameTextItem.textFieldValue),
+        base::SysNSStringToUTF16(self.websiteTextItem.textFieldValue));
+  } else {
+    item.detailText = l10n_util::GetNSStringF(
+        IDS_IOS_SETTINGS_PASSWORDS_DUPLICATE_SECTION_ALERT_DESCRIPTION_WITHOUT_USERNAME,
+        base::SysNSStringToUTF16(self.websiteTextItem.textFieldValue));
+  }
   item.image = [[UIImage imageNamed:@"table_view_cell_error_icon"]
       imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
   item.imageViewTintColor = [UIColor colorNamed:kRedColor];
@@ -439,16 +450,17 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
 - (TableViewLinkHeaderFooterItem*)footerItem {
   TableViewLinkHeaderFooterItem* item =
       [[TableViewLinkHeaderFooterItem alloc] initWithType:ItemTypeFooter];
-  // TODO(crbug.com/1226006): Use i18n string.
-  item.text = @"Make sure you're saving your current password for this site";
+  item.text = l10n_util::GetNSString(IDS_IOS_SETTINGS_ADD_PASSWORD_DESCRIPTION);
   return item;
 }
 
 - (TableViewLinkHeaderFooterItem*)TLDMessageFooterItem {
   TableViewLinkHeaderFooterItem* item =
       [[TableViewLinkHeaderFooterItem alloc] initWithType:ItemTypeFooter];
-  // TODO(crbug.com/1226006): Use i18n string.
-  item.text = @"Did you mean website.com?";
+  item.text = l10n_util::GetNSStringF(
+      IDS_IOS_SETTINGS_PASSWORDS_MISSING_TLD_DESCRIPTION,
+      base::SysNSStringToUTF16([self.websiteTextItem.textFieldValue
+          stringByAppendingString:@".com"]));
   return item;
 }
 
@@ -668,11 +680,13 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
   if (duplicateFound) {
     [self
         performBatchTableViewUpdates:^{
-          NSUInteger indexForInsertion = self.isTLDMissingMessageShown ? 3 : 2;
+          NSUInteger passwordSectionIndex = [self.tableViewModel
+              sectionForSectionIdentifier:SectionIdentifierPassword];
           [model insertSectionWithIdentifier:SectionIdentifierDuplicate
-                                     atIndex:indexForInsertion];
+                                     atIndex:passwordSectionIndex + 1];
           [self.tableView
-                insertSections:[NSIndexSet indexSetWithIndex:indexForInsertion]
+                insertSections:[NSIndexSet
+                                   indexSetWithIndex:passwordSectionIndex + 1]
               withRowAnimation:UITableViewRowAnimationTop];
           [model addItem:[self duplicatePasswordMessageItem]
               toSectionWithIdentifier:SectionIdentifierDuplicate];
@@ -734,9 +748,11 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
     }
   }
 
-  self.shouldEnableSave = [self checkIfValidSite] &
-                          [self checkIfValidUsername] &
-                          [self checkIfValidPassword];
+  BOOL siteValid = [self checkIfValidSite];
+  BOOL usernameValid = [self checkIfValidUsername];
+  BOOL passwordValid = [self checkIfValidPassword];
+
+  self.shouldEnableSave = (siteValid && usernameValid && passwordValid);
   [self toggleNavigationBarRightButtonItem];
 
   if (self.credentialType == CredentialTypeNew) {
@@ -748,7 +764,8 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
   // Check if the item is equal to the current username or password item as when
   // editing finished reloadData is called.
   if (tableViewItem == self.websiteTextItem) {
-    if ([self.delegate isTLDMissing]) {
+    if ([self.websiteTextItem.textFieldValue length] > 0 &&
+        [self.delegate isTLDMissing]) {
       [self showTLDMissingSection];
     }
     [self reconfigureCellsForItems:@[ self.websiteTextItem ]];
@@ -768,7 +785,8 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
 
 // Handles Save button tap on adding new credentials.
 - (void)didTapSaveButton:(id)sender {
-  if ([self.delegate isTLDMissing]) {
+  if ([self.websiteTextItem.textFieldValue length] > 0 &&
+      [self.delegate isTLDMissing]) {
     [self showTLDMissingSection];
     return;
   }
@@ -868,6 +886,8 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
       self.passwordTextItem.identifyingIcon =
           [[UIImage imageNamed:@"infobar_hide_password_icon"]
               imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+      self.passwordTextItem.identifyingIconAccessibilityLabel =
+          l10n_util::GetNSString(IDS_IOS_SETTINGS_PASSWORD_HIDE_BUTTON);
       [self reconfigureCellsForItems:@[ self.passwordTextItem ]];
       if (self.password.compromised) {
         UmaHistogramEnumeration("PasswordManager.BulkCheck.UserAction",
@@ -1003,9 +1023,9 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
                                          .textFieldValue];
         };
 
-    // TODO(crbug.com/1226006): Use i18n string.
     [self.reauthModule
-        attemptReauthWithLocalizedReason:@"Test Show Existing Credential"
+        attemptReauthWithLocalizedReason:
+            [self localizedStringForReason:ReauthenticationReasonShow]
                     canReusePreviousAuth:YES
                                  handler:viewExistingPasswordHandler];
   } else {
@@ -1057,6 +1077,8 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
     self.passwordTextItem.identifyingIcon =
         [[UIImage imageNamed:@"infobar_reveal_password_icon"]
             imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    self.passwordTextItem.identifyingIconAccessibilityLabel =
+        l10n_util::GetNSString(IDS_IOS_SETTINGS_PASSWORD_SHOW_BUTTON);
     [self reconfigureCellsForItems:@[ self.passwordTextItem ]];
   } else {
     if (self.credentialType == CredentialTypeNew) {
@@ -1065,6 +1087,8 @@ typedef NS_ENUM(NSInteger, ReauthenticationReason) {
       self.passwordTextItem.identifyingIcon =
           [[UIImage imageNamed:@"infobar_hide_password_icon"]
               imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+      self.passwordTextItem.identifyingIconAccessibilityLabel =
+          l10n_util::GetNSString(IDS_IOS_SETTINGS_PASSWORD_HIDE_BUTTON);
       [self reconfigureCellsForItems:@[ self.passwordTextItem ]];
     } else {
       [self attemptToShowPasswordFor:ReauthenticationReasonShow];

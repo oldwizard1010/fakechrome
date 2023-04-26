@@ -181,13 +181,13 @@ class CORE_EXPORT WebLocalFrameImpl final
                                 int argc,
                                 v8::Local<v8::Value> argv[],
                                 WebScriptExecutionCallback*) override;
-  void RequestExecuteScript(
-      int32_t world_id,
-      base::span<const WebScriptSource> sources,
-      bool user_gesture,
-      ScriptExecutionType,
-      WebScriptExecutionCallback*,
-      BackForwardCacheAware back_forward_cache_aware) override;
+  void RequestExecuteScript(int32_t world_id,
+                            base::span<const WebScriptSource> sources,
+                            bool user_gesture,
+                            ScriptExecutionType,
+                            WebScriptExecutionCallback*,
+                            BackForwardCacheAware back_forward_cache_aware,
+                            PromiseBehavior) override;
   void Alert(const WebString& message) override;
   bool Confirm(const WebString& message) override;
   WebString Prompt(const WebString& message,
@@ -351,8 +351,8 @@ class CORE_EXPORT WebLocalFrameImpl final
       const WebSecurityOrigin& initiator_origin,
       bool is_browser_initiated,
       std::unique_ptr<WebDocumentLoader::ExtraData> extra_data) override;
-  void SetCommittedFirstRealLoad() override;
-  bool HasCommittedFirstRealLoad() override;
+  void SetIsNotOnInitialEmptyDocument() override;
+  bool IsOnInitialEmptyDocument() override;
   bool WillStartNavigation(const WebNavigationInfo&) override;
   void DidDropNavigation() override;
   void DownloadURL(
@@ -540,7 +540,7 @@ class CORE_EXPORT WebLocalFrameImpl final
       bool is_for_nested_main_frame,
       bool hidden) override;
 
-  HitTestResult HitTestResultForVisualViewportPos(const IntPoint&);
+  HitTestResult HitTestResultForVisualViewportPos(const gfx::Point&);
 
   WebPlugin* FocusedPluginIfInputMethodSupported();
   ScrollableArea* LayoutViewport() const;
@@ -615,7 +615,7 @@ class CORE_EXPORT WebLocalFrameImpl final
   // Oilpan: WebLocalFrameImpl must remain alive until close() is called.
   // Accomplish that by keeping a self-referential Persistent<>. It is
   // cleared upon close().
-  SelfKeepAlive<WebLocalFrameImpl> self_keep_alive_;
+  SelfKeepAlive<WebLocalFrameImpl> self_keep_alive_{this};
 
 #if DCHECK_IS_ON()
   // True if DispatchBeforePrintEvent() was called, and

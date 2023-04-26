@@ -9,7 +9,6 @@
 #include <string>
 #include <vector>
 
-#include "base/macros.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_ui_controller.h"
 #include "content/public/browser/web_ui_data_source.h"
@@ -17,6 +16,7 @@
 
 namespace base {
 class ListValue;
+class DictionaryValue;
 }  // namespace base
 
 namespace content {
@@ -70,7 +70,7 @@ class AccessibilityUIMessageHandler : public content::WebUIMessageHandler {
 
   void ToggleAccessibility(const base::ListValue* args);
   void SetGlobalFlag(const base::ListValue* args);
-  void GetRequestTypeAndFilters(const base::DictionaryValue* data,
+  void GetRequestTypeAndFilters(const base::DictionaryValue& data,
                                 std::string& request_type,
                                 std::string& allow,
                                 std::string& allow_empty,

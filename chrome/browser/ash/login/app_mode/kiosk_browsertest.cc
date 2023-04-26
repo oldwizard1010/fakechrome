@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "apps/test/app_window_waiter.h"
+#include "ash/components/settings/cros_settings_provider.h"
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
 #include "ash/public/cpp/keyboard/keyboard_controller.h"
@@ -19,7 +20,6 @@
 #include "base/callback_helpers.h"
 #include "base/json/json_reader.h"
 #include "base/location.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
@@ -90,7 +90,6 @@
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/pref_names.h"
 #include "chromeos/disks/disk_mount_manager.h"
-#include "chromeos/settings/cros_settings_provider.h"
 #include "chromeos/tpm/stub_install_attributes.h"
 #include "components/crx_file/crx_verifier.h"
 #include "components/prefs/pref_service.h"
@@ -2279,7 +2278,7 @@ IN_PROC_BROWSER_TEST_F(KioskUpdateTest,
 
 IN_PROC_BROWSER_TEST_F(KioskUpdateTest, PRE_IncompliantPlatformDelayInstall) {
   base::test::ScopedChromeOSVersionInfo version(
-      "CHROMEOS_RELEASE_VERSION=1234.0.0", base::Time::Now());
+      "CHROMEOS_RELEASE_VERSION=1233.0.0", base::Time::Now());
 
   set_test_app_id(kTestOfflineEnabledKioskApp);
   set_test_app_version("2.0.0");
@@ -2299,9 +2298,7 @@ IN_PROC_BROWSER_TEST_F(KioskUpdateTest, PRE_IncompliantPlatformDelayInstall) {
   EXPECT_TRUE(PrimaryAppUpdateIsPending());
 }
 
-// TODO(crbug.com/1243885): Fix and re-enable.
-IN_PROC_BROWSER_TEST_F(KioskUpdateTest,
-                       DISABLED_IncompliantPlatformDelayInstall) {
+IN_PROC_BROWSER_TEST_F(KioskUpdateTest, IncompliantPlatformDelayInstall) {
   base::test::ScopedChromeOSVersionInfo version(
       "CHROMEOS_RELEASE_VERSION=1234.0.0", base::Time::Now());
 

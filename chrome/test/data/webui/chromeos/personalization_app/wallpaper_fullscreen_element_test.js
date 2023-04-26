@@ -4,9 +4,13 @@
 
 /** @fileoverview Test suite for wallpaper-fullscreen component.  */
 
+import {WallpaperLayout, WallpaperType} from 'chrome://personalization/trusted/personalization_app.mojom-webui.js';
+import {DisplayableImage} from 'chrome://personalization/trusted/personalization_reducers.js';
 import {WallpaperFullscreen} from 'chrome://personalization/trusted/wallpaper_fullscreen_element.js';
+
 import {assertEquals, assertFalse, assertTrue} from '../../chai_assert.js';
 import {flushTasks, waitAfterNextRender} from '../../test_util.js';
+
 import {baseSetup, initElement} from './personalization_app_test_utils.js';
 import {TestWallpaperProvider} from './test_mojo_interface_provider.js';
 import {TestPersonalizationStore} from './test_personalization_store.js';
@@ -21,20 +25,24 @@ export function WallpaperFullscreenTest() {
   /** @type {?TestPersonalizationStore} */
   let personalizationStore = null;
 
-  /** @type {!chromeos.personalizationApp.mojom.CurrentWallpaper} */
-  const customImage = {
+  /** @type {!CurrentWallpaper} */
+  const currentSelectedCustomImage = {
     attribution: ['Custom image'],
-    layout: chromeos.personalizationApp.mojom.WallpaperLayout.kCenter,
+    layout: WallpaperLayout.kCenter,
     key: 'testing',
-    type: chromeos.personalizationApp.mojom.WallpaperType.kCustomized,
+    type: WallpaperType.kCustomized,
     url: {url: 'data://testing'},
   };
 
+  /** @type {!DisplayableImage} */
+  const pendingSelectedCustomImage = {path: '/local/image/path.jpg'};
 
   setup(() => {
     const mocks = baseSetup();
     wallpaperProvider = mocks.wallpaperProvider;
+    wallpaperProvider.isInTabletModeResponse = true;
     personalizationStore = mocks.personalizationStore;
+    loadTimeData.overrideValues({fullScreenPreviewEnabled: true});
   });
 
   teardown(async () => {
@@ -48,7 +56,6 @@ export function WallpaperFullscreenTest() {
   function mockFullscreenApis() {
     const container =
         wallpaperFullscreenElement.shadowRoot.getElementById('container');
-
 
     let fullscreenElement = null;
 
@@ -86,7 +93,7 @@ export function WallpaperFullscreenTest() {
     assertTrue(container.hidden);
 
     personalizationStore.data.fullscreen = true;
-    personalizationStore.data.currentSelected = customImage;
+    personalizationStore.data.currentSelected = currentSelectedCustomImage;
     personalizationStore.notifyObservers();
 
     await requestFullscreenPromise;
@@ -101,6 +108,55 @@ export function WallpaperFullscreenTest() {
     assertTrue(container.hidden);
   });
 
+  test('sets default layout option on when entering preview', async () => {
+    wallpaperFullscreenElement = initElement(WallpaperFullscreen.is);
+    const {requestFullscreenPromise, exitFullscreenPromise} =
+        mockFullscreenApis();
+    await waitAfterNextRender(wallpaperFullscreenElement);
+
+    assertEquals(null, wallpaperFullscreenElement.selectedLayout_);
+
+    personalizationStore.data.fullscreen = true;
+    personalizationStore.data.currentSelected = currentSelectedCustomImage;
+    personalizationStore.notifyObservers();
+
+    await requestFullscreenPromise;
+
+    assertEquals(
+        WallpaperLayout.kCenterCropped,
+        wallpaperFullscreenElement.selectedLayout_);
+
+    personalizationStore.data.fullscreen = false;
+    personalizationStore.notifyObservers();
+
+    await exitFullscreenPromise;
+
+    assertEquals(null, wallpaperFullscreenElement.selectedLayout_);
+  });
+
+  test('sets fullscreen class on body when entering fullscreen', async () => {
+    wallpaperFullscreenElement = initElement(WallpaperFullscreen.is);
+    const {requestFullscreenPromise, exitFullscreenPromise} =
+        mockFullscreenApis();
+    await waitAfterNextRender(wallpaperFullscreenElement);
+
+    assertEquals('', document.body.className);
+
+    personalizationStore.data.fullscreen = true;
+    personalizationStore.data.currentSelected = currentSelectedCustomImage;
+    personalizationStore.notifyObservers();
+
+    await requestFullscreenPromise;
+
+    assertEquals('fullscreen-preview', document.body.className);
+
+    wallpaperFullscreenElement.exitFullscreen();
+
+    await exitFullscreenPromise;
+
+    assertEquals('', document.body.className);
+  });
+
   test('exits full screen on exit button click', async () => {
     wallpaperFullscreenElement = initElement(WallpaperFullscreen.is);
     const {requestFullscreenPromise, exitFullscreenPromise} =
@@ -108,7 +164,7 @@ export function WallpaperFullscreenTest() {
     await waitAfterNextRender(wallpaperFullscreenElement);
 
     personalizationStore.data.fullscreen = true;
-    personalizationStore.data.currentSelected = customImage;
+    personalizationStore.data.currentSelected = currentSelectedCustomImage;
     personalizationStore.notifyObservers();
 
     await requestFullscreenPromise;
@@ -128,7 +184,7 @@ export function WallpaperFullscreenTest() {
         null,
         wallpaperFullscreenElement.shadowRoot.getElementById('layoutButtons'));
 
-    personalizationStore.data.currentSelected = customImage;
+    personalizationStore.data.pendingSelected = pendingSelectedCustomImage;
     personalizationStore.notifyObservers();
 
     await waitAfterNextRender(wallpaperFullscreenElement);
@@ -137,98 +193,72 @@ export function WallpaperFullscreenTest() {
         'layoutButtons'));
   });
 
-  test('clicking layout option updates layout', async () => {
+  test('clicking layout option selects image with new layout', async () => {
     wallpaperFullscreenElement = initElement(WallpaperFullscreen.is);
     const {requestFullscreenPromise} = mockFullscreenApis();
     await waitAfterNextRender(wallpaperFullscreenElement);
 
-    personalizationStore.data.currentSelected = customImage;
+    personalizationStore.data.currentSelected = currentSelectedCustomImage;
+    personalizationStore.data.pendingSelected = pendingSelectedCustomImage;
     personalizationStore.data.fullscreen = true;
     personalizationStore.notifyObservers();
 
     await requestFullscreenPromise;
 
     wallpaperFullscreenElement.shadowRoot
-        .querySelector('button[data-layout="FILL"]')
+        .querySelector('cr-button[data-layout="FILL"]')
         .click();
 
-    const fillLayout =
-        await wallpaperProvider.whenCalled('setCustomWallpaperLayout');
+    const [fillImage, fillLayout, fillPreviewMode] =
+        await wallpaperProvider.whenCalled('selectLocalImage');
     wallpaperProvider.reset();
 
-    assertEquals(
-        chromeos.personalizationApp.mojom.WallpaperLayout.kCenterCropped,
-        fillLayout);
-
-    // Change the layout type to something other than |kCenter|.
-    personalizationStore.data.currentSelected = {
-      ...customImage,
-      layout: chromeos.personalizationApp.mojom.WallpaperLayout.kCenterCropped,
-    };
-    personalizationStore.notifyObservers();
-    await waitAfterNextRender(wallpaperFullscreenElement);
+    assertEquals(pendingSelectedCustomImage, fillImage);
+    assertEquals(WallpaperLayout.kCenterCropped, fillLayout);
+    assertTrue(fillPreviewMode);
 
     wallpaperFullscreenElement.shadowRoot
-        .querySelector('button[data-layout="CENTER"]')
+        .querySelector('cr-button[data-layout="CENTER"]')
         .click();
 
-    const centerLayout =
-        await wallpaperProvider.whenCalled('setCustomWallpaperLayout');
+    const [centerImage, centerLayout, centerPreviewMode] =
+        await wallpaperProvider.whenCalled('selectLocalImage');
 
-    assertEquals(
-        chromeos.personalizationApp.mojom.WallpaperLayout.kCenter,
-        centerLayout);
+    assertEquals(pendingSelectedCustomImage, centerImage);
+    assertEquals(WallpaperLayout.kCenter, centerLayout);
+    assertTrue(centerPreviewMode);
   });
 
-  test('daily refresh option appears for wallpaper type daily', async () => {
+  test('aria selected set for chosen layout option', async () => {
     wallpaperFullscreenElement = initElement(WallpaperFullscreen.is);
     const {requestFullscreenPromise} = mockFullscreenApis();
     await waitAfterNextRender(wallpaperFullscreenElement);
 
+    personalizationStore.data.currentSelected = currentSelectedCustomImage;
+    personalizationStore.data.pendingSelected = pendingSelectedCustomImage;
     personalizationStore.data.fullscreen = true;
-    personalizationStore.data.currentSelected = customImage;
     personalizationStore.notifyObservers();
 
-    await waitAfterNextRender(wallpaperFullscreenElement);
+    await requestFullscreenPromise;
 
+    // Current image is kCenter but initial state should reset to default.
     assertEquals(
-        null, wallpaperFullscreenElement.shadowRoot.getElementById('refresh'));
+        WallpaperLayout.kCenter,
+        personalizationStore.data.currentSelected.layout);
 
-    personalizationStore.data.currentSelected = {
-      ...personalizationStore.data.currentSelected,
-      type: chromeos.personalizationApp.mojom.WallpaperType.kDaily,
-    };
-    personalizationStore.data.dailyRefresh.collectionId =
-        wallpaperProvider.collections[0].id;
-    personalizationStore.notifyObservers();
+    const center = wallpaperFullscreenElement.shadowRoot.querySelector(
+        'cr-button[data-layout="CENTER"]');
+    const fill = wallpaperFullscreenElement.shadowRoot.querySelector(
+        'cr-button[data-layout="FILL"]');
 
+    assertEquals('false', center.getAttribute('aria-selected'));
+    assertEquals('true', fill.getAttribute('aria-selected'));
+
+    wallpaperFullscreenElement.selectedLayout_ = WallpaperLayout.kCenter;
     await waitAfterNextRender(wallpaperFullscreenElement);
 
-    assertTrue(
-        !!wallpaperFullscreenElement.shadowRoot.getElementById('refresh'));
-  });
-
-  test('clicking daily refresh updates wallpaper', async () => {
-    wallpaperFullscreenElement = initElement(WallpaperFullscreen.is);
-    const {requestFullscreenPromise} = mockFullscreenApis();
-    await waitAfterNextRender(wallpaperFullscreenElement);
-
-    personalizationStore.data.fullscreen = true;
-    personalizationStore.data.currentSelected = {
-      ...personalizationStore.data.currentSelected,
-      type: chromeos.personalizationApp.mojom.WallpaperType.kDaily,
-    };
-    personalizationStore.data.dailyRefresh.collectionId =
-        wallpaperProvider.collections[0].id;
-    personalizationStore.notifyObservers();
-
-    await waitAfterNextRender(wallpaperFullscreenElement);
-
-    const dailyRefreshButton =
-        wallpaperFullscreenElement.shadowRoot.getElementById('refresh');
-    dailyRefreshButton.click();
-
-    await wallpaperProvider.whenCalled('updateDailyRefreshWallpaper');
+    assertEquals('true', center.getAttribute('aria-selected'));
+    assertEquals('false', fill.getAttribute('aria-selected'));
   });
 
   test('clicking set as wallpaper confirms wallpaper', async () => {
@@ -239,7 +269,7 @@ export function WallpaperFullscreenTest() {
     personalizationStore.data.fullscreen = true;
     personalizationStore.data.currentSelected = {
       ...personalizationStore.data.currentSelected,
-      type: chromeos.personalizationApp.mojom.WallpaperType.kDaily,
+      type: WallpaperType.kDaily,
     };
     personalizationStore.data.dailyRefresh.collectionId =
         wallpaperProvider.collections[0].id;

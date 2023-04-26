@@ -19,7 +19,6 @@
 #include "ui/base/cursor/cursor_factory.h"
 #include "ui/base/dragdrop/os_exchange_data_provider_factory_ozone.h"
 #include "ui/base/ime/linux/input_method_auralinux.h"
-#include "ui/base/ui_base_features.h"
 #include "ui/display/display_switches.h"
 #include "ui/events/devices/device_data_manager.h"
 #include "ui/events/event.h"
@@ -59,7 +58,6 @@
 #include "ui/gfx/buffer_format_util.h"
 
 #if defined(WAYLAND_GBM)
-#include "ui/base/ui_base_features.h"
 #include "ui/gfx/linux/gbm_wrapper.h"  // nogncheck
 #include "ui/ozone/platform/wayland/gpu/drm_render_node_handle.h"
 #endif
@@ -84,8 +82,6 @@ class OzonePlatformWayland : public OzonePlatform,
   OzonePlatformWayland()
       : old_synthesize_key_repeat_enabled_(
             KeyEvent::IsSynthesizeKeyRepeatEnabled()) {
-    CHECK(features::IsUsingOzonePlatform());
-
     // Forcing the device scale factor on Wayland is not fully/well supported
     // and is provided for test purposes only.
     // See https://crbug.com/1241546
@@ -326,6 +322,9 @@ class OzonePlatformWayland : public OzonePlatform,
 
     static OzonePlatform::PlatformRuntimeProperties properties;
     if (connection_) {
+      DCHECK(has_initialized_ui());
+      // These properties are set when GetPlatformRuntimeProperties is called on
+      // the browser process side.
       properties.supports_server_side_window_decorations =
           override_supports_ssd_for_test == SupportsSsdForTest::kNotSet
               ? (connection_->xdg_decoration_manager_v1() != nullptr)
@@ -334,6 +333,17 @@ class OzonePlatformWayland : public OzonePlatform,
                      : true);
       properties.supports_overlays =
           ui::IsWaylandOverlayDelegationEnabled() && connection_->viewporter();
+      properties.supports_non_backed_solid_color_buffers =
+          ui::IsWaylandOverlayDelegationEnabled() &&
+          connection_->buffer_manager_host()
+              ->SupportsNonBackedSolidColorBuffers();
+    } else if (buffer_manager_) {
+      DCHECK(has_initialized_gpu());
+      // These properties are set when the GetPlatformRuntimeProperties is
+      // called on the gpu process side.
+      properties.supports_non_backed_solid_color_buffers =
+          ui::IsWaylandOverlayDelegationEnabled() &&
+          buffer_manager_->supports_non_backed_solid_color_buffers();
     }
     return properties;
   }

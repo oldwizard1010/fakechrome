@@ -110,9 +110,23 @@ apps::FileHandlers GetFileHandlersForAllWebAppsWithOrigin(Profile* profile,
 // truncated, like "TXT, PNG". `found_multiple`, when non-null, will be set to
 // indicate whether the returned string is a list (false indicates it's a single
 // object).
+// TODO(estade): remove this when kDesktopPWAsFileHandlingSettingsGated is
+// default.
 std::u16string GetFileTypeAssociationsHandledByWebAppsForDisplay(
     Profile* profile,
     const GURL& url,
+    bool* found_multiple = nullptr);
+
+// Returns a display-ready string that holds all file type associations handled
+// by the app referenced by `app_id`. On Linux, where files are associated via
+// MIME types, this will return MIME types like "text/plain, image/png". On all
+// other platforms, where files are associated via file extensions, this will
+// return capitalized file extensions with the period truncated, like "TXT,
+// PNG". `found_multiple`, when non-null, will be set to indicate whether the
+// returned string is a list (false indicates it's a single object).
+std::u16string GetFileTypeAssociationsHandledByWebAppForDisplay(
+    Profile* profile,
+    const AppId& app_id,
     bool* found_multiple = nullptr);
 
 // Updates the approved or disallowed protocol list for the given app. If
@@ -131,10 +145,20 @@ void PersistFileHandlersUserChoice(Profile* profile,
                                    bool allowed,
                                    base::OnceClosure update_finished_callback);
 
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+// The kLacrosPrimary and kWebAppsCrosapi features are each independently
+// sufficient to enable the web apps Crosapi (used for Lacros web app
+// management).
+bool IsWebAppsCrosapiEnabled();
+#endif
+
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
 // Enables System Web Apps so we can test SWA features in Lacros, even we don't
 // have actual SWAs in Lacros.
 void EnableSystemWebAppsInLacrosForTesting();
+
+// Allow user web apps on profiles other than the main profile.
+void SkipMainProfileCheckForTesting();
 #endif
 
 }  // namespace web_app

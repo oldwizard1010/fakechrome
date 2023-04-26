@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/macros.h"
 #include "base/run_loop.h"
 #include "components/download/public/common/download_interrupt_reasons.h"
 #include "components/download/public/common/download_item.h"
@@ -288,6 +287,11 @@ class DownloadTestItemCreationObserver
  public:
   DownloadTestItemCreationObserver();
 
+  DownloadTestItemCreationObserver(const DownloadTestItemCreationObserver&) =
+      delete;
+  DownloadTestItemCreationObserver& operator=(
+      const DownloadTestItemCreationObserver&) = delete;
+
   void WaitForDownloadItemCreation();
 
   uint32_t download_id() const { return download_id_; }
@@ -320,8 +324,6 @@ class DownloadTestItemCreationObserver
 
   // We are in the message loop.
   bool waiting_;
-
-  DISALLOW_COPY_AND_ASSIGN(DownloadTestItemCreationObserver);
 };
 
 // Class for mornitoring whether a save package download finishes.

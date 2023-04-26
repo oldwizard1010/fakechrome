@@ -120,12 +120,12 @@ void InitNetwork() {
           ->network_state_handler()
           ->DefaultNetwork();
 
-  auto* portal_detector = new chromeos::NetworkPortalDetectorTestImpl();
+  auto* portal_detector = new ash::NetworkPortalDetectorTestImpl();
   portal_detector->SetDefaultNetworkForTesting(default_network->guid());
 
   portal_detector->SetDetectionResultsForTesting(
       default_network->guid(),
-      chromeos::NetworkPortalDetector::CAPTIVE_PORTAL_STATUS_ONLINE, 204);
+      ash::NetworkPortalDetector::CAPTIVE_PORTAL_STATUS_ONLINE, 204);
 
   chromeos::network_portal_detector::InitializeForTesting(portal_detector);
 }
@@ -140,6 +140,7 @@ class AsyncFunctionRunner {
                         content::BrowserContext* browser_context) {
     response_delegate_ =
         std::make_unique<api_test_utils::SendResponseHelper>(function);
+    function->preserve_results_for_testing();
     absl::optional<base::Value> parsed_args(utils::ParseList(args));
     ASSERT_TRUE(parsed_args)
         << "Could not parse extension function arguments: " << args;

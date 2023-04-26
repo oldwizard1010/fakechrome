@@ -29,6 +29,7 @@
 <translation id="1743802530341753419">Perguntar antes de permitir a ligação de sites a um dispositivo (recomendado)</translation>
 <translation id="1779089405699405702">Descodificador de imagem</translation>
 <translation id="1818308510395330587">Para permitir que a app <ph name="APP_NAME" /> utilize a realidade aumentada, ative também a câmara nas <ph name="BEGIN_LINK" />Definições do Android<ph name="END_LINK" />.</translation>
+<translation id="1864927262126810325">De <ph name="SOURCE_NAME" /></translation>
 <translation id="1887786770086287077">O acesso à localização está desativado para este dispositivo. Ative-o nas <ph name="BEGIN_LINK" />Definições do Android<ph name="END_LINK" />.</translation>
 <translation id="1919345977826869612">Anúncios</translation>
 <translation id="1919950603503897840">Selecionar contactos</translation>
@@ -55,6 +56,7 @@
 <translation id="2402980924095424747"><ph name="MEGABYTES" /> MB</translation>
 <translation id="2404630663942400771">{PERMISSIONS_SUMMARY_ALLOWED,plural, =1{<ph name="PERMISSION_1" />, <ph name="PERMISSION_2" /> e mais <ph name="NUM_MORE" /> permitidas.}other{<ph name="PERMISSION_1" />, <ph name="PERMISSION_2" /> e mais <ph name="NUM_MORE" /> permitidas.}}</translation>
 <translation id="2434158240863470628">Transferência concluída: <ph name="SEPARATOR" /> <ph name="BYTES_DOWNLOADED" /></translation>
+<translation id="2442870161001914531">Peça sempre o site para computador</translation>
 <translation id="2482878487686419369">Notificações</translation>
 <translation id="2485422356828889247">Desinstalar</translation>
 <translation id="2490684707762498678">Gerido por <ph name="APP_NAME" /></translation>
@@ -154,7 +156,7 @@
 <translation id="5216942107514965959">Última visita hoje</translation>
 <translation id="528192093759286357">Arraste a partir da parte superior e toque no botão de retrocesso para sair do ecrã inteiro.</translation>
 <translation id="5300589172476337783">Mostrar</translation>
-<translation id="5301954838959518834">OK, compreendi</translation>
+<translation id="5301954838959518834">OK</translation>
 <translation id="5313967007315987356">Adicionar site</translation>
 <translation id="5317780077021120954">Guardar</translation>
 <translation id="5335288049665977812">Permitir que os sites executem JavaScript (recomendado)</translation>
@@ -200,7 +202,6 @@
 <translation id="6196640612572343990">Bloquear cookies de terceiros</translation>
 <translation id="6216432067784365534">Opções de <ph name="NAME_OF_LIST_ITEM" /></translation>
 <translation id="6231752747840485235">Pretende desinstalar a app "<ph name="APP_NAME" />"?</translation>
-<translation id="6233545266937675277">Solicitar a vista de computador dos sites</translation>
 <translation id="6262279340360821358">Bloqueio de <ph name="PERMISSION_1" /> e <ph name="PERMISSION_2" />.</translation>
 <translation id="6270391203985052864">Os sites podem pedir para enviar notificações.</translation>
 <translation id="6295158916970320988">Todos os sites</translation>
@@ -236,6 +237,7 @@
 <translation id="7016516562562142042">Permitido para o motor de pesquisa atual</translation>
 <translation id="7053983685419859001">Bloquear</translation>
 <translation id="7066151586745993502">{NUM_SELECTED,plural, =1{1 selecionado}other{# selecionados}}</translation>
+<translation id="7070090581017165256">Acerca deste site</translation>
 <translation id="7087918508125750058"><ph name="ITEM_COUNT" /> selecionado(s). Opções disponíveis junto à parte superior do ecrã.</translation>
 <translation id="7141896414559753902">Impedir que os sites apresentem pop-ups e redirecionamentos (recomendado).</translation>
 <translation id="7176368934862295254"><ph name="KILOBYTES" /> KB</translation>
@@ -284,7 +286,6 @@
 <translation id="8211406090763984747">A ligação é segura</translation>
 <translation id="8249310407154411074">Mover para o início</translation>
 <translation id="8261506727792406068">Eliminar</translation>
-<translation id="8267092878336850213">Solicitar a vista de dispositivo móvel dos sites</translation>
 <translation id="8300705686683892304">Geridos por aplicação</translation>
 <translation id="8324158725704657629">Não perguntar novamente</translation>
 <translation id="8372893542064058268">Permitir Sincronização em segundo plano num site específico.</translation>
@@ -298,6 +299,7 @@
 <translation id="8447861592752582886">Revogar autorização do dispositivo</translation>
 <translation id="8451050538944905715">{NUM_SELECTED,plural, =1{1 cookie em utilização}other{# cookies em utilização}}</translation>
 <translation id="8487700953926739672">Disponível offline</translation>
+<translation id="848952951823693243">Peça sempre o site para dispositivos móveis</translation>
 <translation id="851751545965956758">Impedir a ligação de sites a dispositivos</translation>
 <translation id="8525306231823319788">Ecrã inteiro</translation>
 <translation id="857943718398505171">Permitido (recomendado)</translation>

@@ -22,7 +22,6 @@ import org.chromium.base.Log;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.LaunchIntentDispatcher;
-import org.chromium.chrome.browser.childaccounts.ChildAccountService;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.locale.LocaleManager;
 import org.chromium.chrome.browser.net.spdyproxy.DataReductionProxySettings;
@@ -34,6 +33,7 @@ import org.chromium.chrome.browser.signin.services.SigninManager;
 import org.chromium.chrome.browser.vr.VrModuleProvider;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.signin.AccountManagerFacadeProvider;
+import org.chromium.components.signin.AccountUtils;
 import org.chromium.components.signin.ChildAccountStatus;
 import org.chromium.components.signin.ChildAccountStatus.Status;
 import org.chromium.components.signin.identitymanager.ConsentLevel;
@@ -85,9 +85,17 @@ public abstract class FirstRunFlowSequencer  {
             }
         }
 
-        /** @return true if the Data Reduction promo page should be shown. */
-        @VisibleForTesting
-        public boolean shouldShowDataReductionPage() {
+        /**
+         * @param openAdvancedSyncSettings Whether the user wants to open the advanced sync
+         *         settings.
+         * @return true if the Data Reduction promo page should be shown.
+         */
+        boolean shouldShowDataReductionPage(boolean openAdvancedSyncSettings) {
+            if (FREMobileIdentityConsistencyFieldTrial.isEnabled() && openAdvancedSyncSettings) {
+                // Skip the data reduction page when the user wants to open the advanced sync
+                // settings.
+                return false;
+            }
             return !DataReductionProxySettings.getInstance().isDataReductionProxyManaged()
                     && DataReductionProxySettings.getInstance()
                                .isDataReductionProxyFREPromoAllowed();
@@ -154,20 +162,21 @@ public abstract class FirstRunFlowSequencer  {
     void start() {
         long childAccountStatusStart = SystemClock.elapsedRealtime();
         AccountManagerFacadeProvider.getInstance().getAccounts().then(accounts -> {
-            ChildAccountService.checkChildAccountStatus(accounts, status -> {
-                RecordHistogram.recordCountHistogram(
-                        "Signin.AndroidDeviceAccountsNumberWhenEnteringFRE",
-                        Math.min(accounts.size(), 2));
-                RecordHistogram.recordTimesHistogram("MobileFre.ChildAccountStatusDuration",
-                        SystemClock.elapsedRealtime() - childAccountStatusStart);
-                initializeSharedState(status, accounts);
-                processFreEnvironmentPreNative();
-            });
+            AccountUtils.checkChildAccountStatus(AccountManagerFacadeProvider.getInstance(),
+                    accounts, (status, childAccount) -> {
+                        RecordHistogram.recordCountHistogram(
+                                "Signin.AndroidDeviceAccountsNumberWhenEnteringFRE",
+                                Math.min(accounts.size(), 2));
+                        RecordHistogram.recordTimesHistogram("MobileFre.ChildAccountStatusDuration",
+                                SystemClock.elapsedRealtime() - childAccountStatusStart);
+                        initializeSharedState(status, accounts);
+                        processFreEnvironmentPreNative();
+                    });
         });
     }
 
-    protected boolean shouldShowDataReductionPage() {
-        return mDelegate.shouldShowDataReductionPage();
+    private boolean shouldShowDataReductionPage(boolean openAdvancedSyncSettings) {
+        return mDelegate.shouldShowDataReductionPage(openAdvancedSyncSettings);
     }
 
     @VisibleForTesting
@@ -208,18 +217,20 @@ public abstract class FirstRunFlowSequencer  {
     public void updateFirstRunProperties(Bundle freProperties) {
         freProperties.putBoolean(
                 FirstRunActivity.SHOW_SYNC_CONSENT_PAGE, shouldShowSyncConsentPage());
-        freProperties.putBoolean(
-                FirstRunActivity.SHOW_DATA_REDUCTION_PAGE, shouldShowDataReductionPage());
+        freProperties.putBoolean(FirstRunActivity.SHOW_DATA_REDUCTION_PAGE,
+                shouldShowDataReductionPage(
+                        freProperties.getBoolean(FirstRunActivity.OPEN_ADVANCED_SYNC_SETTINGS)));
         freProperties.putBoolean(
                 FirstRunActivity.SHOW_SEARCH_ENGINE_PAGE, shouldShowSearchEnginePage());
     }
 
     /**
      * Marks a given flow as completed.
-     * @param signInAccountName The account name for the pending sign-in request. (Or null)
-     * @param showSignInSettings Whether the user selected to see the settings once signed in.
+     * @param syncConsentAccountName The account name for the pending sign-in request. (Or null)
+     * @param showAdvancedSyncSettings Whether the user selected to see the settings once signed in.
      */
-    public static void markFlowAsCompleted(String signInAccountName, boolean showSignInSettings) {
+    public static void markFlowAsCompleted(
+            String syncConsentAccountName, boolean showAdvancedSyncSettings) {
         // When the user accepts ToS in the Setup Wizard, we do not show the ToS page to the user
         // because the user has already accepted one outside FRE.
         if (!FirstRunUtils.isFirstRunEulaAccepted()) {
@@ -227,7 +238,8 @@ public abstract class FirstRunFlowSequencer  {
         }
 
         // Mark the FRE flow as complete and set the sign-in flow preferences if necessary.
-        FirstRunSignInProcessor.finalizeFirstRunFlowState(signInAccountName, showSignInSettings);
+        FirstRunSignInProcessor.finalizeFirstRunFlowState(
+                syncConsentAccountName, showAdvancedSyncSettings);
     }
 
     /**

@@ -4,6 +4,8 @@
 
 #include "chrome/browser/ui/webui/settings/chromeos/multidevice_section.h"
 
+#include "ash/components/phonehub/phone_hub_manager.h"
+#include "ash/components/phonehub/url_constants.h"
 #include "ash/constants/ash_features.h"
 #include "base/feature_list.h"
 #include "base/no_destructor.h"
@@ -13,6 +15,7 @@
 #include "chrome/browser/nearby_sharing/common/nearby_share_prefs.h"
 #include "chrome/browser/nearby_sharing/nearby_sharing_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/ash/session_controller_client_impl.h"
 #include "chrome/browser/ui/webui/nearby_share/shared_resources.h"
 #include "chrome/browser/ui/webui/settings/chromeos/multidevice_handler.h"
 #include "chrome/browser/ui/webui/settings/chromeos/search/search_tag_registry.h"
@@ -21,8 +24,6 @@
 #include "chrome/common/url_constants.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/generated_resources.h"
-#include "chromeos/components/phonehub/phone_hub_manager.h"
-#include "chromeos/components/phonehub/url_constants.h"
 #include "chromeos/services/multidevice_setup/public/cpp/prefs.h"
 #include "chromeos/services/multidevice_setup/public/cpp/url_provider.h"
 #include "chromeos/services/multidevice_setup/public/mojom/multidevice_setup.mojom.h"
@@ -279,12 +280,14 @@ MultiDeviceSection::MultiDeviceSection(
     multidevice_setup::MultiDeviceSetupClient* multidevice_setup_client,
     phonehub::PhoneHubManager* phone_hub_manager,
     android_sms::AndroidSmsService* android_sms_service,
-    PrefService* pref_service)
+    PrefService* pref_service,
+    ash::eche_app::EcheAppManager* eche_app_manager)
     : OsSettingsSection(profile, search_tag_registry),
       multidevice_setup_client_(multidevice_setup_client),
       phone_hub_manager_(phone_hub_manager),
       android_sms_service_(android_sms_service),
-      pref_service_(pref_service) {
+      pref_service_(pref_service),
+      eche_app_manager_(eche_app_manager) {
   if (NearbySharingServiceFactory::IsNearbyShareSupportedForBrowserContext(
           profile)) {
     pref_change_registrar_.Init(pref_service_);
@@ -345,6 +348,12 @@ void MultiDeviceSection::AddLoadTimeData(
        IDS_SETTINGS_MULTIDEVICE_WIFI_SYNC_LEARN_MORE_LABEL},
       {"multideviceNotificationAccessSetupConnectingTitle",
        IDS_SETTINGS_MULTIDEVICE_NOTIFICATION_ACCESS_SETUP_DIALOG_CONNECTING_TITLE},
+      {"multideviceNotificationAccessSetupScreenLockTitle",
+       IDS_SETTINGS_MULTIDEVICE_NOTIFICATION_ACCESS_SETUP_DIALOG_SCREEN_LOCK_TITLE},
+      {"multideviceNotificationAccessSetupScreenLockSubtitle",
+       IDS_SETTINGS_MULTIDEVICE_NOTIFICATION_ACCESS_SETUP_DIALOG_SCREEN_LOCK_SUBTITLE},
+      {"multideviceNotificationAccessSetupScreenLockInstruction",
+       IDS_SETTINGS_MULTIDEVICE_NOTIFICATION_ACCESS_SETUP_DIALOG_SCREEN_LOCK_INSTRUCTION},
       {"multideviceNotificationAccessSetupAwaitingResponseTitle",
        IDS_SETTINGS_MULTIDEVICE_NOTIFICATION_ACCESS_SETUP_DIALOG_AWAITING_RESPONSE_TITLE},
       {"multideviceNotificationAccessSetupInstructions",
@@ -512,6 +521,14 @@ void MultiDeviceSection::AddLoadTimeData(
       chromeos::features::IsBluetoothAdvertisementMonitoringEnabled() &&
           base::FeatureList::IsEnabled(
               ::features::kNearbySharingBackgroundScanning));
+  html_source->AddBoolean("isEcheAppEnabled", features::IsEcheSWAEnabled());
+  // TODO(crbug.com/1256644): Query the real value from pref.
+  html_source->AddBoolean("isPhoneScreenLockEnabled", false);
+  const bool is_screen_lock_enabled =
+      SessionControllerClientImpl::CanLockScreen() &&
+      SessionControllerClientImpl::ShouldLockScreenAutomatically();
+  html_source->AddBoolean("isChromeosScreenLockEnabled",
+                          is_screen_lock_enabled);
 }
 
 void MultiDeviceSection::AddHandlers(content::WebUI* web_ui) {
@@ -529,7 +546,9 @@ void MultiDeviceSection::AddHandlers(content::WebUI* web_ui) {
               ? android_sms_service_->android_sms_pairing_state_tracker()
               : nullptr,
           android_sms_service_ ? android_sms_service_->android_sms_app_manager()
-                               : nullptr));
+                               : nullptr,
+          eche_app_manager_ ? eche_app_manager_->GetAppsAccessManager()
+                            : nullptr));
 }
 
 int MultiDeviceSection::GetSectionNameMessageId() const {

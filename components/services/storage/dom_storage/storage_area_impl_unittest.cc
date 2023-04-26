@@ -4,10 +4,16 @@
 
 #include "components/services/storage/dom_storage/storage_area_impl.h"
 
+#include <list>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "base/atomic_ref_count.h"
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/containers/span.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"

@@ -65,6 +65,16 @@
       "use_goma": true
     }
   },
+  "fuchsia-binary-size": {
+    "gn_args": {
+      "dcheck_always_on": false,
+      "is_debug": false,
+      "is_official_build": true,
+      "target_cpu": "arm64",
+      "target_os": "fuchsia",
+      "use_goma": true
+    }
+  },
   "fuchsia-compile-x64-dbg": {
     "gn_args": {
       "is_component_build": true,
@@ -200,8 +210,7 @@
       "symbol_level": 1,
       "use_bundled_weston": true,
       "use_goma": true,
-      "use_ozone": true,
-      "use_x11": false
+      "use_ozone": true
     }
   },
   "gpu-fyi-try-lacros-intel-rel": {
@@ -217,8 +226,7 @@
       "symbol_level": 1,
       "use_bundled_weston": true,
       "use_goma": true,
-      "use_ozone": true,
-      "use_x11": false
+      "use_ozone": true
     }
   },
   "gpu-fyi-try-linux-amd-rel": {
@@ -919,6 +927,18 @@
       "use_goma": true
     }
   },
+  "linux_chromium_asan_rel_ng-orchestrator": {
+    "gn_args": {
+      "blink_enable_generated_code_formatting": false,
+      "dcheck_always_on": true,
+      "is_asan": true,
+      "is_component_build": false,
+      "is_debug": false,
+      "is_lsan": true,
+      "symbol_level": 1,
+      "use_goma": true
+    }
+  },
   "linux_chromium_asan_rel_ng_rts": {
     "gn_args": {
       "blink_enable_generated_code_formatting": false,
@@ -1036,6 +1056,18 @@
     }
   },
   "linux_chromium_tsan_rel_ng": {
+    "gn_args": {
+      "blink_enable_generated_code_formatting": false,
+      "dcheck_always_on": true,
+      "enable_nacl": false,
+      "is_component_build": false,
+      "is_debug": false,
+      "is_tsan": true,
+      "symbol_level": 1,
+      "use_goma": true
+    }
+  },
+  "linux_chromium_tsan_rel_ng-orchestrator": {
     "gn_args": {
       "blink_enable_generated_code_formatting": false,
       "dcheck_always_on": true,

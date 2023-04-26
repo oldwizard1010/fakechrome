@@ -59,6 +59,7 @@
 #include "cc/test/fake_video_frame_provider.h"
 #include "cc/test/layer_test_common.h"
 #include "cc/test/layer_tree_test.h"
+#include "cc/test/mock_latency_info_swap_promise_monitor.h"
 #include "cc/test/skia_common.h"
 #include "cc/test/test_layer_tree_frame_sink.h"
 #include "cc/test/test_paint_worklet_layer_painter.h"
@@ -84,6 +85,7 @@
 #include "components/viz/common/quads/texture_draw_quad.h"
 #include "components/viz/common/quads/tile_draw_quad.h"
 #include "components/viz/common/surfaces/frame_sink_id.h"
+#include "components/viz/common/surfaces/region_capture_bounds.h"
 #include "components/viz/service/display/gl_renderer.h"
 #include "components/viz/service/display/skia_output_surface.h"
 #include "components/viz/test/begin_frame_args_test.h"
@@ -102,6 +104,7 @@
 #include "ui/gfx/geometry/test/geometry_util.h"
 #include "ui/gfx/geometry/transform_operations.h"
 #include "ui/gfx/geometry/vector2d_conversions.h"
+#include "ui/latency/latency_info.h"
 
 #define EXPECT_SCOPED(statements) \
   {                               \
@@ -115,6 +118,7 @@ using ::testing::AnyNumber;
 using ::testing::AtLeast;
 using ::testing::Mock;
 using ::testing::Return;
+using ::testing::StrictMock;
 
 using ScrollThread = cc::InputHandler::ScrollThread;
 
@@ -124,6 +128,8 @@ struct FrameTimingDetails;
 
 namespace cc {
 namespace {
+
+constexpr gfx::Size kDefaultLayerSize(100, 100);
 
 viz::SurfaceId MakeSurfaceId(const viz::FrameSinkId& frame_sink_id,
                              uint32_t parent_id) {
@@ -342,7 +348,8 @@ class LayerTreeHostImplTest : public testing::Test,
     return static_cast<T*>(root);
   }
 
-  LayerImpl* SetupDefaultRootLayer(const gfx::Size& viewport_size) {
+  LayerImpl* SetupDefaultRootLayer(
+      const gfx::Size& viewport_size = kDefaultLayerSize) {
     return SetupRootLayer<LayerImpl>(host_impl_->active_tree(), viewport_size);
   }
 
@@ -769,8 +776,7 @@ class LayerTreeHostImplTest : public testing::Test,
     layer_tree_impl->SetRootLayerForTesting(nullptr);
     layer_tree_impl->DetachLayers();
     layer_tree_impl->property_trees()->clear();
-    layer_tree_impl->SetViewportPropertyIds(
-        LayerTreeImpl::ViewportPropertyIds());
+    layer_tree_impl->SetViewportPropertyIds(ViewportPropertyIds());
   }
 
   void pinch_zoom_pan_viewport_forces_commit_redraw(float device_scale_factor);
@@ -11973,73 +11979,39 @@ TEST_P(ScrollUnifiedLayerTreeHostImplTest, HiddenSelectionBoundsStayHidden) {
 }
 #endif  // defined(OS_ANDROID)
 
-class SimpleSwapPromiseMonitor : public SwapPromiseMonitor {
- public:
-  SimpleSwapPromiseMonitor(LayerTreeHostImpl* layer_tree_host_impl,
-                           int* set_needs_commit_count,
-                           int* set_needs_redraw_count)
-      : SwapPromiseMonitor(layer_tree_host_impl),
-        set_needs_commit_count_(set_needs_commit_count),
-        set_needs_redraw_count_(set_needs_redraw_count) {}
-
-  ~SimpleSwapPromiseMonitor() override = default;
-
-  void OnSetNeedsCommitOnMain() override { (*set_needs_commit_count_)++; }
-
-  void OnSetNeedsRedrawOnImpl() override { (*set_needs_redraw_count_)++; }
-
- private:
-  int* set_needs_commit_count_;
-  int* set_needs_redraw_count_;
-};
-
 TEST_P(ScrollUnifiedLayerTreeHostImplTest, SimpleSwapPromiseMonitor) {
-  int set_needs_commit_count = 0;
-  int set_needs_redraw_count = 0;
-
   {
-    std::unique_ptr<SimpleSwapPromiseMonitor> swap_promise_monitor(
-        new SimpleSwapPromiseMonitor(host_impl_.get(), &set_needs_commit_count,
-                                     &set_needs_redraw_count));
+    StrictMock<MockLatencyInfoSwapPromiseMonitor> monitor(host_impl_.get());
+    EXPECT_CALL(monitor, OnSetNeedsCommitOnMain()).Times(0);
+    EXPECT_CALL(monitor, OnSetNeedsRedrawOnImpl()).Times(1);
+
     host_impl_->SetNeedsRedraw();
-    EXPECT_EQ(0, set_needs_commit_count);
-    EXPECT_EQ(1, set_needs_redraw_count);
   }
 
-  // Now the monitor is destroyed, SetNeedsRedraw() is no longer being
-  // monitored.
-  host_impl_->SetNeedsRedraw();
-  EXPECT_EQ(0, set_needs_commit_count);
-  EXPECT_EQ(1, set_needs_redraw_count);
-
   {
-    std::unique_ptr<SimpleSwapPromiseMonitor> swap_promise_monitor(
-        new SimpleSwapPromiseMonitor(host_impl_.get(), &set_needs_commit_count,
-                                     &set_needs_redraw_count));
+    StrictMock<MockLatencyInfoSwapPromiseMonitor> monitor(host_impl_.get());
+    EXPECT_CALL(monitor, OnSetNeedsCommitOnMain()).Times(0);
+    EXPECT_CALL(monitor, OnSetNeedsRedrawOnImpl()).Times(1);
+
     // Redraw with damage.
     host_impl_->SetFullViewportDamage();
     host_impl_->SetNeedsRedraw();
-    EXPECT_EQ(0, set_needs_commit_count);
-    EXPECT_EQ(2, set_needs_redraw_count);
   }
 
   {
-    std::unique_ptr<SimpleSwapPromiseMonitor> swap_promise_monitor(
-        new SimpleSwapPromiseMonitor(host_impl_.get(), &set_needs_commit_count,
-                                     &set_needs_redraw_count));
+    StrictMock<MockLatencyInfoSwapPromiseMonitor> monitor(host_impl_.get());
+    EXPECT_CALL(monitor, OnSetNeedsCommitOnMain()).Times(0);
+    EXPECT_CALL(monitor, OnSetNeedsRedrawOnImpl()).Times(1);
+
     // Redraw without damage.
     host_impl_->SetNeedsRedraw();
-    EXPECT_EQ(0, set_needs_commit_count);
-    EXPECT_EQ(3, set_needs_redraw_count);
   }
 
-  set_needs_commit_count = 0;
-  set_needs_redraw_count = 0;
-
   {
-    std::unique_ptr<SimpleSwapPromiseMonitor> swap_promise_monitor(
-        new SimpleSwapPromiseMonitor(host_impl_.get(), &set_needs_commit_count,
-                                     &set_needs_redraw_count));
+    StrictMock<MockLatencyInfoSwapPromiseMonitor> monitor(host_impl_.get());
+    EXPECT_CALL(monitor, OnSetNeedsCommitOnMain()).Times(0);
+    EXPECT_CALL(monitor, OnSetNeedsRedrawOnImpl()).Times(1);
+
     SetupViewportLayersInnerScrolls(gfx::Size(50, 50), gfx::Size(100, 100));
 
     // Scrolling normally should not trigger any forwarding.
@@ -12058,8 +12030,10 @@ TEST_P(ScrollUnifiedLayerTreeHostImplTest, SimpleSwapPromiseMonitor) {
             .did_scroll);
     GetInputHandler().ScrollEnd();
 
-    EXPECT_EQ(0, set_needs_commit_count);
-    EXPECT_EQ(1, set_needs_redraw_count);
+    EXPECT_TRUE(Mock::VerifyAndClearExpectations(&monitor));
+
+    EXPECT_CALL(monitor, OnSetNeedsCommitOnMain()).Times(0);
+    EXPECT_CALL(monitor, OnSetNeedsRedrawOnImpl()).Times(1);
 
     // Scrolling with a scroll handler should defer the swap to the main
     // thread.
@@ -12078,9 +12052,6 @@ TEST_P(ScrollUnifiedLayerTreeHostImplTest, SimpleSwapPromiseMonitor) {
                               .get())
             .did_scroll);
     GetInputHandler().ScrollEnd();
-
-    EXPECT_EQ(0, set_needs_commit_count);
-    EXPECT_EQ(2, set_needs_redraw_count);
   }
 }
 
@@ -13372,11 +13343,10 @@ TEST_P(ScrollUnifiedLayerTreeHostImplTest, ScrollAnimated) {
   {
     // Creating the animation should set 'needs redraw'. This is required
     // for LatencyInfo's to be propagated along with the CompositorFrame
-    int set_needs_commit_count = 0;
-    int set_needs_redraw_count = 0;
-    std::unique_ptr<SimpleSwapPromiseMonitor> swap_promise_monitor(
-        new SimpleSwapPromiseMonitor(host_impl_.get(), &set_needs_commit_count,
-                                     &set_needs_redraw_count));
+    StrictMock<MockLatencyInfoSwapPromiseMonitor> monitor(host_impl_.get());
+    EXPECT_CALL(monitor, OnSetNeedsCommitOnMain()).Times(0);
+    EXPECT_CALL(monitor, OnSetNeedsRedrawOnImpl()).Times(AtLeast(1));
+
     EXPECT_EQ(ScrollThread::SCROLL_ON_IMPL_THREAD,
               GetInputHandler()
                   .ScrollBegin(BeginState(gfx::Point(), gfx::Vector2d(0, 50),
@@ -13386,9 +13356,6 @@ TEST_P(ScrollUnifiedLayerTreeHostImplTest, ScrollAnimated) {
                   .thread);
     GetInputHandler().ScrollUpdate(
         AnimatedUpdateState(gfx::Point(), gfx::Vector2d(0, 50)).get());
-
-    EXPECT_EQ(0, set_needs_commit_count);
-    EXPECT_GT(set_needs_redraw_count, 0);
   }
 
   LayerImpl* scrolling_layer = OuterViewportScrollLayer();
@@ -13416,18 +13383,14 @@ TEST_P(ScrollUnifiedLayerTreeHostImplTest, ScrollAnimated) {
   {
     // Updating the animation should set 'needs redraw'. This is required
     // for LatencyInfo's to be propagated along with the CompositorFrame
-    int set_needs_commit_count = 0;
-    int set_needs_redraw_count = 0;
-    std::unique_ptr<SimpleSwapPromiseMonitor> swap_promise_monitor(
-        new SimpleSwapPromiseMonitor(host_impl_.get(), &set_needs_commit_count,
-                                     &set_needs_redraw_count));
+    StrictMock<MockLatencyInfoSwapPromiseMonitor> monitor(host_impl_.get());
+    EXPECT_CALL(monitor, OnSetNeedsCommitOnMain()).Times(0);
+    EXPECT_CALL(monitor, OnSetNeedsRedrawOnImpl()).Times(1);
+
     // Update target.
     GetInputHandler().ScrollUpdate(
         AnimatedUpdateState(gfx::Point(), gfx::Vector2d(0, 50)).get());
     GetInputHandler().ScrollEnd();
-
-    EXPECT_EQ(0, set_needs_commit_count);
-    EXPECT_EQ(1, set_needs_redraw_count);
   }
 
   host_impl_->DidFinishImplFrame(begin_frame_args);
@@ -18150,7 +18113,7 @@ TEST_F(OccludedSurfaceThrottlingLayerTreeHostImplTest,
 }
 
 TEST_F(LayerTreeHostImplTest, FrameElementIdHitTestSimple) {
-  SetupDefaultRootLayer(gfx::Size(100, 100));
+  SetupDefaultRootLayer();
 
   LayerImpl* frame_layer = AddLayer();
   frame_layer->SetBounds(gfx::Size(50, 50));
@@ -18166,7 +18129,7 @@ TEST_F(LayerTreeHostImplTest, FrameElementIdHitTestSimple) {
 }
 
 TEST_F(LayerTreeHostImplTest, FrameElementIdHitTestInheritance) {
-  SetupDefaultRootLayer(gfx::Size(100, 100));
+  SetupDefaultRootLayer();
 
   LayerImpl* frame_layer = AddLayer();
   frame_layer->SetBounds(gfx::Size(50, 50));
@@ -18199,7 +18162,7 @@ TEST_F(LayerTreeHostImplTest, FrameElementIdHitTestInheritance) {
 }
 
 TEST_F(LayerTreeHostImplTest, FrameElementIdHitTestOverlap) {
-  SetupDefaultRootLayer(gfx::Size(100, 100));
+  SetupDefaultRootLayer();
 
   LayerImpl* frame_layer = AddLayer();
   frame_layer->SetBounds(gfx::Size(50, 50));
@@ -18228,7 +18191,7 @@ TEST_F(LayerTreeHostImplTest, FrameElementIdHitTestOverlap) {
 }
 
 TEST_F(LayerTreeHostImplTest, FrameElementIdHitTestOverlapSimpleClip) {
-  SetupDefaultRootLayer(gfx::Size(100, 100));
+  SetupDefaultRootLayer();
 
   LayerImpl* frame_layer = AddLayer();
   frame_layer->SetBounds(gfx::Size(50, 50));
@@ -18256,7 +18219,7 @@ TEST_F(LayerTreeHostImplTest, FrameElementIdHitTestOverlapSimpleClip) {
 }
 
 TEST_F(LayerTreeHostImplTest, FrameElementIdHitTestOverlapRoundedCorners) {
-  SetupDefaultRootLayer(gfx::Size(100, 100));
+  SetupDefaultRootLayer();
 
   LayerImpl* frame_layer = AddLayer();
   frame_layer->SetBounds(gfx::Size(50, 50));
@@ -18286,7 +18249,7 @@ TEST_F(LayerTreeHostImplTest, FrameElementIdHitTestOverlapRoundedCorners) {
 }
 
 TEST_F(LayerTreeHostImplTest, FrameElementIdHitTestOverlapSibling) {
-  SetupDefaultRootLayer(gfx::Size(100, 100));
+  SetupDefaultRootLayer();
 
   LayerImpl* frame_layer = AddLayer();
   frame_layer->SetBounds(gfx::Size(50, 50));
@@ -18349,6 +18312,73 @@ TEST_F(LayerTreeHostImplTest, DocumentTransitionRequestCausesDamage) {
                      false);
   EXPECT_TRUE(did_request_redraw_);
   EXPECT_FALSE(last_on_draw_frame_->has_no_damage);
+}
+
+TEST_F(LayerTreeHostImplTest, CollectRegionCaptureBounds) {
+  const auto kFirstId = RegionCaptureCropId::CreateRandom();
+  const auto kSecondId = RegionCaptureCropId::CreateRandom();
+  const auto kThirdId = RegionCaptureCropId::CreateRandom();
+  const auto kFourthId = RegionCaptureCropId::CreateRandom();
+
+  const RegionCaptureBounds kRootBounds{
+      {{kFirstId, gfx::Rect{0, 0, 250, 250}}, {kSecondId, gfx::Rect{}}}};
+  const RegionCaptureBounds kChildBounds{
+      {{kThirdId, gfx::Rect{5, 6, 300, 400}}}};
+  const RegionCaptureBounds kSecondChildBounds{
+      {{kFourthId, gfx::Rect{20, 10, 400, 500}}}};
+
+  // Set up the root layer.
+  LayerImpl* root_layer = SetupDefaultRootLayer(gfx::Size(350, 360));
+  root_layer->SetCaptureBounds(kRootBounds);
+
+  // Set up a child layer, with a scaling transform.
+  LayerImpl* child_layer = AddLayer();
+  CopyProperties(root_layer, child_layer);
+  child_layer->SetCaptureBounds(kChildBounds);
+  gfx::Transform child_layer_transform;
+  child_layer_transform.Scale(2.0, 3.0);
+  child_layer->draw_properties().screen_space_transform =
+      std::move(child_layer_transform);
+
+  // Set up another child layer, with a rotation transform.
+  LayerImpl* second_child_layer = AddLayer();
+  CopyProperties(root_layer, second_child_layer);
+  second_child_layer->SetCaptureBounds(kSecondChildBounds);
+  gfx::Transform second_layer_transform;
+  second_layer_transform.Rotate(45);
+  second_child_layer->draw_properties().screen_space_transform =
+      std::move(second_layer_transform);
+
+  // Set up the drawable content rect and transforms for the root surface.
+  // Drawing the frame sets up the RenderSurfaceImpl in the backend.
+  UpdateDrawProperties(host_impl_->active_tree());
+  DrawFrame();
+
+  // NOTE: setting contribution has to be done after updating and drawing, and
+  // causes the layers to use draw_properties().screen_screen_transform instead
+  // of using values from the transform tree.
+  child_layer->set_contributes_to_drawn_render_surface(true);
+  second_child_layer->set_contributes_to_drawn_render_surface(true);
+
+  // Actually collect the region capture bounds.
+  const viz::RegionCaptureBounds collected_bounds =
+      host_impl_->CollectRegionCaptureBounds();
+  EXPECT_EQ(4u, collected_bounds.bounds().size());
+
+  // Validate expectations.
+  EXPECT_EQ((gfx::Rect{0, 0, 250, 250}),
+            collected_bounds.bounds().find(kFirstId)->second);
+  EXPECT_EQ((gfx::Rect{}), collected_bounds.bounds().find(kSecondId)->second);
+
+  // The third case is more interesting: the bounds are scaled 2x and 3x,
+  // which changes the origin but also causes both bounds to clip at the
+  // content rect.
+  EXPECT_EQ((gfx::Rect{10, 18, 340, 342}),
+            collected_bounds.bounds().find(kThirdId)->second);
+
+  // Finally, test a rotation instead of a simple scaling.
+  EXPECT_EQ((gfx::Rect{0, 21, 290, 339}),
+            collected_bounds.bounds().find(kFourthId)->second);
 }
 
 }  // namespace cc

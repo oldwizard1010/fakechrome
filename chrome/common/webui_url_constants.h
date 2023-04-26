@@ -72,7 +72,6 @@ extern const char kChromeUIDownloadInternalsHost[];
 extern const char kChromeUIDownloadsHost[];
 extern const char kChromeUIDownloadsURL[];
 extern const char kChromeUIDriveInternalsHost[];
-extern const char kChromeUIEDUCoexistenceLoginURLV1[];
 extern const char kChromeUIEDUCoexistenceLoginURLV2[];
 extern const char kChromeUIEnterpriseCastingHost[];
 extern const char kChromeUIEnterpriseCastingURL[];
@@ -137,6 +136,11 @@ extern const char kChromeUINewTabURL[];
 extern const char kChromeUIOfflineInternalsHost[];
 extern const char kChromeUIOmniboxHost[];
 extern const char kChromeUIOmniboxURL[];
+#if defined(OS_CHROMEOS)
+extern const char kChromeUIOsCroshAppURL[];
+extern const char kChromeUIOsFlagsAppURL[];
+extern const char kChromeUIOsUrlAppURL[];
+#endif
 extern const char kChromeUIPasswordManagerInternalsHost[];
 extern const char kChromeUIPolicyHost[];
 extern const char kChromeUIPolicyURL[];
@@ -315,6 +319,7 @@ bool IsSystemWebUIHost(base::StringPiece host);
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 #if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+extern const char kChromeUIAppDisabledHost[];
 extern const char kChromeUIOSSettingsHost[];
 extern const char kChromeUIOSSettingsURL[];
 #endif

@@ -88,8 +88,8 @@ SearchResultSuggestionChipView::SearchResultSuggestionChipView(
         return std::make_unique<views::FloodFillInkDropRipple>(
             host->size(), host->GetLocalBounds().InsetsFrom(bounds),
             views::InkDrop::Get(host)->GetInkDropCenterBasedOnLastEvent(),
-            color_provider->GetRippleAttributesBaseColor(bg_color),
-            color_provider->GetRippleAttributesInkDropOpacity(bg_color));
+            color_provider->GetInkDropBaseColor(bg_color),
+            color_provider->GetInkDropOpacity(bg_color));
       },
       this));
 
@@ -208,7 +208,8 @@ const std::u16string& SearchResultSuggestionChipView::GetText() const {
 void SearchResultSuggestionChipView::UpdateSuggestionChipView() {
   if (!result()) {
     SetIcon(gfx::ImageSkia());
-    SetText(std::u16string());
+    if (!GetText().empty())
+      SetText(std::u16string());
     SetAccessibleName(std::u16string());
     return;
   }

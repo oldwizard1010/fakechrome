@@ -13,7 +13,7 @@
 // #import {createDefaultBluetoothDevice, FakeBluetoothConfig,} from 'chrome://test/cr_components/chromeos/bluetooth/fake_bluetooth_config.js';
 // #import {setBluetoothConfigForTesting} from 'chrome://resources/cr_components/chromeos/bluetooth/cros_bluetooth_config.js';
 // #import {mojoString16ToString} from 'chrome://resources/cr_components/chromeos/bluetooth/bluetooth_utils.js';
-// #import {eventToPromise} from 'chrome://test/test_util.m.js';
+// #import {eventToPromise} from 'chrome://test/test_util.js';
 // clang-format on
 
 suite('OsBluetoothSummaryTest', function() {
@@ -227,4 +227,30 @@ suite('OsBluetoothSummaryTest', function() {
 
     await toggleBluetoothPairingUiPromise;
   });
+
+  test('Secondary user', async function() {
+    const primaryUserEmail = 'test@gmail.com';
+    loadTimeData.overrideValues({
+      isSecondaryUser: true,
+      primaryUserEmail,
+    });
+    init();
+
+    bluetoothConfig.setBluetoothEnabledState(/*enabled=*/ true);
+    await flushAsync();
+    const bluetoothSummaryPrimary = bluetoothSummary.$$('#bluetoothSummary');
+    const bluetoothSummarySecondary =
+        bluetoothSummary.$$('#bluetoothSummarySeconday');
+    const bluetoothSummarySecondaryText =
+        bluetoothSummary.$$('#bluetoothSummarySecondayText');
+
+    assertFalse(!!bluetoothSummaryPrimary);
+    assertTrue(!!bluetoothSummarySecondary);
+
+    assertEquals(
+        bluetoothSummary.i18n(
+            'bluetoothPrimaryUserControlled', primaryUserEmail),
+        bluetoothSummarySecondaryText.textContent.trim());
+  });
+
 });

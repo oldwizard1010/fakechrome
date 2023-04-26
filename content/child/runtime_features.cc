@@ -25,6 +25,7 @@
 #include "device/gamepad/public/cpp/gamepad_features.h"
 #include "gpu/config/gpu_switches.h"
 #include "media/base/media_switches.h"
+#include "net/base/features.h"
 #include "services/device/public/cpp/device_features.h"
 #include "services/network/public/cpp/features.h"
 #include "third_party/blink/public/common/features.h"
@@ -331,6 +332,8 @@ void SetRuntimeFeaturesFromChromiumFeatures() {
   const RuntimeFeatureToChromiumFeatureMap<const char*>
       runtimeFeatureNameToChromiumFeatureMapping[] = {
           {"AdInterestGroupAPI", blink::features::kAdInterestGroupAPI},
+          {"AdInterestGroupAPIRestrictedPolicyByDefault",
+           blink::features::kAdInterestGroupAPIRestrictedPolicyByDefault},
           {"AllowContentInitiatedDataUrlNavigations",
            features::kAllowContentInitiatedDataUrlNavigations},
           {"AutofillShadowDOM", blink::features::kAutofillShadowDOM},
@@ -340,7 +343,6 @@ void SetRuntimeFeaturesFromChromiumFeatures() {
            features::kBlockCredentialedSubresources},
           {"COLRV1Fonts", blink::features::kCOLRV1Fonts},
           {"CSSContainerQueries", blink::features::kCSSContainerQueries},
-          {"CompositeAfterPaint", blink::features::kCompositeAfterPaint},
           {"ComputePressure", blink::features::kComputePressure,
            kSetOnlyIfOverridden},
           {"DesktopPWAsSubApps", blink::features::kDesktopPWAsSubApps},
@@ -361,6 +363,8 @@ void SetRuntimeFeaturesFromChromiumFeatures() {
            blink::features::kForceSynchronousHTMLParsing},
           {"InterestCohortFeaturePolicy",
            blink::features::kInterestCohortFeaturePolicy},
+          {"LateFormNewlineNormalization",
+           blink::features::kLateFormNewlineNormalization},
           {"LayoutNG", blink::features::kLayoutNG},
           {"LegacyWindowsDWriteFontFallback",
            features::kLegacyWindowsDWriteFontFallback},
@@ -373,6 +377,7 @@ void SetRuntimeFeaturesFromChromiumFeatures() {
           {"OriginPolicy", features::kOriginPolicy},
           {"OriginIsolationHeader", features::kOriginIsolationHeader},
           {"Parakeet", blink::features::kParakeet},
+          {"PartitionedCookies", net::features::kPartitionedCookies},
           {"PrefersColorSchemeClientHintHeader",
            blink::features::kPrefersColorSchemeClientHintHeader},
           {"SanitizerAPI", blink::features::kSanitizerAPI},
@@ -389,13 +394,18 @@ void SetRuntimeFeaturesFromChromiumFeatures() {
           {"WebAppLaunchHandler", blink::features::kWebAppEnableLaunchHandler},
           {"WebAppLinkCapturing", blink::features::kWebAppEnableLinkCapturing},
           {"WebAppTabStrip", features::kDesktopPWAsTabStrip},
+          {"WebAppTranslations", blink::features::kWebAppEnableTranslations},
           {"WebAppWindowControlsOverlay",
            features::kWebAppWindowControlsOverlay},
-          {"WebAuthAuthenticatorAttachment",
-           features::kWebAuthAuthenticatorAttachment},
           {"WebAuthenticationConditionalUI", features::kWebAuthConditionalUI},
           {"SyncLoadDataUrlFonts", blink::features::kSyncLoadDataUrlFonts},
           {"CSSCascadeLayers", blink::features::kCSSCascadeLayers},
+          // TODO(crbug.com/1185950): Remove this flag when the feature is fully
+          // launched and released to stable with no issues.
+          {"AutoExpandDetailsElement",
+           blink::features::kAutoExpandDetailsElement},
+          {"UserAgentClientHintFullVersionList",
+           blink::features::kUserAgentClientHintFullVersionList},
       };
   for (const auto& mapping : runtimeFeatureNameToChromiumFeatureMapping) {
     SetRuntimeFeatureFromChromiumFeature(

@@ -9,7 +9,7 @@
 
 // #import {Router, Route, routes} from 'chrome://os-settings/chromeos/os_settings.js';
 // #import {flush, Polymer} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-// #import {eventToPromise} from 'chrome://test/test_util.m.js';
+// #import {eventToPromise} from 'chrome://test/test_util.js';
 // #import {assertTrue, assertEquals, assertFalse} from '../../../chai_assert.js';
 // #import {createDefaultBluetoothDevice, FakeBluetoothConfig} from 'chrome://test/cr_components/chromeos/bluetooth/fake_bluetooth_config.js';
 // #import {setBluetoothConfigForTesting} from 'chrome://resources/cr_components/chromeos/bluetooth/cros_bluetooth_config.js';
@@ -67,7 +67,7 @@ suite('OsBluetoothDeviceDetailPageTest', function() {
     settings.Router.getInstance().resetRouteForTesting();
   });
 
-  test('Show change settings row', async function() {
+  test('Show change settings row, and navigate to subpages', async function() {
     init();
     bluetoothConfig.setBluetoothEnabledState(/*enabled=*/ true);
 
@@ -92,7 +92,7 @@ suite('OsBluetoothDeviceDetailPageTest', function() {
     assertFalse(!!getChangeMouseSettings());
     assertFalse(!!getChangeKeyboardSettings());
 
-    const params = new URLSearchParams();
+    let params = new URLSearchParams();
     params.append('id', '12//345&6789');
     settings.Router.getInstance().navigateTo(
         settings.routes.BLUETOOTH_DEVICE_DETAIL, params);
@@ -104,6 +104,33 @@ suite('OsBluetoothDeviceDetailPageTest', function() {
         bluetoothDeviceDetailPage.i18n(
             'bluetoothDeviceDetailChangeDeviceSettingsMouse'),
         getChangeMouseSettings().label);
+
+    getChangeMouseSettings().click();
+    await flushAsync();
+
+    assertEquals(
+        settings.Router.getInstance().getCurrentRoute(),
+        settings.routes.POINTERS);
+
+    device1.deviceProperties.deviceType = mojom.DeviceType.kKeyboard;
+    bluetoothConfig.updatePairedDevice(device1);
+    await flushAsync();
+
+    params = new URLSearchParams();
+    params.append('id', '12//345&6789');
+    settings.Router.getInstance().navigateTo(
+        settings.routes.BLUETOOTH_DEVICE_DETAIL, params);
+
+    await flushAsync();
+    assertFalse(!!getChangeMouseSettings());
+    assertTrue(!!getChangeKeyboardSettings());
+
+    getChangeKeyboardSettings().click();
+    await flushAsync();
+
+    assertEquals(
+        settings.Router.getInstance().getCurrentRoute(),
+        settings.routes.KEYBOARD);
   });
 
   test('Device becomes unavailable while viewing page.', async function() {
@@ -197,6 +224,7 @@ suite('OsBluetoothDeviceDetailPageTest', function() {
     assertEquals(
         bluetoothDeviceDetailPage.i18n('bluetoothDeviceDetailConnected'),
         getBluetoothStateText().textContent.trim());
+    assertTrue(bluetoothDeviceDetailPage.getIsDeviceConnectedForTest());
     assertEquals('device1', getBluetoothDeviceNameLabel().textContent.trim());
     assertEquals(
         'os-settings:bluetooth-connected', getBluetoothStatusIcon().icon);
@@ -215,6 +243,7 @@ suite('OsBluetoothDeviceDetailPageTest', function() {
     assertEquals(
         bluetoothDeviceDetailPage.i18n('bluetoothDeviceDetailDisconnected'),
         getBluetoothStateText().textContent.trim());
+    assertFalse(bluetoothDeviceDetailPage.getIsDeviceConnectedForTest());
     assertEquals(
         'os-settings:bluetooth-disabled', getBluetoothStatusIcon().icon);
     assertFalse(!!getBluetoothDeviceBatteryInfo());
@@ -258,6 +287,50 @@ suite('OsBluetoothDeviceDetailPageTest', function() {
         await flushAsync();
         assertTrue(!!getChangeDeviceNameDialog());
       });
+
+  test('Landing on page while device is still connecting', async function() {
+    init();
+    bluetoothConfig.setBluetoothEnabledState(/*enabled=*/ true);
+
+    const getBluetoothConnectDisconnectBtn = () =>
+        bluetoothDeviceDetailPage.$$('#connectDisconnectBtn');
+    const getBluetoothStateText = () =>
+        bluetoothDeviceDetailPage.$$('#bluetoothStateText');
+    const getConnectionFailedText = () =>
+        bluetoothDeviceDetailPage.$$('#connectionFailed');
+
+    const id = '12//345&6789';
+
+    const device1 = createDefaultBluetoothDevice(
+        /*id=*/ id,
+        /*publicName=*/ 'BeatsX',
+        /*connectionState=*/
+        chromeos.bluetoothConfig.mojom.DeviceConnectionState.kConnecting,
+        /*opt_nickname=*/ 'device1',
+        /*opt_audioCapability=*/
+        mojom.AudioOutputCapability.kCapableOfAudioOutput,
+        /*opt_deviceType=*/ mojom.DeviceType.kMouse);
+
+    bluetoothConfig.appendToPairedDeviceList([device1]);
+    await flushAsync();
+
+    const params = new URLSearchParams();
+    params.append('id', id);
+    settings.Router.getInstance().navigateTo(
+        settings.routes.BLUETOOTH_DEVICE_DETAIL, params);
+
+    await flushAsync();
+    await flushAsync();
+    assertTrue(!!getBluetoothConnectDisconnectBtn());
+    assertEquals(
+        bluetoothDeviceDetailPage.i18n('bluetoothConnecting'),
+        getBluetoothStateText().textContent.trim());
+    assertFalse(!!getConnectionFailedText());
+    assertTrue(getBluetoothConnectDisconnectBtn().disabled);
+    assertEquals(
+        bluetoothDeviceDetailPage.i18n('bluetoothConnect'),
+        getBluetoothConnectDisconnectBtn().textContent.trim());
+  });
 
   test('Connect/Disconnect/forget states and error message', async function() {
     init();
@@ -450,47 +523,5 @@ suite('OsBluetoothDeviceDetailPageTest', function() {
 
     // Device should be null after navigating backward.
     assertFalse(!!bluetoothDeviceDetailPage.getDeviceForTest());
-  });
-
-  test('Landing on page while device is still connecting', async function() {
-    init();
-    bluetoothConfig.setBluetoothEnabledState(/*enabled=*/ true);
-
-    const getBluetoothConnectDisconnectBtn = () =>
-        bluetoothDeviceDetailPage.$$('#connectDisconnectBtn');
-    const getBluetoothStateText = () =>
-        bluetoothDeviceDetailPage.$$('#bluetoothStateText');
-    const getConnectionFailedText = () =>
-        bluetoothDeviceDetailPage.$$('#connectionFailed');
-
-    const id = '12//345&6789';
-
-    const device1 = createDefaultBluetoothDevice(
-        /*id=*/ id,
-        /*publicName=*/ 'BeatsX',
-        /*connectionState=*/
-        chromeos.bluetoothConfig.mojom.DeviceConnectionState.kConnecting,
-        /*opt_nickname=*/ 'device1',
-        /*opt_audioCapability=*/
-        mojom.AudioOutputCapability.kCapableOfAudioOutput,
-        /*opt_deviceType=*/ mojom.DeviceType.kMouse);
-
-    bluetoothConfig.appendToPairedDeviceList([device1]);
-    await flushAsync();
-
-    const params = new URLSearchParams();
-    params.append('id', id);
-    settings.Router.getInstance().navigateTo(
-        settings.routes.BLUETOOTH_DEVICE_DETAIL, params);
-
-    await flushAsync();
-    assertEquals(
-        bluetoothDeviceDetailPage.i18n('bluetoothConnecting'),
-        getBluetoothStateText().textContent.trim());
-    assertFalse(!!getConnectionFailedText());
-    assertTrue(getBluetoothConnectDisconnectBtn().disabled);
-    assertEquals(
-        bluetoothDeviceDetailPage.i18n('bluetoothConnect'),
-        getBluetoothConnectDisconnectBtn().textContent.trim());
   });
 });

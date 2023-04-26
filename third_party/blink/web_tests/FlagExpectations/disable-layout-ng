@@ -13,12 +13,15 @@
 # Tests that fail in legacy but pass in NG
 
 # ====== New tests from wpt-importer added here ======
+crbug.com/626703 external/wpt/css/css-grid/grid-items/aspect-ratio-005.html [ Failure ]
+crbug.com/626703 external/wpt/custom-elements/form-associated/ElementInternals-validation.html [ Crash ]
+crbug.com/626703 external/wpt/mediacapture-fromelement/capture.html [ Crash ]
+crbug.com/626703 external/wpt/media-capabilities/encodingInfo.any.worker.html [ Crash ]
 crbug.com/626703 external/wpt/css/css-fonts/palette-values-rule-add.html [ Timeout ]
 crbug.com/626703 external/wpt/css/css-fonts/palette-values-rule-add-2.html [ Timeout ]
 crbug.com/626703 external/wpt/css/css-fonts/palette-values-rule-delete-2.html [ Timeout ]
 crbug.com/626703 external/wpt/css/css-fonts/palette-values-rule-delete.html [ Timeout ]
 crbug.com/626703 external/wpt/css/css-sizing/dynamic-change-inline-size-002.html [ Failure ]
-
 
 # accessibility/
 crbug.com/1159730 accessibility/inline-text-box-next-on-line.html [ Failure ]
@@ -74,6 +77,7 @@ crbug.com/591099 external/wpt/css/css-flexbox/aspect-ratio-intrinsic-size-002.ht
 crbug.com/591099 external/wpt/css/css-flexbox/aspect-ratio-intrinsic-size-003.html [ Failure ]
 crbug.com/591099 external/wpt/css/css-flexbox/aspect-ratio-intrinsic-size-004.html [ Failure ]
 crbug.com/591099 external/wpt/css/css-flexbox/aspect-ratio-intrinsic-size-005.html [ Failure ]
+crbug.com/591099 external/wpt/css/css-flexbox/baseline-synthesis-001.html [ Failure ]
 crbug.com/591099 external/wpt/css/css-flexbox/dynamic-baseline-change.html [ Failure ]
 crbug.com/591099 external/wpt/css/css-flexbox/dynamic-baseline-change-nested.html [ Failure ]
 crbug.com/1132627 external/wpt/css/css-flexbox/flex-minimum-width-flex-items-007.xht [ Failure ]
@@ -194,6 +198,8 @@ crbug.com/1045599 external/wpt/css/css-grid/layout-algorithm/grid-template-flexi
 crbug.com/1045599 external/wpt/css/css-grid/grid-within-flexbox-indefinite.html [ Failure ]
 crbug.com/1045599 external/wpt/css/css-grid/grid-with-dynamic-img.html [ Failure ]
 crbug.com/1045599 external/wpt/css/css-grid/grid-with-orthogonal-child-within-flexbox.html [ Failure ]
+crbug.com/1045599 external/wpt/css/css-grid/parsing/grid-template-columns-computed-nogrid.html [ Failure ]
+crbug.com/1045599 external/wpt/css/css-grid/parsing/grid-template-rows-computed-nogrid.html [ Failure ]
 crbug.com/1045599 external/wpt/css/css-sizing/contain-intrinsic-size/contain-intrinsic-size-025.html [ Failure ]
 crbug.com/1045599 external/wpt/css/css-sizing/contain-intrinsic-size/contain-intrinsic-size-026.html [ Failure ]
 crbug.com/1045599 fast/css-grid-layout/grid-auto-repeat-huge-grid-001.html [ Failure ]
@@ -206,6 +212,8 @@ crbug.com/1045599 fast/css-grid-layout/grid-auto-repeat-huge-grid-007.html [ Fai
 crbug.com/1045599 fast/css-grid-layout/grid-item-spanning-and-orthogonal-flows.html [ Failure ]
 crbug.com/1045599 fast/css-grid-layout/grid-track-sizing-with-orthogonal-flows.html [ Failure ]
 crbug.com/1045599 fast/css-grid-layout/maximize-tracks-definite-indefinite-height.html [ Failure ]
+crbug.com/1045599 fast/css-grid-layout/non-grid-element-repeat-get-set.html [ Failure ]
+crbug.com/1045599 fast/css-grid-layout/non-named-grid-line-get-set.html [ Failure ]
 crbug.com/1045599 http/tests/devtools/elements/highlight/highlight-css-grid-area.js [ Failure ]
 crbug.com/1045599 http/tests/devtools/elements/highlight/highlight-css-grid-direction.js [ Failure ]
 crbug.com/1045599 http/tests/devtools/elements/highlight/highlight-css-grid-huge.js [ Failure ]
@@ -235,6 +243,8 @@ crbug.com/998423 external/wpt/css/css-multicol/with-custom-layout-on-same-elemen
 ### external/wpt/css/css-position/
 crbug.com/591099 external/wpt/css/css-position/position-absolute-center-003.html [ Failure ]
 crbug.com/591099 external/wpt/css/css-position/position-absolute-center-004.html [ Failure ]
+crbug.com/591099 external/wpt/css/css-position/position-absolute-center-005.html [ Failure ]
+crbug.com/591099 external/wpt/css/css-position/position-absolute-center-006.html [ Failure ]
 crbug.com/591099 external/wpt/css/css-position/position-absolute-crash-chrome-006.html [ Crash ]
 crbug.com/591099 external/wpt/css/css-position/position-absolute-dynamic-overflow-002.html [ Failure ]
 crbug.com/591099 external/wpt/css/css-position/position-absolute-fit-content.html [ Failure ]
@@ -275,10 +285,18 @@ crbug.com/1108830 external/wpt/css/css-pseudo/marker-word-break.html [ Failure ]
 crbug.com/1012289 external/wpt/css/css-pseudo/marker-unicode-bidi-default.html [ Failure ]
 crbug.com/1012289 external/wpt/css/css-pseudo/marker-unicode-bidi-normal.html [ Failure ]
 crbug.com/1147859 external/wpt/css/css-pseudo/selection-decoration-p3.html [ Failure ]
+crbug.com/1136817 external/wpt/css/css-pseudo/target-text-001.html [ Failure ]
+crbug.com/1136817 external/wpt/css/css-pseudo/target-text-002.html [ Failure ]
+crbug.com/1136817 external/wpt/css/css-pseudo/target-text-004.html [ Pass ]
+crbug.com/1136817 external/wpt/css/css-pseudo/target-text-005.html [ Failure ]
 crbug.com/1035708 wpt_internal/css/css-pseudo/spelling-error-color-001.html [ Failure ]
 crbug.com/1035708 wpt_internal/css/css-pseudo/spelling-error-color-002.html [ Failure ]
 crbug.com/1035708 wpt_internal/css/css-pseudo/grammar-error-color-001.html [ Failure ]
 crbug.com/1035708 wpt_internal/css/css-pseudo/grammar-error-color-002.html [ Failure ]
+crbug.com/1035708 external/wpt/css/css-pseudo/selection-background-painting-order.html [ Failure ]
+crbug.com/1035708 external/wpt/css/css-pseudo/selection-originating-decoration-color.html [ Failure ]
+crbug.com/1035708 virtual/css-highlight-inheritance/external/wpt/css/css-pseudo/selection-background-painting-order.html [ Failure ]
+crbug.com/1035708 virtual/css-highlight-inheritance/external/wpt/css/css-pseudo/selection-originating-decoration-color.html [ Failure ]
 
 ### external/wpt/css/css-ruby/
 crbug.com/591099 external/wpt/css/css-ruby/br-clear-all-002.html [ Failure ]
@@ -310,8 +328,8 @@ crbug.com/591099 external/wpt/css/css-shapes/shape-outside/supported-shapes/poly
 ### external/wpt/css/css-sizing/
 crbug.com/1045668 external/wpt/css/css-sizing/aspect-ratio/abspos-013.html [ Pass ]
 crbug.com/1154572 external/wpt/css/css-sizing/aspect-ratio/block-aspect-ratio-030.html [ Failure ]
-crbug.com/1157740 external/wpt/css/css-sizing/aspect-ratio/flex-aspect-ratio-002.html [ Pass ]
-crbug.com/1157740 external/wpt/css/css-sizing/aspect-ratio/flex-aspect-ratio-004.html [ Pass ]
+crbug.com/1251788 external/wpt/css/css-sizing/aspect-ratio/flex-aspect-ratio-002.html [ Failure ]
+crbug.com/1251788 external/wpt/css/css-sizing/aspect-ratio/flex-aspect-ratio-004.html [ Failure ]
 crbug.com/1157740 external/wpt/css/css-sizing/aspect-ratio/flex-aspect-ratio-024.html [ Failure ]
 crbug.com/1157740 external/wpt/css/css-sizing/aspect-ratio/flex-aspect-ratio-026.html [ Failure ]
 crbug.com/591099 external/wpt/css/css-sizing/clone-nowrap-intrinsic-size-bidi.html [ Failure ]
@@ -1366,5 +1384,25 @@ crbug.com/626703 external/wpt/css/CSS2/borders/border-right-applies-to-014.xht [
 crbug.com/626703 external/wpt/css/CSS2/borders/border-right-color-applies-to-014.xht [ Failure ]
 crbug.com/626703 external/wpt/css/CSS2/borders/border-right-width-applies-to-014.xht [ Failure ]
 
+# Failures when enabling CompositeAfter
+crbug.com/591099 fast/block/float/float-change-composited-scrolling.html [ Failure ]
+crbug.com/591099 svg/dom/viewspec-aspectparams.html [ Failure ]
+crbug.com/591099 svg/dom/viewspec-transformparams.html [ Failure ]
+crbug.com/591099 svg/dom/viewspec-viewboxparams.html [ Failure ]
+crbug.com/591099 svg/dom/viewspec-viewtargetparams.html [ Failure ]
+crbug.com/591099 svg/dom/viewspec-zoomandpanparams.html [ Failure ]
+
 # Fails with ForceSynchronousHTMLParsing enabled, might be a fluke:
 crbug.com/1254921 svg/as-image/image-respects-deviceScaleFactor.html [ Failure ]
+
+crbug.com/674631 external/wpt/css/css-color/inline-opacity-float-child.html [ Failure ]
+
+# Off by one errors cause by SwiftShader update
+crbug.com/1266821 compositing/gestures/gesture-tapHighlight-pixel-rotated-div.html [ Failure ]
+crbug.com/1266821 media/video-zoom-controls.html [ Failure ]
+crbug.com/1266821 virtual/gpu-rasterization/images/12-55.html [ Failure ]
+crbug.com/1266821 virtual/gpu-rasterization/images/182.html [ Failure ]
+crbug.com/1266821 virtual/gpu-rasterization/images/2-dht.html [ Failure ]
+crbug.com/1266821 virtual/gpu-rasterization/images/23-55.html [ Failure ]
+crbug.com/1266821 virtual/gpu-rasterization/images/55.html [ Failure ]
+crbug.com/1266821 virtual/gpu-rasterization/images/imagemap-focus-ring-zoom.html [ Failure ]

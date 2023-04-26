@@ -64,7 +64,7 @@ using password_manager::UiCredential;
 using BlocklistedStatus =
     password_manager::OriginCredentialStore::BlocklistedStatus;
 using FillingSource = ManualFillingController::FillingSource;
-using IsPslMatch = autofill::UserInfo::IsPslMatch;
+using IsExactMatch = autofill::UserInfo::IsExactMatch;
 
 namespace {
 
@@ -72,8 +72,10 @@ autofill::UserInfo TranslateCredentials(bool current_field_is_password,
                                         const url::Origin& frame_origin,
                                         const UiCredential& credential) {
   DCHECK(!credential.origin().opaque());
-  UserInfo user_info(credential.origin().Serialize(),
-                     credential.is_public_suffix_match());
+  UserInfo user_info(
+      credential.origin().Serialize(),
+      IsExactMatch(!credential.is_public_suffix_match().value() &&
+                   !credential.is_affiliation_based_match().value()));
 
   std::u16string username = GetDisplayUsername(credential);
   user_info.add_field(
@@ -524,7 +526,9 @@ bool PasswordAccessoryControllerImpl::ShouldTriggerBiometricReauth(
 
   scoped_refptr<device_reauth::BiometricAuthenticator> authenticator =
       password_client_->GetBiometricAuthenticator();
-  return password_manager_util::CanUseBiometricAuth(authenticator.get());
+  return password_manager_util::CanUseBiometricAuth(
+      authenticator.get(),
+      device_reauth::BiometricAuthRequester::kFallbackSheet);
 }
 
 void PasswordAccessoryControllerImpl::OnReauthCompleted(

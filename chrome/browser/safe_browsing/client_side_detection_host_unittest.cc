@@ -11,7 +11,6 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/files/file_path.h"
-#include "base/macros.h"
 #include "base/memory/read_only_shared_memory_region.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
@@ -733,9 +732,6 @@ TEST_F(
 TEST_F(ClientSideDetectionHostTest,
        PhishingDetectionDoneEnhancedProtectionShouldHaveToken) {
   SetEnhancedProtectionPrefForTests(profile()->GetPrefs(), true);
-  SetFeatures(
-      /*enable_features*/ {kClientSideDetectionWithToken},
-      /*disable_features*/ {});
 
   ClientPhishingRequest verdict;
   verdict.set_url("http://example.com/");
@@ -764,9 +760,6 @@ TEST_F(ClientSideDetectionHostTest,
 TEST_F(ClientSideDetectionHostTest,
        PhishingDetectionDoneCalledTwiceShouldSucceed) {
   SetEnhancedProtectionPrefForTests(profile()->GetPrefs(), true);
-  SetFeatures(
-      /*enable_features*/ {kClientSideDetectionWithToken},
-      /*disable_features*/ {});
 
   ClientPhishingRequest verdict;
   verdict.set_url("http://example.com/");
@@ -813,9 +806,6 @@ TEST_F(ClientSideDetectionHostTest,
 TEST_F(ClientSideDetectionHostIncognitoTest,
        PhishingDetectionDoneIncognitoShouldNotHaveToken) {
   SetEnhancedProtectionPrefForTests(profile()->GetPrefs(), true);
-  SetFeatures(
-      /*enable_features*/ {kClientSideDetectionWithToken},
-      /*disable_features*/ {});
 
   ClientPhishingRequest verdict;
   verdict.set_url("http://example.com/");
@@ -836,32 +826,6 @@ TEST_F(ClientSideDetectionHostIncognitoTest,
 
 TEST_F(ClientSideDetectionHostTest,
        PhishingDetectionDoneNoEnhancedProtectionShouldNotHaveToken) {
-  SetFeatures(/*enable_features*/ {},
-              /*disable_features*/ {kClientSideDetectionWithToken});
-
-  ClientPhishingRequest verdict;
-  verdict.set_url("http://example.com/");
-  verdict.set_client_score(1.0f);
-  verdict.set_is_phishing(true);
-
-  // Set up mock call to csd service.
-  EXPECT_CALL(*csd_service_, SendClientReportPhishingRequest(
-                                 PartiallyEqualVerdict(verdict), _, ""));
-
-  // Set up mock call to token fetcher.
-  SafeBrowsingTokenFetcher::Callback cb;
-  EXPECT_CALL(*raw_token_fetcher_, Start(_)).Times(0);
-
-  // Make the call.
-  PhishingDetectionDone(verdict.SerializeAsString());
-}
-
-TEST_F(ClientSideDetectionHostTest,
-       PhishingDetectionDoneDisabledFeatureShouldNotHaveToken) {
-  SetEnhancedProtectionPrefForTests(profile()->GetPrefs(), true);
-  SetFeatures(/*enable_features*/ {},
-              /*disable_features*/ {kClientSideDetectionWithToken});
-
   ClientPhishingRequest verdict;
   verdict.set_url("http://example.com/");
   verdict.set_client_score(1.0f);

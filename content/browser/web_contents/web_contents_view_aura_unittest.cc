@@ -9,7 +9,6 @@
 
 #include "base/command_line.h"
 #include "base/files/file_util.h"
-#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_command_line.h"
@@ -102,6 +101,9 @@ class TestDragDropClient : public aura::client::DragDropClient {
 
 class WebContentsViewAuraTest : public RenderViewHostTestHarness {
  public:
+  WebContentsViewAuraTest(const WebContentsViewAuraTest&) = delete;
+  WebContentsViewAuraTest& operator=(const WebContentsViewAuraTest&) = delete;
+
   void OnDropComplete(RenderWidgetHostImpl* target_rwh,
                       const DropData& drop_data,
                       const gfx::PointF& client_pt,
@@ -184,9 +186,6 @@ class WebContentsViewAuraTest : public RenderViewHostTestHarness {
     const bool drop_allowed;
   };
   std::unique_ptr<DropCompleteData> drop_complete_data_;
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(WebContentsViewAuraTest);
 };
 
 TEST_F(WebContentsViewAuraTest, EnableDisableOverscroll) {

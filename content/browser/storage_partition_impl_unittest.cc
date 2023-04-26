@@ -59,6 +59,7 @@
 #include "services/network/cookie_manager.h"
 #include "storage/browser/quota/quota_client_type.h"
 #include "storage/browser/quota/quota_manager.h"
+#include "storage/browser/quota/quota_manager_proxy.h"
 #include "storage/browser/test/mock_quota_client.h"
 #include "storage/browser/test/mock_quota_manager.h"
 #include "storage/browser/test/mock_special_storage_policy.h"
@@ -72,7 +73,6 @@
 #include "third_party/leveldatabase/env_chromium.h"
 
 #if BUILDFLAG(ENABLE_PLUGINS)
-#include "ppapi/shared_impl/ppapi_constants.h"  // nogncheck
 #include "storage/browser/file_system/async_file_util.h"
 #include "storage/browser/file_system/file_system_context.h"
 #include "storage/browser/file_system/file_system_operation_context.h"
@@ -159,6 +159,9 @@ class RemoveCookieTester {
   explicit RemoveCookieTester(StoragePartition* storage_partition)
       : storage_partition_(storage_partition) {}
 
+  RemoveCookieTester(const RemoveCookieTester&) = delete;
+  RemoveCookieTester& operator=(const RemoveCookieTester&) = delete;
+
   // Returns true, if the given cookie exists in the cookie store.
   bool ContainsCookie(const url::Origin& origin) {
     get_cookie_success_ = false;
@@ -207,14 +210,16 @@ class RemoveCookieTester {
   bool get_cookie_success_;
   AwaitCompletionHelper await_completion_;
   StoragePartition* storage_partition_;
-
-  DISALLOW_COPY_AND_ASSIGN(RemoveCookieTester);
 };
 
 class RemoveInterestGroupTester {
  public:
   explicit RemoveInterestGroupTester(StoragePartitionImpl* storage_partition)
       : storage_partition_(storage_partition) {}
+
+  RemoveInterestGroupTester(const RemoveInterestGroupTester&) = delete;
+  RemoveInterestGroupTester& operator=(const RemoveInterestGroupTester&) =
+      delete;
 
   // Returns true, if the given interest group owner has any interest groups in
   // InterestGroupStorage.
@@ -248,8 +253,6 @@ class RemoveInterestGroupTester {
   bool get_interest_group_success_ = false;
   AwaitCompletionHelper await_completion_;
   StoragePartitionImpl* storage_partition_;
-
-  DISALLOW_COPY_AND_ASSIGN(RemoveInterestGroupTester);
 };
 
 class RemoveLocalStorageTester {
@@ -404,6 +407,9 @@ class RemoveCodeCacheTester {
   explicit RemoveCodeCacheTester(GeneratedCodeCacheContext* code_cache_context)
       : code_cache_context_(code_cache_context) {}
 
+  RemoveCodeCacheTester(const RemoveCodeCacheTester&) = delete;
+  RemoveCodeCacheTester& operator=(const RemoveCodeCacheTester&) = delete;
+
   enum Cache { kJs, kWebAssembly, kWebUiJs };
 
   bool ContainsEntry(Cache cache, const GURL& url, const GURL& origin_lock) {
@@ -503,7 +509,6 @@ class RemoveCodeCacheTester {
   AwaitCompletionHelper await_completion_;
   GeneratedCodeCacheContext* code_cache_context_;
   std::string received_data_;
-  DISALLOW_COPY_AND_ASSIGN(RemoveCodeCacheTester);
 };
 
 #if BUILDFLAG(ENABLE_PLUGINS)
@@ -512,6 +517,10 @@ class RemovePluginPrivateDataTester {
   explicit RemovePluginPrivateDataTester(
       storage::FileSystemContext* filesystem_context)
       : filesystem_context_(filesystem_context) {}
+
+  RemovePluginPrivateDataTester(const RemovePluginPrivateDataTester&) = delete;
+  RemovePluginPrivateDataTester& operator=(
+      const RemovePluginPrivateDataTester&) = delete;
 
   // Add some files to the PluginPrivateFileSystem. They are created as follows:
   //   url1 - ClearKey - 1 file - timestamp 10 days ago
@@ -561,10 +570,11 @@ class RemovePluginPrivateDataTester {
   std::string CreateFileSystem(const std::string& plugin_name,
                                const GURL& origin) {
     AwaitCompletionHelper await_completion;
-    std::string fsid = storage::IsolatedContext::GetInstance()
-                           ->RegisterFileSystemForVirtualPath(
-                               storage::kFileSystemTypePluginPrivate,
-                               ppapi::kPluginPrivateRootName, base::FilePath());
+    std::string fsid =
+        storage::IsolatedContext::GetInstance()
+            ->RegisterFileSystemForVirtualPath(
+                storage::kFileSystemTypePluginPrivate,
+                storage::kPluginPrivateRootName, base::FilePath());
     EXPECT_TRUE(storage::ValidateIsolatedFileSystemId(fsid));
     filesystem_context_->OpenPluginPrivateFileSystem(
         url::Origin::Create(origin), storage::kFileSystemTypePluginPrivate,
@@ -583,7 +593,7 @@ class RemovePluginPrivateDataTester {
                                     const std::string& file_name) {
     AwaitCompletionHelper await_completion;
     std::string root = storage::GetIsolatedFileSystemRootURIString(
-        origin, fsid, ppapi::kPluginPrivateRootName);
+        origin, fsid, storage::kPluginPrivateRootName);
     storage::FileSystemURL file_url =
         filesystem_context_->CrackURLInFirstPartyContext(
             GURL(root + file_name));
@@ -693,8 +703,6 @@ class RemovePluginPrivateDataTester {
   // Keep track of the URL for the ClearKey file so that it can be written to
   // or deleted.
   storage::FileSystemURL clearkey_file_;
-
-  DISALLOW_COPY_AND_ASSIGN(RemovePluginPrivateDataTester);
 };
 #endif  // BUILDFLAG(ENABLE_PLUGINS)
 
@@ -881,6 +889,9 @@ class StoragePartitionImplTest : public testing::Test {
                                    {});
   }
 
+  StoragePartitionImplTest(const StoragePartitionImplTest&) = delete;
+  StoragePartitionImplTest& operator=(const StoragePartitionImplTest&) = delete;
+
   storage::MockQuotaManager* GetMockManager() {
     if (!quota_manager_.get()) {
       quota_manager_ = base::MakeRefCounted<storage::MockQuotaManager>(
@@ -913,8 +924,6 @@ class StoragePartitionImplTest : public testing::Test {
   content::BrowserTaskEnvironment task_environment_;
   std::unique_ptr<TestBrowserContext> browser_context_;
   scoped_refptr<storage::MockQuotaManager> quota_manager_;
-
-  DISALLOW_COPY_AND_ASSIGN(StoragePartitionImplTest);
 };
 
 class StoragePartitionShaderClearTest : public testing::Test {
@@ -1923,18 +1932,18 @@ TEST_F(StoragePartitionImplTest, ConversionsClearDataForOrigin) {
       partition->GetAttributionManager();
 
   base::Time now = base::Time::Now();
-  auto impression = SourceBuilder(now).SetExpiry(base::Days(2)).Build();
-  attribution_manager->HandleImpression(impression);
-  attribution_manager->HandleConversion(DefaultTrigger());
+  auto source = SourceBuilder(now).SetExpiry(base::Days(2)).Build();
+  attribution_manager->HandleSource(source);
+  attribution_manager->HandleTrigger(DefaultTrigger());
 
   base::RunLoop run_loop;
   partition->ClearData(StoragePartition::REMOVE_DATA_MASK_CONVERSIONS, 0,
-                       impression.impression_origin().GetURL(), now, now,
+                       source.impression_origin().GetURL(), now, now,
                        run_loop.QuitClosure());
   run_loop.Run();
 
   EXPECT_TRUE(
-      GetConversionsToReportForTesting(attribution_manager, base::Time::Max())
+      GetAttributionsToReportForTesting(attribution_manager, base::Time::Max())
           .empty());
 }
 
@@ -1946,22 +1955,22 @@ TEST_F(StoragePartitionImplTest, ConversionsClearDataWrongMask) {
       partition->GetAttributionManager();
 
   base::Time now = base::Time::Now();
-  auto impression = SourceBuilder(now).SetExpiry(base::Days(2)).Build();
-  attribution_manager->HandleImpression(impression);
-  attribution_manager->HandleConversion(DefaultTrigger());
+  auto source = SourceBuilder(now).SetExpiry(base::Days(2)).Build();
+  attribution_manager->HandleSource(source);
+  attribution_manager->HandleTrigger(DefaultTrigger());
 
   EXPECT_FALSE(
-      GetConversionsToReportForTesting(attribution_manager, base::Time::Max())
+      GetAttributionsToReportForTesting(attribution_manager, base::Time::Max())
           .empty());
 
   // Arbitrary non-conversions mask.
   base::RunLoop run_loop;
   partition->ClearData(StoragePartition::REMOVE_DATA_MASK_COOKIES, 0,
-                       impression.impression_origin().GetURL(), now, now,
+                       source.impression_origin().GetURL(), now, now,
                        run_loop.QuitClosure());
   run_loop.Run();
   EXPECT_FALSE(
-      GetConversionsToReportForTesting(attribution_manager, base::Time::Max())
+      GetAttributionsToReportForTesting(attribution_manager, base::Time::Max())
           .empty());
 }
 
@@ -1976,13 +1985,13 @@ TEST_F(StoragePartitionImplTest, ConversionsClearAllData) {
   for (int i = 0; i < 20; i++) {
     auto origin = url::Origin::Create(
         GURL(base::StringPrintf("https://www.%d.test/", i)));
-    auto impression = SourceBuilder(now)
-                          .SetExpiry(base::Days(2))
-                          .SetImpressionOrigin(origin)
-                          .SetReportingOrigin(origin)
-                          .SetConversionOrigin(origin)
-                          .Build();
-    attribution_manager->HandleImpression(impression);
+    auto source = SourceBuilder(now)
+                      .SetExpiry(base::Days(2))
+                      .SetImpressionOrigin(origin)
+                      .SetReportingOrigin(origin)
+                      .SetConversionOrigin(origin)
+                      .Build();
+    attribution_manager->HandleSource(source);
   }
   base::RunLoop run_loop;
   partition->ClearData(StoragePartition::REMOVE_DATA_MASK_CONVERSIONS, 0,
@@ -1990,7 +1999,7 @@ TEST_F(StoragePartitionImplTest, ConversionsClearAllData) {
   run_loop.Run();
 
   EXPECT_TRUE(
-      GetConversionsToReportForTesting(attribution_manager, base::Time::Max())
+      GetAttributionsToReportForTesting(attribution_manager, base::Time::Max())
           .empty());
 }
 
@@ -2009,21 +2018,21 @@ TEST_F(StoragePartitionImplTest, ConversionsClearDataForFilter) {
         GURL(base::StringPrintf("https://reporter-%d.com/", i)));
     auto conv = url::Origin::Create(
         GURL(base::StringPrintf("https://conv-%d.com/", i)));
-    attribution_manager->HandleImpression(SourceBuilder(now)
-                                              .SetImpressionOrigin(impression)
-                                              .SetReportingOrigin(reporter)
-                                              .SetConversionOrigin(conv)
-                                              .SetExpiry(base::Days(2))
-                                              .Build());
-    attribution_manager->HandleConversion(
+    attribution_manager->HandleSource(SourceBuilder(now)
+                                          .SetImpressionOrigin(impression)
+                                          .SetReportingOrigin(reporter)
+                                          .SetConversionOrigin(conv)
+                                          .SetExpiry(base::Days(2))
+                                          .Build());
+    attribution_manager->HandleTrigger(
         StorableTrigger(123, net::SchemefulSite(conv), reporter,
                         /*event_source_trigger_data=*/0,
                         /*priority=*/0,
                         /*dedup_key=*/absl::nullopt));
   }
 
-  EXPECT_EQ(5u, GetConversionsToReportForTesting(attribution_manager,
-                                                 base::Time::Max())
+  EXPECT_EQ(5u, GetAttributionsToReportForTesting(attribution_manager,
+                                                  base::Time::Max())
                     .size());
 
   // Match against enough Origins to delete three of the imp/conv pairs.
@@ -2038,8 +2047,8 @@ TEST_F(StoragePartitionImplTest, ConversionsClearDataForFilter) {
   partition->ClearData(StoragePartition::REMOVE_DATA_MASK_CONVERSIONS, 0, func,
                        nullptr, false, now, now, run_loop.QuitClosure());
   run_loop.Run();
-  EXPECT_EQ(2u, GetConversionsToReportForTesting(attribution_manager,
-                                                 base::Time::Max())
+  EXPECT_EQ(2u, GetAttributionsToReportForTesting(attribution_manager,
+                                                  base::Time::Max())
                     .size());
 }
 

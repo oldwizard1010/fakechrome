@@ -19,6 +19,7 @@
 #include "chrome/browser/apps/app_service/publishers/web_apps_crosapi_factory.h"
 #include "chrome/browser/apps/app_service/subscriber_crosapi.h"
 #include "chrome/browser/apps/app_service/subscriber_crosapi_factory.h"
+#include "chrome/browser/ash/crosapi/authentication_ash.h"
 #include "chrome/browser/ash/crosapi/automation_ash.h"
 #include "chrome/browser/ash/crosapi/browser_manager.h"
 #include "chrome/browser/ash/crosapi/browser_service_host_ash.h"
@@ -43,11 +44,13 @@
 #include "chrome/browser/ash/crosapi/keystore_service_ash.h"
 #include "chrome/browser/ash/crosapi/kiosk_session_service_ash.h"
 #include "chrome/browser/ash/crosapi/local_printer_ash.h"
+#include "chrome/browser/ash/crosapi/login_state_ash.h"
 #include "chrome/browser/ash/crosapi/message_center_ash.h"
 #include "chrome/browser/ash/crosapi/metrics_reporting_ash.h"
 #include "chrome/browser/ash/crosapi/native_theme_service_ash.h"
 #include "chrome/browser/ash/crosapi/network_settings_service_ash.h"
 #include "chrome/browser/ash/crosapi/networking_attributes_ash.h"
+#include "chrome/browser/ash/crosapi/policy_service_ash.h"
 #include "chrome/browser/ash/crosapi/power_ash.h"
 #include "chrome/browser/ash/crosapi/prefs_ash.h"
 #include "chrome/browser/ash/crosapi/remoting_ash.h"
@@ -68,6 +71,7 @@
 #include "chrome/browser/speech/tts_ash.h"
 #include "chrome/browser/ui/ash/holding_space/holding_space_keyed_service.h"
 #include "chrome/browser/ui/ash/holding_space/holding_space_keyed_service_factory.h"
+#include "chrome/browser/web_applications/web_app_utils.h"
 #include "chrome/common/chrome_features.h"
 #include "chromeos/components/cdm_factory_daemon/cdm_factory_daemon_proxy_ash.h"
 #include "chromeos/components/sensors/ash/sensor_hal_dispatcher.h"
@@ -114,7 +118,8 @@ Profile* GetAshProfile() {
 }  // namespace
 
 CrosapiAsh::CrosapiAsh()
-    : automation_ash_(std::make_unique<AutomationAsh>()),
+    : authentication_ash_(std::make_unique<AuthenticationAsh>()),
+      automation_ash_(std::make_unique<AutomationAsh>()),
       browser_service_host_ash_(std::make_unique<BrowserServiceHostAsh>()),
       browser_version_service_ash_(std::make_unique<BrowserVersionServiceAsh>(
           g_browser_process->component_updater())),
@@ -141,6 +146,7 @@ CrosapiAsh::CrosapiAsh()
       keystore_service_ash_(std::make_unique<KeystoreServiceAsh>()),
       kiosk_session_service_ash_(std::make_unique<KioskSessionServiceAsh>()),
       local_printer_ash_(std::make_unique<LocalPrinterAsh>()),
+      login_state_ash_(std::make_unique<LoginStateAsh>()),
       message_center_ash_(std::make_unique<MessageCenterAsh>()),
       metrics_reporting_ash_(std::make_unique<MetricsReportingAsh>(
           g_browser_process->local_state())),
@@ -148,6 +154,7 @@ CrosapiAsh::CrosapiAsh()
       networking_attributes_ash_(std::make_unique<NetworkingAttributesAsh>()),
       network_settings_service_ash_(std::make_unique<NetworkSettingsServiceAsh>(
           g_browser_process->local_state())),
+      policy_service_ash_(std::make_unique<PolicyServiceAsh>()),
       power_ash_(std::make_unique<PowerAsh>()),
       prefs_ash_(
           std::make_unique<PrefsAsh>(g_browser_process->profile_manager(),
@@ -188,6 +195,11 @@ void CrosapiAsh::BindReceiver(
     disconnect_handler_map_.emplace(id, std::move(disconnect_handler));
 }
 
+void CrosapiAsh::BindAuthentication(
+    mojo::PendingReceiver<mojom::Authentication> receiver) {
+  authentication_ash_->BindReceiver(std::move(receiver));
+}
+
 void CrosapiAsh::BindAutomationDeprecated(
     mojo::PendingReceiver<mojom::Automation> receiver) {}
 
@@ -219,7 +231,7 @@ void CrosapiAsh::BindAppServiceProxy(
 
 void CrosapiAsh::BindBrowserAppInstanceRegistry(
     mojo::PendingReceiver<mojom::BrowserAppInstanceRegistry> receiver) {
-  if (!features::IsBrowserAppInstanceTrackingEnabled()) {
+  if (!web_app::IsWebAppsCrosapiEnabled()) {
     return;
   }
   Profile* profile = ProfileManager::GetPrimaryUserProfile();
@@ -313,6 +325,11 @@ void CrosapiAsh::BindKeystoreService(
 void CrosapiAsh::BindLocalPrinter(
     mojo::PendingReceiver<crosapi::mojom::LocalPrinter> receiver) {
   local_printer_ash_->BindReceiver(std::move(receiver));
+}
+
+void CrosapiAsh::BindLoginState(
+    mojo::PendingReceiver<crosapi::mojom::LoginState> receiver) {
+  login_state_ash_->BindReceiver(std::move(receiver));
 }
 
 void CrosapiAsh::BindMessageCenter(
@@ -448,6 +465,11 @@ void CrosapiAsh::BindStableVideoDecoderFactory(
     mojo::GenericPendingReceiver receiver) {
   if (auto r = receiver.As<media::stable::mojom::StableVideoDecoderFactory>())
     stable_video_decoder_factory_ash_->BindReceiver(std::move(r));
+}
+
+void CrosapiAsh::BindPolicyService(
+    mojo::PendingReceiver<mojom::PolicyService> receiver) {
+  policy_service_ash_->BindReceiver(std::move(receiver));
 }
 
 void CrosapiAsh::BindPower(mojo::PendingReceiver<mojom::Power> receiver) {

@@ -27,7 +27,6 @@
 #include "base/files/scoped_file.h"
 #include "base/format_macros.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
@@ -57,10 +56,10 @@
 #include "chromeos/system/core_scheduling.h"
 #include "chromeos/system/statistics_provider.h"
 #include "components/arc/arc_features.h"
-#include "components/arc/arc_service_manager.h"
 #include "components/arc/arc_util.h"
 #include "components/arc/session/arc_bridge_service.h"
 #include "components/arc/session/arc_dlc_installer.h"
+#include "components/arc/session/arc_service_manager.h"
 #include "components/arc/session/arc_session.h"
 #include "components/arc/session/connection_holder.h"
 #include "components/arc/session/file_system_status.h"
@@ -228,8 +227,6 @@ std::vector<std::string> GenerateKernelCmdline(
                          start_params.arc_file_picker_experiment),
       base::StringPrintf("androidboot.arc_custom_tabs=%d",
                          start_params.arc_custom_tabs_experiment),
-      base::StringPrintf("androidboot.image_copy_paste_compat=%d",
-                         start_params.enable_image_copy_paste_compat),
       base::StringPrintf(
           "androidboot.keyboard_shortcut_helper_integration=%d",
           start_params.enable_keyboard_shortcut_helper_integration),
@@ -280,12 +277,11 @@ std::vector<std::string> GenerateKernelCmdline(
       break;
   }
 
-  // Check if enabled.
-  if (base::FeatureList::IsEnabled(arc::kUseHighMemoryDalvikProfile)) {
+  if (base::FeatureList::IsEnabled(arc::kUseDalvikMemoryProfile)) {
     switch (start_params.dalvik_memory_profile) {
       case StartParams::DalvikMemoryProfile::DEFAULT:
-        break;
       case StartParams::DalvikMemoryProfile::M4G:
+        // Use the 4G profile for devices with 4GB RAM or less.
         result.push_back("androidboot.arc_dalvik_memory_profile=4G");
         break;
       case StartParams::DalvikMemoryProfile::M8G:
@@ -296,8 +292,8 @@ std::vector<std::string> GenerateKernelCmdline(
         break;
     }
   } else {
-    VLOG(1) << "High-memory dalvik profile is not enabled, default low-memory "
-               "is used.";
+    VLOG(1) << "Dalvik memory profile is not enabled, the default setting is "
+            << "used.";
   }
 
   std::string log_profile_name;
@@ -354,10 +350,16 @@ vm_tools::concierge::StartArcVmRequest CreateStartArcVmRequest(
 
   vm->set_kernel(file_system_status.guest_kernel_path().value());
 
+  const bool should_set_blocksize =
+      !base::FeatureList::IsEnabled(arc::kUseDefaultBlockSize);
+  constexpr uint32_t kBlockSize = 4096;
+
   // Add rootfs as /dev/vda.
   vm->set_rootfs(file_system_status.system_image_path().value());
   request.set_rootfs_writable(file_system_status.is_host_rootfs_writable() &&
                               file_system_status.is_system_image_ext_format());
+  if (should_set_blocksize)
+    request.set_rootfs_block_size(kBlockSize);
 
   // Add /vendor as /dev/block/vdb. The device name has to be consistent with
   // the one in GenerateFirstStageFstab() in platform2/arc/setup/.
@@ -366,6 +368,8 @@ vm_tools::concierge::StartArcVmRequest CreateStartArcVmRequest(
   disk_image->set_image_type(vm_tools::concierge::DISK_IMAGE_AUTO);
   disk_image->set_writable(false);
   disk_image->set_do_mount(true);
+  if (should_set_blocksize)
+    disk_image->set_block_size(kBlockSize);
 
   // Add /run/imageloader/.../android_demo_apps.squash as /dev/block/vdc if
   // needed.
@@ -375,6 +379,8 @@ vm_tools::concierge::StartArcVmRequest CreateStartArcVmRequest(
     disk_image->set_image_type(vm_tools::concierge::DISK_IMAGE_AUTO);
     disk_image->set_writable(false);
     disk_image->set_do_mount(true);
+    if (should_set_blocksize)
+      disk_image->set_block_size(kBlockSize);
   }
 
   // Add Android fstab.

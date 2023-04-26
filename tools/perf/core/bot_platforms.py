@@ -523,7 +523,8 @@ MAC_HIGH_END = PerfPlatform(
     'mac-10_13_laptop_high_end-perf',
     'MacBook Pro, Core i7 2.8 GHz, 16GB RAM, 256GB SSD, Radeon 55',
     _MAC_HIGH_END_BENCHMARK_CONFIGS,
-    26,
+    # crbug/1267365: reduce as some bots are lost due to OS divergence
+    22,
     'mac',
     executables=_MAC_HIGH_END_EXECUTABLE_CONFIGS)
 MAC_LOW_END = PerfPlatform(
@@ -652,12 +653,19 @@ LINUX_PERF_FYI = PerfPlatform('linux-perf-fyi',
                               1,
                               'linux',
                               is_fyi=True)
+# TODO(crbug.com/1268204): Rename to platform-specific name.
 FUCHSIA_PERF_FYI = PerfPlatform('fuchsia-perf-fyi',
                                 '',
                                 _FUCHSIA_PERF_FYI_BENCHMARK_CONFIGS,
                                 3,
                                 'fuchsia',
                                 is_fyi=True)
+FUCHSIA_PERF_SHERLOCK_FYI = PerfPlatform('fuchsia-perf-sherlock-fyi',
+                                         '',
+                                         _FUCHSIA_PERF_FYI_BENCHMARK_CONFIGS,
+                                         3,
+                                         'fuchsia',
+                                         is_fyi=True)
 
 # Calibration bots
 LINUX_PERF_CALIBRATION = PerfPlatform(
@@ -672,9 +680,10 @@ LINUX_PERF_CALIBRATION = PerfPlatform(
 ANDROID_PIXEL2_PERF_CALIBRATION = PerfPlatform(
     'android-pixel2-perf-calibration',
     'Android OPM1.171019.021',
-    _ANDROID_PIXEL2_PERF_CALIBRATION_BENCHMARK_CONFIGS,
+    _ANDROID_PIXEL2_BENCHMARK_CONFIGS,
     42,
     'android',
+    executables=_ANDROID_PIXEL2_EXECUTABLE_CONFIGS,
     is_calibration=True)
 
 ALL_PLATFORMS = {

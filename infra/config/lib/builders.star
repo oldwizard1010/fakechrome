@@ -25,11 +25,11 @@ for use with the corresponding arguments to `builder`. Can also be accessed
 through `builders.cpu`, `builders.os` and `builders.goma` respectively.
 """
 
-load("@stdlib//internal/graph.star", "graph")
 load("//project.star", "settings")
 load("./args.star", "args")
 load("./branches.star", "branches")
-load("./chromium_tests_builder_config.star", "ctbc", "register_builder_config")
+load("./bootstrap.star", "register_bootstrap")
+load("./builder_config.star", "builder_config", "register_builder_config")
 load("./listify.star", "listify")
 
 ################################################################################
@@ -96,7 +96,8 @@ os = struct(
     MAC_10_14 = os_enum("Mac-10.14", os_category.MAC),
     MAC_10_15 = os_enum("Mac-10.15", os_category.MAC),
     MAC_11 = os_enum("Mac-11", os_category.MAC),
-    MAC_DEFAULT = os_enum("Mac-10.15", os_category.MAC),
+    # TODO(crbug.com/1254953) Remove 10.15 once builders have been migrated to Mac11
+    MAC_DEFAULT = os_enum("Mac-10.15|Mac-11", os_category.MAC),
     MAC_ANY = os_enum("Mac", os_category.MAC),
     WINDOWS_7 = os_enum("Windows-7", os_category.WINDOWS),
     WINDOWS_8_1 = os_enum("Windows-8.1", os_category.WINDOWS),
@@ -183,17 +184,27 @@ xcode = struct(
     x12d4e = xcode_enum("12d4e"),
     # Xcode 12.5. Requires Mac11+ OS.
     x12e262 = xcode_enum("12e262"),
-    # in use by ios-webkit-tot
-    x12e262wk = xcode_enum("12e262wk"),
     # Default Xcode 13 for chromium iOS (release candidate).
     x13main = xcode_enum("13a233"),
     # Xcode 13.0 latest beta (release candidate).
     x13latestbeta = xcode_enum("13a233"),
+    # in use by ios-webkit-tot
+    x13wk = xcode_enum("13a1030dwk"),
 )
 
 # Git revision of the compilator_watcher luciexe sub_build binary for chromium
 # orchestrators to use
 compilator_watcher_git_revision = "d5bee0e7798a40c3c6261c3dbc14becf1fbb693f"
+
+def builder_url(bucket, builder, project = None):
+    """A simple utility for constructing the milo URL for a builder."""
+    project = project or settings.project
+    url = "https://ci.chromium.org/p/%s/builders/%s/%s" % (
+        project,
+        bucket,
+        builder,
+    )
+    return url
 
 ################################################################################
 # Implementation details                                                       #
@@ -285,7 +296,7 @@ def _code_coverage_property(
 
     return code_coverage or None
 
-def _reclient_property(*, instance, service, jobs, rewrapper_env, profiler_service, publish_trace, cache_silo, ensure_verified):
+def _reclient_property(*, instance, service, jobs, rewrapper_env, profiler_service, publish_trace, cache_silo, ensure_verified, fail_early):
     reclient = {}
     instance = defaults.get_value("reclient_instance", instance)
     if instance:
@@ -315,6 +326,9 @@ def _reclient_property(*, instance, service, jobs, rewrapper_env, profiler_servi
     ensure_verified = defaults.get_value("reclient_ensure_verified", ensure_verified)
     if ensure_verified:
         reclient["ensure_verified"] = True
+    fail_early = defaults.get_value("reclient_fail_early", fail_early)
+    if fail_early:
+        reclient["fail_early"] = True
     return reclient or None
 
 ################################################################################
@@ -359,6 +373,7 @@ defaults = args.defaults(
     reclient_publish_trace = None,
     reclient_cache_silo = None,
     reclient_ensure_verified = None,
+    reclient_fail_early = None,
 
     # Provide vars for bucket and executable so users don't have to
     # unnecessarily make wrapper functions
@@ -411,6 +426,7 @@ def builder(
         reclient_publish_trace = args.DEFAULT,
         reclient_cache_silo = None,
         reclient_ensure_verified = None,
+        reclient_fail_early = None,
         **kwargs):
     """Define a builder.
 
@@ -567,6 +583,8 @@ def builder(
         reclient_cache_silo: A string indicating a cache siling key to use for
             remote caching.
         reclient_ensure_verified: If True, it verifies build artifacts.
+        reclient_fail_early: If True, build fails when fallbacks exceed a
+            predefined threshold.
         **kwargs: Additional keyword arguments to forward on to `luci.builder`.
 
     Returns:
@@ -702,6 +720,7 @@ def builder(
         publish_trace = reclient_publish_trace,
         cache_silo = reclient_cache_silo,
         ensure_verified = reclient_ensure_verified,
+        fail_early = reclient_fail_early,
     )
     if reclient != None:
         properties["$build/reclient"] = reclient
@@ -730,7 +749,7 @@ def builder(
             by_timestamp = resultdb_index_by_timestamp,
         )
 
-    if builder_spec and builder_spec.execution_mode == ctbc.execution_mode.TEST:
+    if builder_spec and builder_spec.execution_mode == builder_config.execution_mode.TEST:
         if triggered_by != args.DEFAULT:
             fail("triggered testers cannot specify triggered_by")
         triggered_by = [builder_spec.parent]
@@ -762,10 +781,7 @@ def builder(
 
     register_builder_config(bucket, name, builder_group, builder_spec, mirrors)
 
-    # Add a bootstrap node for the builder so the _bootstrap_properties
-    # generator can determine which builders are being bootstrapped
-    if executable in _BOOTSTRAPPABLE_RECIPES:
-        graph.add_node(_bootstrap_key(bucket, name), props = {"bootstrap": bootstrap})
+    register_bootstrap(bucket, name, bootstrap, executable)
 
     builder_name = "{}/{}".format(bucket, name)
 
@@ -817,100 +833,6 @@ def builder(
             )
 
     return builder
-
-# A recipe can (but doesn't have to) be marked as bootstrappable if the
-# following conditions are true:
-# * chromium_bootstrap.update_gclient_config is called to update the gclient
-#   config that is used for bot_update.
-# * If the recipe does analysis to reduce compilation/testing, it skips analysis
-#   and performs a full build if chromium_bootstrap.skip_analysis_reasons is
-#   non-empty.
-_BOOTSTRAPPABLE_RECIPES = [
-    "recipe:chromium",
-    "recipe:chromium/orchestrator",
-    "recipe:chromium_trybot",
-]
-
-_NON_BOOTSTRAPPED_PROPERTIES = [
-    # Sheriff-o-Matic queries for builder_group in the input properties to find
-    # builds for the main sheriff rotation. Bootstrapped properties don't appear
-    # in the build's input properties, so don't bootstrap this property.
-    # TODO(gbeaty) When finalized input properties are exported to BQ, remove
-    # this.
-    "builder_group",
-    "sheriff_rotations",
-]
-
-def _bootstrap_key(bucket_name, builder_name):
-    return graph.key("@chromium", "", "bootstrap", "{}/{}".format(bucket_name, builder_name))
-
-def _bootstrap_properties(ctx):
-    """Update builder properties for bootstrapping.
-
-    For builders whose recipe supports bootstrapping, their properties will be
-    written out to a separate file. This is done even if the builder is not
-    being bootstrapped so that the properties file will exist already when it is
-    flipped to being bootstrapped.
-
-    For builders that have opted in to bootstrapping, this file will be read at
-    build-time and update the build's properties with the contents of the file.
-    The builder's properties within the buildbucket configuration will be
-    modified with the properties that control the bootstrapper itself.
-
-    The builders that have opted in to bootstrapping is determined by examining
-    the lucicfg graph to find a bootstrap node for a given builder. These nodes
-    will be added by the builder function. This is done rather than writing out
-    the properties file in the builder function so that the bootstrapped
-    properties have any final modifications that luci.builder would perform
-    (merging module-level defaults, setting global defaults, etc.).
-    """
-    cfg = None
-    for f in ctx.output:
-        if f.startswith("luci/cr-buildbucket"):
-            cfg = ctx.output[f]
-            break
-    if cfg == None:
-        fail("There is no buildbucket configuration file to reformat properties")
-
-    for bucket in cfg.buckets:
-        bucket_name = bucket.name
-        for builder in bucket.swarming.builders:
-            builder_name = builder.name
-            bootstrap_node = graph.node(_bootstrap_key(bucket_name, builder_name))
-            if not bootstrap_node:
-                continue
-
-            bootstrap = bootstrap_node.props.bootstrap
-
-            properties_file = "builders/{}/{}/properties.textpb".format(bucket_name, builder_name)
-            non_bootstrapped_properties = {
-                "$bootstrap": {
-                    "top_level_project": {
-                        "repo": {
-                            "host": "chromium.googlesource.com",
-                            "project": "chromium/src",
-                        },
-                        "ref": settings.ref,
-                    },
-                    "properties_file": "infra/config/generated/{}".format(properties_file),
-                    "exe": builder.exe,
-                },
-                "led_builder_is_bootstrapped": True,
-            }
-            builder_properties = json.decode(builder.properties)
-            for p in _NON_BOOTSTRAPPED_PROPERTIES:
-                if p in builder_properties:
-                    non_bootstrapped_properties[p] = builder_properties.pop(p)
-            ctx.output[properties_file] = json.indent(json.encode(builder_properties), indent = "  ")
-
-            if bootstrap:
-                builder.properties = json.encode(non_bootstrapped_properties)
-
-                builder.exe.cipd_package = "infra/chromium/bootstrapper/${platform}"
-                builder.exe.cipd_version = "latest"
-                builder.exe.cmd = ["bootstrapper"]
-
-lucicfg.generator(_bootstrap_properties)
 
 builders = struct(
     builder = builder,

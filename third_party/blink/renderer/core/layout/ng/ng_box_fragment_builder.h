@@ -196,24 +196,30 @@ class CORE_EXPORT NGBoxFragmentBuilder final
                            absl::optional<NGBreakAppeal> appeal,
                            bool is_forced_break);
 
-  // Add a layout result. This involves appending the fragment and its relative
-  // offset to the builder, but also keeping track of out-of-flow positioned
-  // descendants, propagating fragmentainer breaks, and more. In some cases,
-  // such as grid, the relative offset may need to be computed ahead of time.
-  // If so, a |relative_offset| will be passed in. Otherwise, the relative
-  // offset will be calculated as normal.
-  void AddResult(const NGLayoutResult&,
-                 const LogicalOffset,
-                 absl::optional<LogicalOffset> relative_offset = absl::nullopt,
-                 bool propagate_oof_descendants = true);
+  // Add a layout result and propagate info from it. This involves appending the
+  // fragment and its relative offset to the builder, but also keeping track of
+  // out-of-flow positioned descendants, propagating fragmentainer breaks, and
+  // more. In some cases, such as grid, the relative offset may need to be
+  // computed ahead of time. If so, a |relative_offset| will be passed
+  // in. Otherwise, the relative offset will be calculated as normal.
+  // |inline_container| is passed when adding an OOF that is contained by a
+  // non-atomic inline.
+  void AddResult(
+      const NGLayoutResult&,
+      const LogicalOffset,
+      absl::optional<LogicalOffset> relative_offset = absl::nullopt,
+      const NGInlineContainer<LogicalOffset>* inline_container = nullptr);
 
+  // Add a child fragment and propagate info from it. Called by AddResult().
+  // Other callers should call AddResult() instead of this when possible, since
+  // there is information in the layout result that might need to be propagated.
   void AddChild(
       const NGPhysicalFragment&,
       const LogicalOffset&,
-      const NGInlineContainer<LogicalOffset>* inline_container = nullptr,
       const NGMarginStrut* margin_strut = nullptr,
       bool is_self_collapsing = false,
       absl::optional<LogicalOffset> relative_offset = absl::nullopt,
+      const NGInlineContainer<LogicalOffset>* inline_container = nullptr,
       absl::optional<LayoutUnit> adjustment_for_oof_propagation = LayoutUnit());
 
   // Manually add a break token to the builder. Note that we're assuming that
@@ -368,6 +374,10 @@ class CORE_EXPORT NGBoxFragmentBuilder final
   void SetIsAtBlockEnd() { is_at_block_end_ = true; }
   bool IsAtBlockEnd() const { return is_at_block_end_; }
 
+  void SetDisableOOFDescendantsPropagation() {
+    disable_oof_descendants_propagation_ = true;
+  }
+
   // See |NGPhysicalBoxFragment::InflowBounds|.
   void SetInflowBounds(const LogicalRect& inflow_bounds) {
     DCHECK_NE(box_type_, NGPhysicalBoxFragment::NGBoxType::kInlineBox);
@@ -518,13 +528,24 @@ class CORE_EXPORT NGBoxFragmentBuilder final
     table_cell_column_index_ = table_cell_column_index;
   }
 
-  void TransferGridData(std::unique_ptr<NGGridData> grid_data) {
-    grid_data_ = std::move(grid_data);
+  void TransferGridLayoutData(
+      std::unique_ptr<NGGridLayoutData> grid_layout_data) {
+    grid_layout_data_ = std::move(grid_layout_data);
   }
 
-  const NGGridData& GetNGGridData() const {
-    DCHECK(grid_data_);
-    return *grid_data_.get();
+  const NGGridLayoutData& GridLayoutData() const {
+    DCHECK(grid_layout_data_);
+    return *grid_layout_data_.get();
+  }
+
+  void SetFlexBreakTokenData(
+      std::unique_ptr<const NGFlexBreakTokenData> flex_break_token_data) {
+    flex_break_token_data_ = std::move(flex_break_token_data);
+  }
+
+  void SetGridBreakTokenData(
+      std::unique_ptr<const NGGridBreakTokenData> grid_break_token_data) {
+    grid_break_token_data_ = std::move(grid_break_token_data);
   }
 
   // The |NGFragmentItemsBuilder| for the inline formatting context of this box.
@@ -571,8 +592,10 @@ class CORE_EXPORT NGBoxFragmentBuilder final
       LayoutUnit fragmentainer_consumed_block_size = LayoutUnit()) const;
 
  private:
-  // Update whether we have fragmented in this flow.
-  void PropagateBreak(const NGLayoutResult&);
+  // Propagate fragmentation details. This includes checking whether we have
+  // fragmented in this flow, break appeal, column spanner detection, and column
+  // balancing hints.
+  void PropagateBreakInfo(const NGLayoutResult&, LogicalOffset);
 
   void SetHasForcedBreak() {
     has_forced_break_ = true;
@@ -605,6 +628,7 @@ class CORE_EXPORT NGBoxFragmentBuilder final
   bool is_math_fraction_ = false;
   bool is_math_operator_ = false;
   bool is_at_block_end_ = false;
+  bool disable_oof_descendants_propagation_ = false;
   LayoutUnit consumed_block_size_;
   LayoutUnit consumed_block_size_legacy_adjustment_;
   LayoutUnit block_offset_for_additional_columns_;
@@ -612,6 +636,7 @@ class CORE_EXPORT NGBoxFragmentBuilder final
 
   LayoutUnit minimal_space_shortage_ = LayoutUnit::Max();
   LayoutUnit tallest_unbreakable_block_size_ = LayoutUnit::Min();
+  LayoutUnit block_size_for_fragmentation_;
 
   // The break-before value on the initial child we cannot honor. There's no
   // valid class A break point before a first child, only *between* siblings.
@@ -638,8 +663,12 @@ class CORE_EXPORT NGBoxFragmentBuilder final
   // Table cell specific types.
   absl::optional<wtf_size_t> table_cell_column_index_;
 
+  // Flex specific types.
+  std::unique_ptr<const NGFlexBreakTokenData> flex_break_token_data_;
+
   // Grid specific types.
-  std::unique_ptr<NGGridData> grid_data_;
+  std::unique_ptr<NGGridLayoutData> grid_layout_data_;
+  std::unique_ptr<const NGGridBreakTokenData> grid_break_token_data_;
 
   LogicalBoxSides sides_to_include_;
 

@@ -12,10 +12,10 @@
 #include "base/feature_list.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/task/sequenced_task_runner_forward.h"
+#include "base/task/sequenced_task_runner.h"
 #include "components/reporting/client/report_queue.h"
 #include "components/reporting/client/report_queue_configuration.h"
-#include "components/reporting/proto/record_constants.pb.h"
+#include "components/reporting/proto/synced/record_constants.pb.h"
 #include "components/reporting/storage/storage_module_interface.h"
 #include "components/reporting/util/shared_queue.h"
 #include "components/reporting/util/status.h"
@@ -95,6 +95,12 @@ class ReportQueueProvider {
       base::OnceCallback<void(StatusOr<scoped_refptr<StorageModuleInterface>>)>;
   using StorageModuleCreateCallback =
       base::RepeatingCallback<void(OnStorageModuleCreatedCallback)>;
+
+  // Callback triggered with updated report queue config after it has been
+  // configured with appropriate DM tokens after it is retrieved. Typically,
+  // this is when we go ahead and create the report queue.
+  using ReportQueueConfiguredCallback = base::OnceCallback<void(
+      StatusOr<std::unique_ptr<ReportQueueConfiguration>>)>;
 
   explicit ReportQueueProvider(StorageModuleCreateCallback storage_create_cb);
   ReportQueueProvider(const ReportQueueProvider& other) = delete;
@@ -207,6 +213,14 @@ class ReportQueueProvider {
                               CreateReportQueueCallback cb);
   virtual StatusOr<std::unique_ptr<ReportQueue, base::OnTaskRunnerDeleter>>
   CreateNewSpeculativeQueue();
+
+  // Configures a given report queue config with appropriate DM tokens after its
+  // retrieval so it can be used for downstream processing while building a
+  // report queue, and triggers the corresponding completion callback with the
+  // updated config.
+  virtual void ConfigureReportQueue(
+      std::unique_ptr<ReportQueueConfiguration> report_queue_config,
+      ReportQueueConfiguredCallback completion_cb) = 0;
 
   void OnPushComplete();
   void OnInitState(bool provider_configured);

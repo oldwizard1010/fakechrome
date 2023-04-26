@@ -12,7 +12,6 @@
 #include <memory>
 #include <vector>
 
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/timer/timer.h"
@@ -33,6 +32,10 @@ class CONTENT_EXPORT BrowserGpuChannelHostFactory
   static void Initialize(bool establish_gpu_channel);
   static void Terminate();
   static BrowserGpuChannelHostFactory* instance() { return instance_; }
+
+  BrowserGpuChannelHostFactory(const BrowserGpuChannelHostFactory&) = delete;
+  BrowserGpuChannelHostFactory& operator=(const BrowserGpuChannelHostFactory&) =
+      delete;
 
   gpu::GpuChannelHost* GetGpuChannel();
   int GetGpuChannelId() { return gpu_client_id_; }
@@ -84,8 +87,6 @@ class CONTENT_EXPORT BrowserGpuChannelHostFactory
   base::OneShotTimer timeout_;
 
   static BrowserGpuChannelHostFactory* instance_;
-
-  DISALLOW_COPY_AND_ASSIGN(BrowserGpuChannelHostFactory);
 };
 
 }  // namespace content

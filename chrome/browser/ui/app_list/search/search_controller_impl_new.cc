@@ -13,7 +13,6 @@
 #include "ash/public/cpp/app_list/app_list_types.h"
 #include "ash/public/cpp/tablet_mode.h"
 #include "base/bind.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/metrics/metrics_hashes.h"
 #include "base/sequence_token.h"
 #include "base/strings/strcat.h"
@@ -30,6 +29,7 @@
 #include "chrome/browser/ui/app_list/search/ranking/category_usage_ranker.h"
 #include "chrome/browser/ui/app_list/search/ranking/filtering_ranker.h"
 #include "chrome/browser/ui/app_list/search/ranking/ranker_delegate.h"
+#include "chrome/browser/ui/app_list/search/ranking/removed_results_ranker.h"
 #include "chrome/browser/ui/app_list/search/ranking/score_normalizing_ranker.h"
 #include "chrome/browser/ui/app_list/search/ranking/top_match_ranker.h"
 #include "chrome/browser/ui/app_list/search/ranking/util.h"
@@ -45,13 +45,6 @@
 #include "content/public/browser/browser_thread.h"
 
 namespace app_list {
-
-namespace {
-
-constexpr char kLauncherSearchQueryLengthJumped[] =
-    "Apps.LauncherSearchQueryLengthJumped";
-
-}  // namespace
 
 SearchControllerImplNew::SearchControllerImplNew(
     AppListModelUpdater* model_updater,
@@ -75,6 +68,7 @@ void SearchControllerImplNew::InitializeRankers() {
   ranker_->AddRanker(std::make_unique<CategoryUsageRanker>(profile_));
   ranker_->AddRanker(std::make_unique<TopMatchRanker>());
   ranker_->AddRanker(std::make_unique<FilteringRanker>());
+  ranker_->AddRanker(std::make_unique<RemovedResultsRanker>(profile_));
 }
 
 void SearchControllerImplNew::Start(const std::u16string& query) {
@@ -83,13 +77,6 @@ void SearchControllerImplNew::Start(const std::u16string& query) {
   // TODO(crbug.com/1199206): We should move this histogram logic somewhere
   // else.
   ash::RecordLauncherIssuedSearchQueryLength(query.length());
-  if (query.length() > 0) {
-    const int length_diff = query.length() >= last_query_.length()
-                                ? query.length() - last_query_.length()
-                                : last_query_.length() - query.length();
-
-    UMA_HISTOGRAM_BOOLEAN(kLauncherSearchQueryLengthJumped, length_diff > 1);
-  }
 
   last_query_ = query;
   results_.clear();
@@ -97,7 +84,7 @@ void SearchControllerImplNew::Start(const std::u16string& query) {
   for (Observer& observer : observer_list_)
     observer.OnResultsCleared();
 
-  ranker_->Start(query);
+  ranker_->Start(query, results_, categories_);
   for (const auto& provider : providers_)
     provider->Start(query);
 }
@@ -127,11 +114,25 @@ void SearchControllerImplNew::OpenResult(ChromeSearchResult* result,
   }
 }
 
-void SearchControllerImplNew::InvokeResultAction(ChromeSearchResult* result,
-                                                 int action_index) {
+void SearchControllerImplNew::InvokeResultAction(
+    ChromeSearchResult* result,
+    ash::SearchResultActionType action) {
   if (!result)
     return;
-  result->InvokeAction(action_index);
+
+  // In the special case, actions are delegated to the result itself. This is
+  // when, for example, actions are handled by a provider backend, as is the
+  // case with Omnibox results.
+  //
+  // In the general case, actions are forwarded to the RemovedResultsRanker.
+  // Currently only "remove" actions are supported (and not e.g. "append"
+  // actions).
+  if (RemovedResultsRanker::ShouldDelegateToResult(result->result_type())) {
+    result->InvokeAction(action);
+  } else if (action == ash::SearchResultActionType::kRemove) {
+    // All other result removals are handled by the ranking system.
+    ranker_->Remove(result);
+  }
 }
 
 size_t SearchControllerImplNew::AddGroup(size_t max_results) {

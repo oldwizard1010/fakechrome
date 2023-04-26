@@ -16,6 +16,9 @@
 
 #include "ash/components/audio/cras_audio_handler.h"
 #include "ash/components/geolocation/simple_geolocation_provider.h"
+#include "ash/components/settings/cros_settings_names.h"
+#include "ash/components/settings/cros_settings_provider.h"
+#include "ash/components/settings/timezone_settings.h"
 #include "ash/components/timezone/timezone_provider.h"
 #include "ash/components/timezone/timezone_request.h"
 #include "ash/constants/ash_features.h"
@@ -27,7 +30,6 @@
 #include "base/json/json_string_value_serializer.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
 #include "base/strings/utf_string_conversions.h"
@@ -180,9 +182,6 @@
 #include "chromeos/network/network_state_handler.h"
 #include "chromeos/network/portal_detector/network_portal_detector.h"
 #include "chromeos/services/rollback_network_config/public/mojom/rollback_network_config.mojom.h"
-#include "chromeos/settings/cros_settings_names.h"
-#include "chromeos/settings/cros_settings_provider.h"
-#include "chromeos/settings/timezone_settings.h"
 #include "components/arc/arc_prefs.h"
 #include "components/arc/arc_util.h"
 #include "components/arc/session/arc_bridge_service.h"
@@ -241,6 +240,7 @@ const StaticOobeScreenId kResumablePostLoginScreens[] = {
     chromeos::PinSetupScreenView::kScreenId,
     chromeos::MarketingOptInScreenView::kScreenId,
     chromeos::MultiDeviceSetupScreenView::kScreenId,
+    chromeos::ConsolidatedConsentScreenView::kScreenId,
 };
 
 const StaticOobeScreenId kScreensWithHiddenStatusArea[] = {
@@ -301,8 +301,6 @@ constexpr const Entry kLegacyUmaOobeScreenNames[] = {
     {chromeos::ArcTermsOfServiceScreenView::kScreenId, "arc_tos"},
     {chromeos::EnrollmentScreenView::kScreenId, "enroll"},
     {chromeos::WelcomeView::kScreenId, "network"},
-    {OobeScreen::SCREEN_CREATE_SUPERVISED_USER_FLOW_DEPRECATED,
-     "supervised-user-creation-flow"},
     {chromeos::TermsOfServiceScreenView::kScreenId, "tos"}};
 
 void RecordUMAHistogramForOOBEStepShownStatus(
@@ -1185,10 +1183,6 @@ void WizardController::SkipToLoginForTesting() {
   OnDeviceDisabledChecked(false /* device_disabled */);
 }
 
-void WizardController::EndOnboardingAfterToS() {
-  wizard_context_->end_onboarding_after_tos = true;
-}
-
 void WizardController::OnScreenExit(OobeScreenId screen,
                                     const std::string& exit_reason) {
   VLOG(1) << "Wizard screen " << screen
@@ -1409,6 +1403,11 @@ void WizardController::OnEnrollmentScreenExit(EnrollmentScreen::Result result) {
       wizard_context_->tpm_owned_error = true;
       AdvanceToScreen(TpmErrorView::kScreenId);
       break;
+    case EnrollmentScreen::Result::TPM_DBUS_ERROR:
+      DCHECK(switches::IsTpmDynamic());
+      wizard_context_->tpm_dbus_error = true;
+      AdvanceToScreen(TpmErrorView::kScreenId);
+      break;
   }
 }
 
@@ -1547,11 +1546,12 @@ void WizardController::OnTermsOfServiceScreenExit(
   switch (result) {
     case TermsOfServiceScreen::Result::ACCEPTED:
     case TermsOfServiceScreen::Result::NOT_APPLICABLE:
-      if (wizard_context_->end_onboarding_after_tos) {
+      if (wizard_context_->screen_after_managed_tos ==
+          OobeScreen::SCREEN_UNKNOWN) {
         OnOobeFlowFinished();
         return;
       }
-      ShowFamilyLinkNoticeScreen();
+      AdvanceToScreen(wizard_context_->screen_after_managed_tos);
       break;
     case TermsOfServiceScreen::Result::DECLINED:
       // End the session and return to the login screen.
@@ -1905,15 +1905,20 @@ void WizardController::SetCurrentScreen(BaseScreen* new_current) {
   screen_show_times_[new_current->screen_id()] = base::TimeTicks::Now();
 
   // First remember how far have we reached so that we can resume if needed.
-  if (is_out_of_box_ && !demo_setup_controller_ &&
-      IsResumableOobeScreen(current_screen_->screen_id())) {
-    StartupUtils::SaveOobePendingScreen(current_screen_->screen_id().name);
-  } else if (!demo_setup_controller_ &&
-             IsResumablePostLoginScreen(current_screen_->screen_id())) {
-    user_manager::KnownUser(GetLocalState())
-        .SetPendingOnboardingScreen(
-            user_manager::UserManager::Get()->GetActiveUser()->GetAccountId(),
-            current_screen_->screen_id().name);
+  if (!demo_setup_controller_) {
+    if (is_out_of_box_ && IsResumableOobeScreen(current_screen_->screen_id())) {
+      StartupUtils::SaveOobePendingScreen(current_screen_->screen_id().name);
+    } else if (IsResumablePostLoginScreen(current_screen_->screen_id()) &&
+               wizard_context_->screen_after_managed_tos !=
+                   OobeScreen::SCREEN_UNKNOWN) {
+      // If screen_after_managed_tos == SCREEN_UNKNOWN means that the onboarding
+      // has already been finished by the user and we don't need to save the
+      // state here.
+      user_manager::KnownUser(GetLocalState())
+          .SetPendingOnboardingScreen(
+              user_manager::UserManager::Get()->GetActiveUser()->GetAccountId(),
+              current_screen_->screen_id().name);
+    }
   }
 
   UpdateStatusAreaVisibilityForScreen(current_screen_->screen_id());
@@ -2064,6 +2069,8 @@ void WizardController::AdvanceToScreen(OobeScreenId screen_id) {
     ShowLacrosDataMigrationScreen();
   } else if (screen_id == GuestTosScreenView::kScreenId) {
     ShowGuestTosScreen();
+  } else if (screen_id == ConsolidatedConsentScreenView::kScreenId) {
+    ShowConsolidatedConsentScreen();
   } else if (screen_id == TpmErrorView::kScreenId ||
              screen_id == GaiaPasswordChangedView::kScreenId ||
              screen_id == ActiveDirectoryPasswordChangeView::kScreenId ||
